@@ -56,6 +56,8 @@ jobs:
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+          test -x /usr/lib/postgresql/17/bin/pg_dump
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
           if ! command -v aws >/dev/null; then sudo apt-get install -y awscli; fi
       - name: Start isolated PostgreSQL and RustFS services
         run: docker compose --env-file .env.example -f deploy/compose.yaml up -d postgres object-store
@@ -70,6 +72,7 @@ jobs:
           BACKUP_RESTORE_TEST_CONFIRM: I_UNDERSTAND_THIS_USES_DISPOSABLE_LOCAL_TARGETS
         run: |
           set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
           ready=false
           for attempt in $(seq 1 60); do
             if pg_isready -h 127.0.0.1 -p 5432 -U xju_lab -d xju_lab >/dev/null 2>&1 \
