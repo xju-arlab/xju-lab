@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="UTF-8"><title>工位导出留白检查</title>
+<style>body{margin:24px;font:14px system-ui;background:#eee}button,a{margin-right:16px}img{display:block;max-width:900px;width:100%;height:auto;margin-top:20px}#source{position:absolute;left:-10000px;width:1400px}pre{white-space:pre-wrap}</style>
+<h1>工位导出留白检查</h1>
+<button id="normal">检查当前确认布局</button><button id="outside">检查移到墙外的工位</button>
+<pre id="result" role="status">准备中</pre><a id="svg-link">SVG</a><a id="png-link">PNG</a><img id="preview" alt="实际导出的工位 PNG"><div id="source"></div>
+<script type="module">
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
+import { FloorPlan } from '/src/features/seats/FloorPlan.tsx'
+import { defaultLayout } from '/src/features/seats/layout.ts'
+import { initialSeats } from '/src/demo.ts'
+import { readAssignments } from '/src/features/seats/members.ts'
+import { createFloorPlanExport } from '/src/features/seats/export.ts'
+const root = createRoot(document.querySelector('#source'))
+const dataUrl = blob => new Promise(resolve => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsDataURL(blob) })
+async function check(outside) {
+  const status = document.querySelector('#result')
+  status.textContent = '生成中'
+  try {
+    const layout = structuredClone(defaultLayout)
+    if (outside) Object.assign(layout.desks[0], { x: -30, y: -10, facing: 'left' })
+    flushSync(() => root.render(React.createElement(FloorPlan, { layout, seats: readAssignments(initialSeats), selectedId:'A01', matches:new Set(['A01']), showAssignments:true, onSelect(){} })))
+    const source = document.querySelector('#source svg')
+    const vector = await createFloorPlanExport(source, 'svg'), raster = await createFloorPlanExport(source, 'png')
+    const text = await vector.blob.text(), xml = new DOMParser().parseFromString(text, 'image/svg+xml').documentElement
+    const image = document.querySelector('#preview'); image.src = await dataUrl(raster.blob); await image.decode()
+    const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d'); context.drawImage(image,0,0)
+    const {data,width,height} = context.getImageData(0,0,canvas.width,canvas.height)
+    let left=width,top=height,right=-1,bottom=-1,transparent=0
+    for(let y=0;y<height;y++) for(let x=0;x<width;x++) {
+      const i=(y*width+x)*4
+      if(data[i+3] !== 255) transparent++
+      if(Math.max(Math.abs(data[i]-250),Math.abs(data[i+1]-251),Math.abs(data[i+2]-248))>3) { left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y) }
+    }
+    const padding = [left,top,width-right-1,height-bottom-1]
+    const passed = Math.max(...padding)-Math.min(...padding)<=1 && transparent===0 && !xml.querySelector('.desk-focus,[data-editor-only]') && [...xml.querySelectorAll('[data-seat-id]')].every(e=>e.getAttribute('opacity')==='1')
+    document.querySelector('#svg-link').href=await dataUrl(vector.blob); document.querySelector('#svg-link').download='工位等距留白.svg'
+    document.querySelector('#png-link').href=image.src; document.querySelector('#png-link').download='工位等距留白.png'
+    status.textContent=JSON.stringify({passed,scenario:outside?'家具超出墙体':'确认布局',png:{width,height},svg:{width:vector.width,height:vector.height,viewBox:xml.getAttribute('viewBox')},padding:{left,top,right:width-right-1,bottom:height-bottom-1},transparentPixels:transparent},null,2)
+  } catch(e) { status.textContent = 'FAIL: '+e.message }
+}
+document.querySelector('#normal').onclick=()=>check(false)
+document.querySelector('#outside').onclick=()=>check(true)
+check(false)
+</script></html>

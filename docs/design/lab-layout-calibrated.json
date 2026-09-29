@@ -1,0 +1,364 @@
+{
+  "version": 4,
+  "updatedAt": "2026-09-29T18:20:45.961Z",
+  "canvas": {
+    "width": 1400,
+    "height": 1060
+  },
+  "orientation": {
+    "door": "upper-left",
+    "window": "right"
+  },
+  "desks": [
+    {
+      "id": "A01",
+      "x": 402,
+      "y": 145,
+      "facing": "up",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 1"
+    },
+    {
+      "id": "A02",
+      "x": 543,
+      "y": 144,
+      "facing": "up",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 1"
+    },
+    {
+      "id": "A03",
+      "x": 686,
+      "y": 144,
+      "facing": "up",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 1"
+    },
+    {
+      "id": "A04",
+      "x": 831,
+      "y": 144,
+      "facing": "up",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 1"
+    },
+    {
+      "id": "A05",
+      "x": 975,
+      "y": 143,
+      "facing": "up",
+      "kind": "printer",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 1"
+    },
+    {
+      "id": "B01",
+      "x": 372,
+      "y": 324,
+      "facing": "down",
+      "kind": "seat",
+      "width": 171.6,
+      "depth": 66,
+      "zone": "排 2"
+    },
+    {
+      "id": "B02",
+      "x": 553,
+      "y": 324,
+      "facing": "down",
+      "kind": "seat",
+      "width": 171.6,
+      "depth": 66,
+      "zone": "排 2"
+    },
+    {
+      "id": "B03",
+      "x": 728,
+      "y": 324,
+      "facing": "down",
+      "kind": "seat",
+      "width": 171.6,
+      "depth": 66,
+      "zone": "排 2"
+    },
+    {
+      "id": "C01",
+      "x": 372,
+      "y": 402,
+      "facing": "up",
+      "kind": "seat",
+      "width": 171.6,
+      "depth": 66,
+      "zone": "排 3"
+    },
+    {
+      "id": "C02",
+      "x": 553,
+      "y": 400,
+      "facing": "up",
+      "kind": "seat",
+      "width": 171.6,
+      "depth": 66,
+      "zone": "排 3"
+    },
+    {
+      "id": "C03",
+      "x": 733,
+      "y": 404,
+      "facing": "up",
+      "kind": "seat",
+      "width": 171.6,
+      "depth": 66,
+      "zone": "排 3"
+    },
+    {
+      "id": "D01",
+      "x": 308,
+      "y": 616,
+      "facing": "down",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 4"
+    },
+    {
+      "id": "D02",
+      "x": 444,
+      "y": 610,
+      "facing": "down",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 4"
+    },
+    {
+      "id": "D03",
+      "x": 582,
+      "y": 613,
+      "facing": "down",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 4"
+    },
+    {
+      "id": "D04",
+      "x": 716,
+      "y": 609,
+      "facing": "down",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 4"
+    },
+    {
+      "id": "E01",
+      "x": 312,
+      "y": 687,
+      "facing": "up",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 5"
+    },
+    {
+      "id": "E02",
+      "x": 447,
+      "y": 691,
+      "facing": "up",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 5"
+    },
+    {
+      "id": "E03",
+      "x": 578,
+      "y": 689,
+      "facing": "up",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 5"
+    },
+    {
+      "id": "E04",
+      "x": 721,
+      "y": 684,
+      "facing": "up",
+      "kind": "seat",
+      "width": 125.4,
+      "depth": 66,
+      "zone": "排 5"
+    },
+    {
+      "id": "F01",
+      "x": 207,
+      "y": 893,
+      "facing": "down",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 6"
+    },
+    {
+      "id": "F02",
+      "x": 349,
+      "y": 892,
+      "facing": "down",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 6"
+    },
+    {
+      "id": "F03",
+      "x": 493,
+      "y": 899,
+      "facing": "down",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 6"
+    },
+    {
+      "id": "F04",
+      "x": 636,
+      "y": 897,
+      "facing": "down",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 6"
+    },
+    {
+      "id": "F05",
+      "x": 775,
+      "y": 893,
+      "facing": "down",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 6"
+    },
+    {
+      "id": "F06",
+      "x": 918,
+      "y": 895,
+      "facing": "down",
+      "kind": "seat",
+      "width": 132,
+      "depth": 66,
+      "zone": "排 6"
+    },
+    {
+      "id": "G01",
+      "x": 1004,
+      "y": 253,
+      "facing": "right",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "窗侧纵排"
+    },
+    {
+      "id": "G02",
+      "x": 1002,
+      "y": 384,
+      "facing": "right",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "窗侧纵排"
+    },
+    {
+      "id": "G03",
+      "x": 1003,
+      "y": 510,
+      "facing": "right",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "窗侧纵排"
+    },
+    {
+      "id": "G04",
+      "x": 1005,
+      "y": 636,
+      "facing": "right",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "窗侧纵排"
+    },
+    {
+      "id": "G05",
+      "x": 1000,
+      "y": 760,
+      "facing": "right",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "窗侧纵排"
+    },
+    {
+      "id": "H01",
+      "x": 133,
+      "y": 511,
+      "facing": "left",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "门侧纵排"
+    },
+    {
+      "id": "H02",
+      "x": 132,
+      "y": 720,
+      "facing": "left",
+      "kind": "seat",
+      "width": 108,
+      "depth": 66,
+      "zone": "门侧纵排"
+    },
+    {
+      "id": "I01",
+      "x": 825,
+      "y": 646,
+      "facing": "left",
+      "kind": "recreation",
+      "width": 146,
+      "depth": 66,
+      "zone": "娱乐区"
+    }
+  ],
+  "room": {
+    "left": 90,
+    "top": 90,
+    "right": 1054,
+    "bottom": 938,
+    "notchWidth": 73,
+    "notchHeight": 341,
+    "doorOffset": 64,
+    "doorWidth": 93,
+    "windowOffset": 110,
+    "windowLength": 640,
+    "doorWall": "notch",
+    "doorSide": "left",
+    "doorUpperClosed": true,
+    "toolX": 183,
+    "toolY": 112,
+    "toolWidth": 140,
+    "toolHeight": 66
+  },
+  "notes": "第二轮标定：按第一轮位置对齐；B/C 桌面加长；左上角凸入墙体及门窗可调整。坐标为示意单位。 B/C 为普通桌长的 130%，D/E 为 95%；I01 为无椅娱乐桌，初始纵向长度与 D/E 两排总高度一致。"
+}

@@ -1,0 +1,36 @@
+node_modules/
+dist/
+target/
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.log
+frontend/playwright-report/
+frontend/test-results/
+
+# Local credentials, private exports and service data
+secrets/
+*.key
+*.p12
+*.pfx
+/backups/
+/exports/
+/uploads/
+/deploy/data/
+/printer-agent/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Python agent and local tools
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db

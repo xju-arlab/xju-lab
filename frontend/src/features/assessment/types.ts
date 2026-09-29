@@ -1,0 +1,10 @@
+export type Student = { id: string; number: string; name: string; handle: string; veteran: boolean }
+export type ProblemResult = { accepted: boolean; minutes: number; wrong: number; first?: boolean }
+export type ContestResult = { studentId: string; solved: number; submissions: number; penalty: number; problems: Record<string, ProblemResult> }
+export type Contest = { id: string; title: string; date: string; term: string; problems: string[]; results: ContestResult[] }
+export type ExamKind = 'written' | 'practical'
+export type GradeStatus = 'graded' | 'pending' | 'absent' | 'exempt'
+export type Grade = { studentId: string; status: GradeStatus; score: number | null; parts?: Record<string, number>; note?: string }
+export type Criterion = { id: string; label: string; weight: number }
+export type Exam = { id: string; title: string; date: string; term: string; kind: ExamKind; criteria: Criterion[]; grades: Grade[] }
+export type HistoryScope = 'combined' | 'same-kind'
