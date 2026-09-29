@@ -1,0 +1,31 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  security:
+    oauth2:
+      client:
+        registration:
+          lab:
+            provider: lab
+            client-id: ${OIDC_CLIENT_ID}
+            client-secret: ${OIDC_CLIENT_SECRET}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid,profile,email
+        provider:
+          lab:
+            issuer-uri: ${OIDC_ISSUER_URI}
+  session:
+    redis:
+      flush-mode: on_save
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+lab:
+  files:
+    mode: s3
+  frontend-origin: ${LAB_FRONTEND_ORIGIN}
+  admission-group: ${PRODUCT_ADMISSION_GROUP}

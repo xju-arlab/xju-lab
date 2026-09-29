@@ -5,5 +5,10 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  // API calls will be added here when the independently deployed backend is ready.
+  server: { proxy: {
+    '/api': 'http://127.0.0.1:8080',
+    '/oauth2': 'http://127.0.0.1:8080',
+    '/login': 'http://127.0.0.1:8080',
+    '/logout': 'http://127.0.0.1:8080',
+  } },
 })

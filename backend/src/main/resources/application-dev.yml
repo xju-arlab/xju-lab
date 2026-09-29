@@ -1,0 +1,27 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+  security:
+    oauth2:
+      client:
+        registration:
+          lab:
+            provider: lab
+            client-id: ${OIDC_CLIENT_ID:lab-dev}
+            client-secret: ${OIDC_CLIENT_SECRET:lab-dev-secret}
+            authorization-grant-type: authorization_code
+            redirect-uri: "http://localhost:8080/login/oauth2/code/lab"
+            scope: openid,profile,email
+        provider:
+          lab:
+            issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xju-lab}
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+lab:
+  admission-group: lab-members

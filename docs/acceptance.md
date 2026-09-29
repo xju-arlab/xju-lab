@@ -4,7 +4,19 @@
 
 ## 1. 前端原型验收
 
-此表为回归用例，是否通过以 `progress.md` 的实际证据为准。当前构建、16 项考核测试与工位测试已通过；原型交互有历史浏览器记录，未完成项随 B00–B12 补齐。原型测试不代替服务端或真实外部验收。
+此表为回归用例，是否通过以 `progress.md` 的实际证据为准。当前后端、前端 API 模式与 Agent 已实现；最后一次完整后端运行中 28 项有两条新增断言失败，断言已修正但待重跑。前端本轮 build 通过，assessment/seats 本轮回归测试待重跑。受控虚拟 CUPS 已实际接收打印任务；这不替代真实打印机验收。
+
+## 0. B00–B12 总体验收状态（2026-09-29）
+
+| 范围 | 当前证据 | 仍待完成 |
+|---|---|---|
+| 前端 | API 类型生成、TypeScript 与 Vite build 通过；assessment 17/17；Agent 5 项 Python 单测通过；浏览器错误态如实显示 502 且未回退演示内容 | seats 最新复跑、API 正常登录闭环、375/768/1440 px、键盘/焦点/下载文件复核 |
+| 后端 | PostgreSQL 17.6 / Redis 7.4.3 Testcontainers 启动，6 个迁移成功，S3 RustFS 集成通过；28 项中 2 条新增断言失败后已修正 | 重跑 `./mvnw -B verify` 并记录完整通过结果 |
+| Printer Agent | Python 3.12 单测 5/5；隔离 CUPS + 虚拟 IPP 打印完成且清理临时队列 | 树莓派、实际打印机/驱动、双面/彩色/纸张能力 |
+| 部署与恢复 | Docker Compose config 校验通过；Nginx、环境示例、备份/恢复脚本和运行说明已创建 | 容器化干净环境启动、隔离数据库/对象存储备份恢复演练 |
+| 外部联调 | LabOS 固定用途 OJ connector/outbox 和接口契约已交付 | OJ 端实现/补丁、Authentik、SMTP、生产 S3、Prometheus/exporter、域名/TLS |
+
+全量、本地和外部结果分别记录在 [progress.md](progress.md) 与 [integration-status.md](integration-status.md)。未重跑或未接入项不按通过处理。
 
 | 用例 | 步骤 | 操作 | 预期与证据 |
 |---|---|---|---|
@@ -53,7 +65,7 @@
 
 ## 4. B00–B12 交付追踪
 
-以下全部为待实施验收，不是已通过结果。每包的完整退出条件见[执行计划](plan/06-backend-completion.md)。
+此表列出逐包验收目标；当前状态与实测结果见 [progress.md](progress.md)。每包的完整退出条件见[执行计划](plan/06-backend-completion.md)。
 
 | 包 | 需求 | 必须留下的证据 |
 |---|---|---|

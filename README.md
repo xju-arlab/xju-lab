@@ -2,7 +2,7 @@
 
 面向算法与科研实验室的成员、工位、项目、会议、请假、打印、计算资源和成长考核管理平台，同时提供经审核的公开实验室主页。
 
-**当前状态（2026-09-29）：前端原型已基本成型，后端尚未实现。** 页面使用演示数据；部分修改保存在当前浏览器，尚不具备真实认证、跨设备持久化、邮件、OJ 同步、打印和监控能力。下一阶段按[完整开发计划](docs/plan/06-backend-completion.md)完成正式系统。
+**当前状态：B00–B09、B11 的本地实现已完成；B10 已完成 LabOS 侧连接器，等待 OJ 端接口；B12 正在完成总验收与交付。** 现有前端设计和确认过的业务规则已保留。逐包证据和真实外部待办见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
 
 ## 快速启动
 
@@ -15,7 +15,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-打开 <http://localhost:5173/app/dashboard>。开发服务默认监听 `0.0.0.0:5173`，用于本地原型预览；部署方案将在后端阶段交付。
+`pnpm dev` 明确运行演示模式，打开 <http://localhost:5173/app/dashboard>。后端和 API 模式的本地依赖步骤见[backend/README](backend/README.md)；API 请求失败不会回退到演示数据。
 
 ```bash
 # 在 frontend/ 中执行
@@ -28,28 +28,30 @@ pnpm test:seats
 
 ## 已有功能与接入范围
 
-| 模块 | 前端已有 | 正式系统待完成 |
+| 模块 | 本地实现 | 生产或外部待验证 |
 |---|---|---|
-| 总览、项目、待办、会议 | 页面、搜索、详情及演示交互 | 数据库、资源权限、统一任务、纪要版本 |
-| 工位 | 31 个可坐人工位、确认布局、标定、分配、SVG/PNG 导出 | 真实成员、并发约束、分配历史、跨设备保存 |
-| 请假 | 申请、模拟审批、撤回及时间校验 | 服务端状态机、指定审批人、邮件与审计 |
-| 打印 | PDF 选择、选项和模拟队列 | 私有文件、持久队列、树莓派 Agent、CUPS |
-| 计算资源 | GPU 演示卡片、CPU 服务器待录入占位 | Prometheus 指标、过期状态、告警 |
-| 成长与考核 | ACM / 深度学习双 Tab、两种排行、录分、成员过滤、CSV | OJ 单链接导入、服务端计分、修订和发布 |
-| 设置、资料、展示 | 本地保存的设置/资料及主页原型 | OIDC、角色、公开快照、发布/下架、PWA |
+| 总览、项目、待办、会议 | API 模式、统一任务、项目成员/里程碑、会议行动项 | 真实团队资料和组织策略 |
+| 工位 | 确认布局、版本冲突、服务端分配与历史 | 真实名册导入 |
+| 请假 | 服务端状态机、审批、时区/重叠校验、审计与 outbox | 正式 SMTP 投递 |
+| 文件、打印 | 私有对象存储、持久打印队列、fencing/幂等、Python Agent | 生产对象存储配置、树莓派与实际打印机试打 |
+| 计算资源 | 固定指标 API、缺失/过期状态与告警 | 真实 Prometheus、CPU/GPU exporter |
+| 成长与考核 | 服务端计分/双排行/修订/CSV/发布快照；OJ 单链接任务 | OJ 目标端接口与双系统验证 |
+| 成员、设置、展示 | OIDC 会话/API 模式、角色同步 outbox、显式公开快照、PWA | Authentik 生产配置、双账户验收与公开域名/TLS |
 
 默认实验室名称为“算法与科研实验室”，位置为“信息楼A411”。演示个人资料中的姓名不是管理员身份；后端不得据此授权。
 
 ## 目录与技术方向
 
 ```text
-frontend/   React + TypeScript + Vite；Tailwind + shadcn/Radix
-backend/    Spring Boot 后端预留目录，目前仅 README
-docs/       需求、设计、执行计划、验收和交接记录
-AGENTS.md   开发代理的入口、约束与验证要求
+frontend/       React + TypeScript + Vite；Tailwind + shadcn/Radix
+backend/        Java 21 + Spring Boot 模块化单体
+printer-agent/  Python 出站轮询、SQLite 恢复日志与 CUPS 适配器
+deploy/         Compose、Nginx、Keycloak 开发 realm、Prometheus 配置
+docs/           需求、设计、执行计划、验收和交接记录
+AGENTS.md       开发代理的入口、约束与验证要求
 ```
 
-目标架构为 Spring Boot 模块化单体、PostgreSQL、Redis、私有 S3 兼容存储、Authentik OIDC、Prometheus，以及同仓独立 Python Printer Agent。具体版本及可运行配置在后端 B00 冻结；尚不存在的启动命令不作为当前可用能力。详见[架构](docs/plan/02-architecture.md)。
+运行配置见 [backend/README](backend/README.md) 和 [`deploy/compose.yaml`](deploy/compose.yaml)；全栈 API 见 [`contracts/openapi.yaml`](contracts/openapi.yaml)。在仓库根目录用 `docker compose --env-file .env.example -f deploy/compose.yaml config --quiet` 校验 Compose 文件，用 [scripts/verify.sh](scripts/verify.sh) 执行本地自动检查。生产启动、备份和回退约束见 [docs/operations.md](docs/operations.md)。
 
 ## 接续开发
 

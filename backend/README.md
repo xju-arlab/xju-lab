@@ -1,17 +1,37 @@
-# XJU Lab 后端
+# Backend
 
-当前目录仅有此说明，尚无 Spring Boot 工程、数据库迁移或真实 API。
+Java 21 / Spring Boot 3.5.16 modular monolith. PostgreSQL is the source of truth; Flyway owns schema changes, Redis backs HTTP sessions, and `outbox_event` records external work in the same database transaction. API contracts live in [`../contracts/openapi.yaml`](../contracts/openapi.yaml).
 
-下一步从[完整开发计划 B00](../docs/plan/06-backend-completion.md)开始，连续完成 B00–B12。目标为 Java 21 + Spring Boot 模块化单体、PostgreSQL + MyBatis-Plus + Flyway、Redis 会话、Authentik OIDC、私有 S3 存储与事务 outbox。版本在 B00 依据兼容性验证冻结。
+## Local development
 
-## 实施入口
+From the repository root:
 
-1. [AGENTS.md](../AGENTS.md)：执行、验证、公开仓库与授权边界。
-2. [交接](../docs/HANDOFF.md)：真实起点、环境、单句提示词。
-3. [完整计划](../docs/plan/06-backend-completion.md)：默认值、权限、数据约束和每包退出条件。
-4. [总体架构](../docs/plan/02-architecture.md)、[验收](../docs/acceptance.md)：模块与交付要求。
-5. [考核规则](../docs/design/09-assessment-and-showcase.md)、[OJ 导入/角色同步](../docs/design/11-oj-import-and-admin-sync.md)、[工位](../docs/design/12-seat-layout.md)：必须继承的业务细节。
+```bash
+cp .env.example .env
+docker compose --env-file .env -f deploy/compose.yaml --profile local-idp up -d postgres redis object-store mailpit keycloak
+set -a; . ./.env; set +a
+export OIDC_CLIENT_ID=lab-dev OIDC_CLIENT_SECRET=lab-dev-secret
+export OIDC_ISSUER_URI=http://localhost:8081/realms/xju-lab
+export LAB_FRONTEND_ORIGIN=http://localhost:5173
+export REDIS_PORT=${REDIS_HOST_PORT:-16379}
+cd backend
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+```
 
-先建立可运行工程、契约与一条持久化业务闭环，再逐包扩展。前端已存在，不需要先重做样式。各模块同时完成 API、权限、迁移、前端接入和测试；连接器缺凭据时保留明确状态并继续其他模块。
+The local-only Keycloak realm has three isolated test users. Their passwords are `local-admin-change-me`, `local-member-a-change-me`, and `local-member-b-change-me`; change them before exposing the local test identity provider to another network. The first account has `LAB_ADMIN` only in the `dev` profile. No production profile imports these users or roles.
 
-Maven Wrapper、启动命令、配置变量、数据库初始化和测试命令在工程实际创建并验证后补入本文件，当前不提供不存在的运行命令。
+In another WSL shell, run `cd frontend && pnpm install --frozen-lockfile && pnpm dev` for the explicitly selected demo UI, or `pnpm dev:api` to use the session API. API mode reports service failures and never loads demo data. Visit `http://localhost:5173`.
+
+## Verification
+
+```bash
+./mvnw -B verify
+```
+
+The backend integration suite runs the Flyway migrations against real PostgreSQL and Redis containers through Testcontainers. Docker must be available. The repository CI runs this suite together with the frontend build/regressions and OpenAPI type generation check.
+
+## Production
+
+The `prod` profile requires OIDC issuer/client settings, HTTPS frontend origin, admission group, PostgreSQL, and Redis configuration. It rejects loopback or placeholder OIDC issuers and non-HTTPS frontends, and enables Secure/HttpOnly session cookies. Configure `BOOTSTRAP_ADMIN_ISSUER` and `BOOTSTRAP_ADMIN_SUBJECT` with the exact verified identity; the first matching, admitted login receives the one-time `SUPER_ADMIN` bootstrap and an audit event. Do not enable the local Keycloak profile in production.
+
+Compose volumes are service data, not disposable reset targets. Keep `.env` local, make protected backups, and never run `down -v` against non-test data.

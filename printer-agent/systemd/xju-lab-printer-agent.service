@@ -1,0 +1,26 @@
+[Unit]
+Description=XJU Lab Printer Agent
+After=network-online.target cups.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=printagent
+Group=lp
+WorkingDirectory=/opt/xju-lab/printer-agent
+EnvironmentFile=/etc/xju-lab/printer-agent.env
+ExecStart=/usr/bin/python3 -m printer_agent
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/xju-lab-printer-agent
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

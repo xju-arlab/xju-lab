@@ -1,0 +1,136 @@
+name: xju-lab
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_DB: xju_lab
+      POSTGRES_USER: xju_lab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example and set a local password}
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xju_lab -d xju_lab"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    networks: [private]
+  redis:
+    image: redis:7.4.3-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    ports: ["127.0.0.1:${REDIS_HOST_PORT:-16379}:6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes: ["redis-data:/data"]
+    networks: [private]
+  object-store:
+    image: rustfs/rustfs:1.0.0
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:?set OBJECT_STORE_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:?set OBJECT_STORE_SECRET_KEY}
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_OBS_LOGGER_LEVEL: warn
+    volumes: ["object-data:/data"]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    healthcheck:
+      test: ["CMD", "sh", "-ec", "curl -fsS http://127.0.0.1:9000/health && curl -fsS http://127.0.0.1:9001/rustfs/console/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks: [private]
+  mailpit:
+    image: axllent/mailpit:v1.27.10
+    expose: ["1025"]
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    networks: [private]
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.3
+    profiles: ["local-idp"]
+    command: ["start-dev", "--import-realm", "--http-port=8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: http://localhost:8081
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes: ["./keycloak/xju-lab-realm.json:/opt/keycloak/data/import/xju-lab-realm.json:ro"]
+    ports: ["127.0.0.1:8081:8080"]
+    networks: [private]
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["monitoring"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes: ["./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "prometheus-data:/prometheus"]
+    expose: ["9090"]
+    networks: [private]
+  app:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    profiles: ["app"]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      FILES_MODE: s3
+      DATABASE_URL: jdbc:postgresql://postgres:5432/xju_lab
+      DATABASE_USER: xju_lab
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:?set production OIDC_ISSUER_URI}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set production OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set production OIDC_CLIENT_SECRET}
+      APPROVAL_TOKEN_ENCRYPTION_KEY: ${APPROVAL_TOKEN_ENCRYPTION_KEY:?set APPROVAL_TOKEN_ENCRYPTION_KEY}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://object-store:9000}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set restricted S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set restricted S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-xju-lab-private}
+      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+      LAB_FRONTEND_ORIGIN: ${LAB_FRONTEND_ORIGIN:?set public HTTPS application origin}
+      LAB_TIMEZONE: ${LAB_TIMEZONE:-Asia/Shanghai}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-}
+      PROMETHEUS_BEARER_TOKEN: ${PROMETHEUS_BEARER_TOKEN:-}
+      OJ_PUBLIC_ORIGIN: ${OJ_PUBLIC_ORIGIN:-https://oj.icthub.top}
+      OJ_BASE_URL: ${OJ_BASE_URL:-}
+      OJ_SERVICE_TOKEN: ${OJ_SERVICE_TOKEN:-}
+      SESSION_COOKIE_SECURE: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      object-store: { condition: service_healthy }
+    expose: ["8080"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [private]
+  web:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile.web
+    profiles: ["app"]
+    ports: ["127.0.0.1:18080:8080"]
+    depends_on:
+      app: { condition: service_started }
+    read_only: true
+    tmpfs: ["/var/cache/nginx:size=32m,noexec,nosuid", "/var/run:size=2m,noexec,nosuid", "/tmp:size=8m,noexec,nosuid"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [private]
+volumes:
+  postgres-data: {}
+  redis-data: {}
+  object-data: {}
+  prometheus-data: {}
+networks:
+  private: {}

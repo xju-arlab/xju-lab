@@ -7,6 +7,7 @@ import { SeatsPage as SeatOverview } from './features/seats/SeatsPage'
 import { readAssignments } from './features/seats/members'
 import { AssessmentPage } from './features/assessment/AssessmentPage'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './components/ui/dialog'
+import { ApiModeApp } from './ApiModeApp'
 import { initialJobs, initialLeaves, initialSeats, initialTasks, meetings, projects as seedProjects, servers, type Leave, type PrintJob, type Project, type Seat, type Task } from './demo'
 
 type DemoState = {
@@ -58,7 +59,7 @@ function Modal({ open, onOpenChange, title, description, children }: { open: boo
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field"><span>{label}</span>{children}</label> }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><Search size={24} /><h3>{title}</h3><p>{text}</p></div> }
 
-export default function App() {
+function DemoApp() {
   const [tasks, setTasks] = useState(initialTasks)
   const [seats, setSeats] = useState(() => readAssignments(initialSeats))
   const [leaves, setLeaves] = useState(initialLeaves)
@@ -355,4 +356,8 @@ function ProfilePage() {
     toast('个人资料已保存')
   }
   return <><PageHeading eyebrow="个人资料" title="个人资料" /><div className="panel profile-panel"><div className="profile-cover" /><div className="profile-main"><Avatar name={draft.name || profile.name} /><h2>{draft.name}</h2><p>{draft.direction}</p><div className="inline-row"><Tag>{assignedSeat ? `工位 ${assignedSeat}` : '暂无工位'}</Tag></div><form className="form-stack" onSubmit={saveProfile}><Field label="姓名"><input value={draft.name} onChange={e => setDraft(prev => ({ ...prev, name: e.target.value }))} required maxLength={40} /></Field><Field label="研究方向"><input value={draft.direction} onChange={e => setDraft(prev => ({ ...prev, direction: e.target.value }))} maxLength={80} /></Field><Field label="一句话介绍"><textarea value={draft.introduction} onChange={e => setDraft(prev => ({ ...prev, introduction: e.target.value }))} rows={3} maxLength={240} /></Field><Button type="submit">保存资料</Button></form></div></div></>
+}
+
+export default function App() {
+  return import.meta.env.VITE_APP_MODE === 'demo' ? <DemoApp /> : <ApiModeApp />
 }

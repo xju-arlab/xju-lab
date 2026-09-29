@@ -7,6 +7,13 @@ export const validScore = (value: unknown): value is number => typeof value === 
 export const gradeValue = (grade?: Grade) => grade?.status === 'graded' && validScore(grade.score) ? grade.score : null
 export const blend = (current: number | null, history: number | null) => current === null ? null : history === null ? current : CURRENT_WEIGHT * current + HISTORY_WEIGHT * history
 
+function precedes(a: { date: string; endedAt?: string; startsAt?: string; eventOrder?: number }, b: { date: string; endedAt?: string; startsAt?: string; eventOrder?: number }) {
+  const at = a.endedAt ?? a.startsAt
+  const bt = b.endedAt ?? b.startsAt
+  if (at && bt) return at < bt || (at === bt && (a.eventOrder ?? 0) < (b.eventOrder ?? 0))
+  return a.date < b.date || (a.date === b.date && (a.eventOrder ?? 0) < (b.eventOrder ?? 0))
+}
+
 // A single participant supplies no relative evidence; ties use the mean occupied rank.
 export function rankPoints(midRank: number, count: number): number | null {
   if (!Number.isFinite(midRank) || !Number.isInteger(count) || count < 1 || midRank < 1 || midRank > count) return null
@@ -42,7 +49,10 @@ function rankComposite<T extends { student: Student; composite: number | null }>
 }
 
 export function buildAcmRanking(contests: Contest[], selected: Contest, students: Student[], excludeVeterans: boolean) {
-  const previous = contests.filter(contest => contest.term === selected.term && contest.date < selected.date).sort((a, b) => a.date.localeCompare(b.date))
+  const previous = contests.filter(contest => contest.complete !== false && contest.term === selected.term && precedes(contest, selected)).sort((a, b) => {
+    const at = a.endedAt ?? a.date, bt = b.endedAt ?? b.date
+    return at.localeCompare(bt) || (a.eventOrder ?? 0) - (b.eventOrder ?? 0)
+  })
   const current = new Map(rankContest(selected, students, excludeVeterans).map(result => [result.studentId, result]))
   const pastRanks = previous.map(contest => ({ contest, ranks: new Map(rankContest(contest, students, excludeVeterans).map(result => [result.studentId, result])) }))
   return rankComposite(students.filter(student => !excludeVeterans || !student.veteran).map(student => {
@@ -55,7 +65,10 @@ export function buildAcmRanking(contests: Contest[], selected: Contest, students
 }
 
 export function buildTheoryRanking(exams: Exam[], selected: Exam, students: Student[], scope: HistoryScope) {
-  const previous = exams.filter(exam => exam.term === selected.term && exam.date < selected.date && (scope === 'combined' || exam.kind === selected.kind)).sort((a, b) => a.date.localeCompare(b.date))
+  const previous = exams.filter(exam => exam.term === selected.term && precedes(exam, selected) && (scope === 'combined' || exam.kind === selected.kind)).sort((a, b) => {
+    const at = a.startsAt ?? a.date, bt = b.startsAt ?? b.date
+    return at.localeCompare(bt) || (a.eventOrder ?? 0) - (b.eventOrder ?? 0)
+  })
   const currentRanks = new Map(rankComposite(students.map(student => ({ student, composite: gradeValue(selected.grades.find(grade => grade.studentId === student.id)) }))).map(row => [row.student.id, row.overallRank]))
   return rankComposite(students.map(student => {
     const grade = selected.grades.find(item => item.studentId === student.id)

@@ -5,8 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.17.1",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
-    "build": "tsc --noEmit && vite build",
+    "dev": "vite --mode demo --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:api": "vite --mode api --host 0.0.0.0 --port 5173 --strictPort",
+    "api:types": "openapi-typescript ../contracts/openapi.yaml -o src/api/openapi.d.ts",
+    "build": "pnpm api:types && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:assessment": "node --experimental-strip-types --test tests/assessment.test.ts",
     "test:seats": "node tests/seats.test.mjs",
@@ -25,15 +27,16 @@
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "@types/node": "^22.10.2",
-    "typescript": "~5.6.3",
-    "vite": "8.3.1",
     "@vitejs/plugin-react": "6.1.1",
+    "autoprefixer": "^10.4.20",
+    "openapi-typescript": "7.13.0",
+    "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.6"
+    "typescript": "~5.6.3",
+    "vite": "8.3.1"
   }
 }

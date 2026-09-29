@@ -1,0 +1,14 @@
+FROM node:24.16.0-bookworm-slim AS build
+RUN corepack enable
+WORKDIR /workspace/frontend
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY contracts /workspace/contracts
+COPY frontend/ ./
+RUN pnpm build
+
+FROM nginx:1.27.5-alpine
+COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /workspace/frontend/dist /usr/share/nginx/html
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]

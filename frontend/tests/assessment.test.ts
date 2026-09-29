@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { blend, buildAcmRanking, buildTheoryRanking, gradeValue, rankContest, rankPoints, rubricScore, validScore } from '../src/features/assessment/scoring.ts'
 import type { Contest, Exam, Grade, Student } from '../src/features/assessment/types.ts'
@@ -125,6 +126,29 @@ test('theory current ranking shares ties and includes zero but excludes pending 
   const now = exam('now', '2026-09-19', 'written', 0)
   now.grades.push({ studentId: 'b', score: 0, status: 'graded' }, { studentId: 'v', score: 100, status: 'pending' })
   assert.deepEqual(buildTheoryRanking([now], now, members, 'combined').map(row => row.currentRank), [1, 1, null])
+})
+
+test('frontend matches the shared Java and TypeScript scoring vectors, including same-day order', () => {
+  const vectors = JSON.parse(readFileSync(new URL('../../contracts/assessment-scoring-vectors.json', import.meta.url), 'utf8')) as {
+    rankPoints: { midRank: number; count: number; expected: number | null }[]
+    blend: { current: number | null; history: number | null; expected: number | null }[]
+    acm: { students: Student[]; selectedId: string; excludeVeterans: boolean; contests: { id: string; title: string; termId: string; endedAt: string; eventOrder: number; complete: boolean; results: { studentId: string; solved: number; penalty: number }[] }[]; expected: { studentId: string; currentRank: number | null; currentPoints: number | null; historyAverage: number | null; historyCount: number; historyTotal: number; composite: number | null; overallRank: number | null }[] }
+    theory: { students: Student[]; selectedId: string; exams: { id: string; title: string; termId: string; kind: Exam['kind']; startsAt: string; eventOrder: number; grades: Grade[] }[]; expected: { studentId: string; currentRank: number | null; currentScore: number | null; historyAverage: number | null; historyCount: number; historyTotal: number; composite: number | null; overallRank: number | null }[] }
+  }
+  for (const vector of vectors.rankPoints) assert.equal(rankPoints(vector.midRank, vector.count), vector.expected)
+  for (const vector of vectors.blend) assert.equal(blend(vector.current, vector.history), vector.expected)
+  const contests: Contest[] = vectors.acm.contests.map(contest => ({ id: contest.id, title: contest.title, date: contest.endedAt.slice(0, 10), term: contest.termId, endedAt: contest.endedAt, eventOrder: contest.eventOrder, complete: contest.complete, problems: [], results: contest.results.map(result => ({ ...result, submissions: result.solved, problems: {} })) }))
+  const acm = buildAcmRanking(contests, contests.find(item => item.id === vectors.acm.selectedId)!, vectors.acm.students, vectors.acm.excludeVeterans)
+  for (const expected of vectors.acm.expected) {
+    const actual = acm.find(row => row.student.id === expected.studentId)!
+    assert.deepEqual([actual.current?.rank ?? null, actual.current?.points ?? null, actual.historyAverage, actual.historyCount, actual.historyTotal, actual.composite, actual.overallRank], [expected.currentRank, expected.currentPoints, expected.historyAverage, expected.historyCount, expected.historyTotal, expected.composite, expected.overallRank])
+  }
+  const exams: Exam[] = vectors.theory.exams.map(exam => ({ ...exam, date: exam.startsAt.slice(0, 10), term: exam.termId, criteria: [], grades: exam.grades.map(grade => ({ ...grade, status: grade.status.toLowerCase() as Grade['status'] })) }))
+  const theory = buildTheoryRanking(exams, exams.find(item => item.id === vectors.theory.selectedId)!, vectors.theory.students, 'combined')
+  for (const expected of vectors.theory.expected) {
+    const actual = theory.find(row => row.student.id === expected.studentId)!
+    assert.deepEqual([actual.currentRank, actual.currentScore, actual.historyAverage, actual.historyCount, actual.historyTotal, actual.composite, actual.overallRank], [expected.currentRank, expected.currentScore, expected.historyAverage, expected.historyCount, expected.historyTotal, expected.composite, expected.overallRank])
+  }
 })
 
 test('OJ links identify the full contest independently of a pasted pagination query', () => {

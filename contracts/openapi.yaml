@@ -1,0 +1,775 @@
+openapi: 3.1.0
+info:
+  title: XJU Lab API
+  version: 1.0.0
+  description: Session-authenticated API for the XJU Lab collaboration platform.
+servers:
+  - url: /api/v1
+tags:
+  - name: session
+  - name: members
+  - name: seats
+  - name: projects
+  - name: meetings
+  - name: leaves
+  - name: files
+  - name: notifications
+  - name: overview
+  - name: assessment
+  - name: printer
+  - name: printer-agent
+  - name: monitoring
+  - name: publication
+  - name: integrations
+paths:
+  /health:
+    get:
+      tags: [session]
+      security: []
+      responses:
+        '200': { description: Process is alive }
+  /ready:
+    get:
+      tags: [session]
+      security: []
+      responses:
+        '200': { description: Database is ready }
+  /csrf:
+    get:
+      tags: [session]
+      security: []
+      responses:
+        '200': { description: CSRF token and header name }
+  /logout:
+    post:
+      tags: [session]
+      responses:
+        '204': { description: Session invalidated }
+  /session:
+    get:
+      tags: [session]
+      responses:
+        '200':
+          description: Authenticated member and capabilities
+          content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } }
+        '401': { $ref: '#/components/responses/ApiError' }
+  /members/me:
+    get:
+      tags: [members]
+      responses:
+        '200': { description: Current database member profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '401': { $ref: '#/components/responses/ApiError' }
+    patch:
+      tags: [members]
+      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProfileUpdate' } } } }
+      responses:
+        '200': { description: Updated profile }
+        '409': { $ref: '#/components/responses/ApiError' }
+  /lab/settings:
+    get:
+      tags: [members]
+      responses: { '200': { description: Lab settings } }
+    put:
+      tags: [members]
+      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LabSettings' } } } }
+      responses: { '200': { description: Saved settings }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /members:
+    get:
+      tags: [members]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses: { '200': { description: Authorized member directory, content: { application/json: { schema: { $ref: '#/components/schemas/MemberPage' } } } } }
+  /admin/members:
+    get:
+      tags: [members]
+      responses: { '200': { description: Administrator member directory with role and versioned OJ sync status } }
+  /admin/members/{memberId}/roles/{role}:
+    put:
+      tags: [members]
+      parameters:
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: role, in: path, required: true, schema: { type: string, enum: [TEACHER, LAB_ADMIN, SUPER_ADMIN] } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [granted, version], properties: { granted: { type: boolean }, version: { type: integer } } } } } }
+      responses: { '200': { description: Role changed; SUPER_ADMIN changes queue independent OJ source sync }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /admin/members/{memberId}/status:
+    patch:
+      tags: [members]
+      parameters: [{ name: memberId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [active, version], properties: { active: { type: boolean }, version: { type: integer } } } } } }
+      responses: { '200': { description: Member status changed }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /seats:
+    get:
+      tags: [seats]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 100 } }
+      responses: { '200': { description: Confirmed seats and privacy-filtered assignments, content: { application/json: { schema: { $ref: '#/components/schemas/SeatPage' } } } } }
+  /seats/layout:
+    get:
+      tags: [seats]
+      responses: { '200': { description: Current layout and version } }
+    put:
+      tags: [seats]
+      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: Saved layout }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /seats/{seatId}/assignment:
+    put:
+      tags: [seats]
+      parameters: [{ name: seatId, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [memberId], properties: { memberId: { type: string, format: uuid } } } } } }
+      responses: { '200': { description: Assigned }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+    delete:
+      tags: [seats]
+      parameters: [{ name: seatId, in: path, required: true, schema: { type: string } }]
+      responses: { '204': { description: Released }, '403': { $ref: '#/components/responses/ApiError' } }
+  /projects:
+    get:
+      tags: [projects]
+      responses: { '200': { description: Projects visible to the current member, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectPage' } } } } }
+    post:
+      tags: [projects]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, minLength: 1, maxLength: 160 }, description: { type: string, maxLength: 5000 } } } } } }
+      responses: { '201': { description: Created project, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }, '400': { $ref: '#/components/responses/ApiError' } }
+  /projects/{projectId}/tasks:
+    get:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Authorized project tasks, content: { application/json: { schema: { $ref: '#/components/schemas/TaskPage' } } } }, '404': { $ref: '#/components/responses/ApiError' } }
+    post:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string }, dueDate: { type: string, format: date }, assigneeId: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: Created task, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } } }
+  /projects/{projectId}:
+    patch:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title, status], properties: { title: { type: string, maxLength: 160 }, description: { type: string, maxLength: 5000 }, status: { type: string, enum: [ACTIVE, ARCHIVED] } } } } } }
+      responses: { '200': { description: Versioned project update or archive }, '409': { $ref: '#/components/responses/ApiError' } }
+  /projects/{projectId}/members:
+    get:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Members of a project the caller can access } }
+  /projects/{projectId}/members/{memberId}:
+    put:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }, { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [role], properties: { role: { type: string, enum: [MEMBER] } } } } } }
+      responses: { '200': { description: Project member added }, '404': { $ref: '#/components/responses/ApiError' } }
+    delete:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }, { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '204': { description: Project member removed }, '409': { $ref: '#/components/responses/ApiError' } }
+  /projects/{projectId}/milestones:
+    get:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Project milestones visible to the caller } }
+    post:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, maxLength: 200 }, dueDate: { type: string, format: date, nullable: true } } } } } }
+      responses: { '200': { description: Milestone created }, '404': { $ref: '#/components/responses/ApiError' } }
+  /projects/{projectId}/milestones/{milestoneId}:
+    patch:
+      tags: [projects]
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }, { name: milestoneId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title, completed], properties: { title: { type: string, maxLength: 200 }, dueDate: { type: string, format: date, nullable: true }, completed: { type: boolean } } } } } }
+      responses: { '200': { description: Milestone updated }, '409': { $ref: '#/components/responses/ApiError' } }
+  /tasks/mine:
+    get:
+      tags: [projects]
+      responses: { '200': { description: Tasks assigned to or created by the current member within visible projects, content: { application/json: { schema: { $ref: '#/components/schemas/TaskPage' } } } } }
+  /tasks/{taskId}:
+    patch:
+      tags: [projects]
+      parameters: [{ name: taskId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { title: { type: string }, status: { type: string, enum: [OPEN, IN_PROGRESS, DONE, CANCELED] } } } } } }
+      responses: { '200': { description: Updated task, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }, '409': { $ref: '#/components/responses/ApiError' } }
+  /meetings:
+    get:
+      tags: [meetings]
+      responses: { '200': { description: Meetings visible to current member, content: { application/json: { schema: { $ref: '#/components/schemas/MeetingPage' } } } } }
+    post:
+      tags: [meetings]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [title, startsAt], properties: { title: { type: string }, projectId: { type: string, format: uuid, nullable: true }, startsAt: { type: string, format: date-time }, participants: { type: array, items: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: Created meeting, content: { application/json: { schema: { $ref: '#/components/schemas/Meeting' } } } } }
+  /meetings/{meetingId}/minutes:
+    get:
+      tags: [meetings]
+      parameters: [{ name: meetingId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Latest minutes revision } }
+    put:
+      tags: [meetings]
+      parameters: [{ name: meetingId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string, maxLength: 20000 } } } } } }
+      responses: { '200': { description: Saved minutes revision }, '409': { $ref: '#/components/responses/ApiError' } }
+  /meetings/{meetingId}/actions:
+    post:
+      tags: [meetings]
+      parameters: [{ name: meetingId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string }, description: { type: string }, assigneeId: { type: string, format: uuid }, dueDate: { type: string, format: date } } } } } }
+      responses: { '201': { description: Action item created as the shared task record, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } } }
+  /overview:
+    get:
+      tags: [overview]
+      responses: { '200': { description: Permission-scoped dashboard aggregates, content: { application/json: { schema: { $ref: '#/components/schemas/Overview' } } } } }
+  /leaves:
+    post:
+      tags: [leaves]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [startsAt, endsAt, approverId, reason], properties: { startsAt: { type: string, format: date-time }, endsAt: { type: string, format: date-time }, approverId: { type: string, format: uuid }, reason: { type: string, minLength: 1, maxLength: 1000 } } } } }
+      responses: { '201': { description: Submitted application, content: { application/json: { schema: { $ref: '#/components/schemas/Leave' } } } }, '400': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/mine:
+    get:
+      tags: [leaves]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses: { '200': { description: The current member's applications, content: { application/json: { schema: { $ref: '#/components/schemas/LeavePage' } } } } }
+  /leaves/inbox:
+    get:
+      tags: [leaves]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses: { '200': { description: Applications assigned to the current approver, content: { application/json: { schema: { $ref: '#/components/schemas/LeavePage' } } } } }
+  /leaves/{id}:
+    get:
+      tags: [leaves]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Private application, content: { application/json: { schema: { $ref: '#/components/schemas/Leave' } } } }, '404': { $ref: '#/components/responses/ApiError' } }
+  /leaves/{id}/decision:
+    post:
+      tags: [leaves]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [decision, version], properties: { decision: { type: string, enum: [APPROVED, REJECTED] }, reason: { type: string, maxLength: 1000 }, version: { type: integer, minimum: 1 } } } } } }
+      responses: { '200': { description: Decision saved }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/{id}/withdraw:
+    post:
+      tags: [leaves]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version], properties: { version: { type: integer, minimum: 1 } } } } } }
+      responses: { '200': { description: Withdrawn while pending }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/{id}/transfer:
+    post:
+      tags: [leaves]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [approverId, version, reason], properties: { approverId: { type: string, format: uuid }, version: { type: integer, minimum: 1 }, reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { '200': { description: Transferred with audit event }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/{id}/revoke:
+    post:
+      tags: [leaves]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, reason], properties: { version: { type: integer, minimum: 1 }, reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { '200': { description: Approved leave revoked by an administrator }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/email-action:
+    get:
+      tags: [leaves]
+      parameters: [{ name: token, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 100 } }]
+      responses: { '200': { description: Read-only preview; does not consume the token or approve the application, content: { application/json: { schema: { $ref: '#/components/schemas/EmailApprovalPreview' } } } }, '404': { $ref: '#/components/responses/ApiError' } }
+    post:
+      tags: [leaves]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token, decision], properties: { token: { type: string }, decision: { type: string, enum: [APPROVED, REJECTED] }, reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { '200': { description: Token consumed by the authenticated assigned approver }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /files:
+    post:
+      tags: [files]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Validated private PDF, content: { application/json: { schema: { $ref: '#/components/schemas/FileObject' } } } }, '400': { $ref: '#/components/responses/ApiError' } }
+  /files/{id}/content:
+    get:
+      tags: [files]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: Range, in: header, schema: { type: string, example: 'bytes=0-1023' } }]
+      responses: { '200': { description: Private PDF content }, '206': { description: Single byte range }, '416': { description: Invalid or unsupported byte range }, '404': { $ref: '#/components/responses/ApiError' } }
+  /files/{id}:
+    delete:
+      tags: [files]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '204': { description: File marked for private object cleanup }, '404': { $ref: '#/components/responses/ApiError' } }
+  /notifications:
+    get:
+      tags: [notifications]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses: { '200': { description: Private notifications, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationPage' } } } } }
+  /notifications/{id}/read:
+    put:
+      tags: [notifications]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Notification marked read }, '404': { $ref: '#/components/responses/ApiError' } }
+  /assessment/terms:
+    get:
+      tags: [assessment]
+      responses: { '200': { description: Training terms and active term, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TrainingTerm' } } } } } }
+    post:
+      tags: [assessment]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, startsOn, endsOn], properties: { name: { type: string }, startsOn: { type: string, format: date }, endsOn: { type: string, format: date }, active: { type: boolean } } } } } }
+      responses: { '200': { description: Training term created }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/terms/{termId}/exams:
+    get:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Theory exams for the term } }
+    post:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title, kind, startsAt], properties: { title: { type: string }, kind: { type: string, enum: [WRITTEN, PRACTICAL] }, startsAt: { type: string, format: date-time }, eventOrder: { type: integer }, rubric: { type: array, items: { type: object, required: [id, label, weight], properties: { id: { type: string }, label: { type: string }, weight: { type: number } } } } } } } } }
+      responses: { '200': { description: Theory exam created }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/terms/{termId}/members:
+    get:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }, { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }]
+      responses: { '200': { description: Training-term member roster and veteran flags } }
+    post:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [memberId], properties: { memberId: { type: string, format: uuid }, veteran: { type: boolean } } } } } }
+      responses: { '200': { description: Member added to training term }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/terms/{termId}/members/{memberId}:
+    patch:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [veteran, version], properties: { veteran: { type: boolean }, version: { type: integer } } } } } }
+      responses: { '200': { description: Veteran flag updated }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/exams/{examId}/ranking:
+    get:
+      tags: [assessment]
+      parameters: [{ name: examId, in: path, required: true, schema: { type: string, format: uuid } }, { name: excludeVeterans, in: query, schema: { type: boolean, default: false } }, { name: q, in: query, schema: { type: string } }, { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }, { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }]
+      responses: { '200': { description: Server-calculated current and historical theory ranking } }
+  /assessment/exams/{examId}/grades/{memberId}:
+    put:
+      tags: [assessment]
+      parameters: [{ name: examId, in: path, required: true, schema: { type: string, format: uuid } }, { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status, reason], properties: { status: { type: string }, score: { type: number, nullable: true }, parts: { type: object, additionalProperties: { type: number } }, comment: { type: string }, reason: { type: string } } } } } }
+      responses: { '200': { description: Revisioned grade saved }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/exams/{examId}/publish:
+    post:
+      tags: [assessment]
+      parameters: [{ name: examId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      responses: { '200': { description: Theory ranking snapshot published }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/exams/{examId}/published:
+    get:
+      tags: [assessment]
+      parameters: [{ name: examId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Published ranking snapshots visible to the caller } }
+  /assessment/terms/{termId}/contests:
+    get:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Imported OJ contest snapshots for the term } }
+  /assessment/terms/{termId}/contests/{snapshotId}/ranking:
+    get:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: snapshotId, in: path, required: true, schema: { type: string, format: uuid } }, { name: excludeVeterans, in: query, schema: { type: boolean, default: false } }, { name: q, in: query, schema: { type: string } }, { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }, { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }]
+      responses: { '200': { description: Server-calculated ACM ranking } }
+  /assessment/terms/{termId}/contests/{snapshotId}/ranking.csv:
+    get:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: snapshotId, in: path, required: true, schema: { type: string, format: uuid } }, { name: excludeVeterans, in: query, schema: { type: boolean, default: false } }]
+      responses: { '200': { description: UTF-8 BOM CSV with spreadsheet formula injection protection, content: { text/csv: { schema: { type: string, format: binary } } } } }
+  /assessment/terms/{termId}/contests/{snapshotId}/publish:
+    post:
+      tags: [assessment]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: snapshotId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      responses: { '200': { description: ACM ranking snapshot published }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/acm/imports:
+    post:
+      tags: [assessment, integrations]
+      parameters: [{ name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 100 } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [sourceUrl], properties: { sourceUrl: { type: string, format: uri } } } } } }
+      responses: { '202': { description: Full contest import accepted as an asynchronous job }, '400': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /assessment/acm/imports/{importId}:
+    get:
+      tags: [assessment, integrations]
+      parameters: [{ name: importId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Import state and safe result summary }, '404': { $ref: '#/components/responses/ApiError' } }
+  /admin/members/{memberId}/oj-role-sync:
+    get:
+      tags: [members, integrations]
+      parameters: [{ name: memberId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Versioned external OJ role synchronization status } }
+  /admin/members/{memberId}/oj-role-sync/retry:
+    post:
+      tags: [members, integrations]
+      parameters: [{ name: memberId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Latest desired role synchronization requeued }, '403': { $ref: '#/components/responses/ApiError' } }
+  /printers:
+    get:
+      tags: [printer]
+      responses: { '200': { description: Authorized printers, observed agent state and known capabilities } }
+  /print/jobs:
+    get:
+      tags: [printer]
+      parameters: [{ name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }, { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }]
+      responses: { '200': { description: Caller-owned print jobs } }
+    post:
+      tags: [printer]
+      parameters: [{ name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 160 } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [printerId, fileId, copies, sides, color], properties: { printerId: { type: string, format: uuid }, fileId: { type: string, format: uuid }, pages: { type: string }, copies: { type: integer }, sides: { type: string, enum: [SIMPLEX, DUPLEX_LONG_EDGE, DUPLEX_SHORT_EDGE] }, color: { type: string, enum: [MONOCHROME, COLOR] } } } } } }
+      responses: { '201': { description: Durable job queued }, '409': { $ref: '#/components/responses/ApiError' } }
+  /print/jobs/{jobId}:
+    get:
+      tags: [printer]
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Caller-owned print job }, '404': { $ref: '#/components/responses/ApiError' } }
+  /print/jobs/{jobId}/events:
+    get:
+      tags: [printer]
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Print job state history } }
+  /print/jobs/{jobId}/cancel:
+    post:
+      tags: [printer]
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      responses: { '200': { description: Cancel request or terminal queue state }, '409': { $ref: '#/components/responses/ApiError' } }
+  /admin/printers:
+    get:
+      tags: [printer]
+      responses: { '200': { description: All printer records including disabled devices, for administrators }, '403': { $ref: '#/components/responses/ApiError' } }
+    post:
+      tags: [printer]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 120 }, location: { type: string, maxLength: 160 } } } } } }
+      responses: { '200': { description: Printer created and plaintext agent token shown exactly once } }
+  /admin/printers/{printerId}/rotate-agent-token:
+    post:
+      tags: [printer]
+      parameters: [{ name: printerId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Previous agent token revoked; replacement shown exactly once } }
+  /admin/printers/{printerId}/enabled:
+    patch:
+      tags: [printer]
+      parameters: [{ name: printerId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } } }
+      responses: { '200': { description: Printer enabled state updated } }
+  /monitor/assets:
+    get:
+      tags: [monitoring]
+      responses: { '200': { description: Registered monitoring targets } }
+  /monitor/assets/{assetId}/metrics:
+    get:
+      tags: [monitoring]
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Fixed-query metrics with explicit unavailable, stale, unsupported and exporter states } }
+  /monitor/assets/{assetId}/series:
+    get:
+      tags: [monitoring]
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }, { name: metric, in: query, required: true, schema: { type: string, enum: [CPU, MEMORY, DISK, LOAD, GPU] } }, { name: range, in: query, schema: { type: string, enum: [1h, 6h, 24h], default: 1h } }]
+      responses: { '200': { description: Fixed-query historical series }, '400': { $ref: '#/components/responses/ApiError' } }
+  /monitor/alerts:
+    get:
+      tags: [monitoring]
+      responses: { '200': { description: Deduplicated alert state changes and recoveries } }
+  /monitor/admin/assets:
+    post:
+      tags: [monitoring]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 120 }, prometheusJob: { type: string, nullable: true }, targetLabel: { type: string, nullable: true }, gpuSupported: { type: boolean } } } } } }
+      responses: { '200': { description: Server asset registered with fixed Prometheus target labels } }
+  /monitor/admin/assets/{assetId}:
+    patch:
+      tags: [monitoring]
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }, { name: If-Match-Version, in: header, required: true, schema: { type: integer, minimum: 1 } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, gpuSupported, enabled], properties: { name: { type: string, maxLength: 120 }, prometheusJob: { type: string, nullable: true }, targetLabel: { type: string, nullable: true }, gpuSupported: { type: boolean }, enabled: { type: boolean } } } } } }
+      responses: { '200': { description: Server asset updated }, '409': { $ref: '#/components/responses/ApiError' } }
+  /public/snapshot:
+    get:
+      tags: [publication]
+      security: []
+      responses: { '200': { description: Anonymous, explicitly published redacted snapshot only } }
+  /admin/public/draft:
+    get:
+      tags: [publication]
+      responses: { '200': { description: Private administrator draft } }
+    put:
+      tags: [publication]
+      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PublishPublicContent' } } } }
+      responses: { '200': { description: Versioned private draft saved }, '409': { $ref: '#/components/responses/ApiError' } }
+  /admin/public/snapshot:
+    post:
+      tags: [publication]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PublishPublicContent' } } } }
+      responses: { '200': { description: New explicitly published redacted snapshot } }
+  /admin/public/snapshot/withdraw:
+    post:
+      tags: [publication]
+      responses: { '200': { description: Latest public snapshot withdrawn }, '404': { $ref: '#/components/responses/ApiError' } }
+  /printer-agent/poll:
+    post:
+      tags: [printer-agent]
+      security: [{ printerAgentToken: [] }]
+      responses: { '200': { description: Fenced job lease and cancellation requests } }
+  /printer-agent/jobs/{jobId}/content:
+    get:
+      tags: [printer-agent]
+      security: [{ printerAgentToken: [] }]
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }, { name: fencingToken, in: query, required: true, schema: { type: integer, minimum: 1 } }]
+      responses: { '200': { description: Lease-authorized private PDF with size and SHA-256 verification }, '404': { $ref: '#/components/responses/ApiError' } }
+  /printer-agent/jobs/{jobId}:
+    get:
+      tags: [printer-agent]
+      security: [{ printerAgentToken: [] }]
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }, { name: fencingToken, in: query, required: true, schema: { type: integer, minimum: 1 } }]
+      responses: { '200': { description: Current lease state and version } }
+  /printer-agent/jobs/{jobId}/status:
+    post:
+      tags: [printer-agent]
+      security: [{ printerAgentToken: [] }]
+      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [state, fencingToken, version], properties: { state: { type: string }, fencingToken: { type: integer }, version: { type: integer }, detail: { type: object, additionalProperties: true } } } } } }
+      responses: { '200': { description: Versioned state accepted }, '409': { $ref: '#/components/responses/ApiError' } }
+  /printer-agent/heartbeat:
+    post:
+      tags: [printer-agent]
+      security: [{ printerAgentToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [agentVersion, deviceState, tonerSupported, capabilities], properties: { agentVersion: { type: string }, deviceState: { type: string }, tonerSupported: { type: boolean }, tonerPercent: { type: integer, nullable: true }, capabilities: { type: object, additionalProperties: true } } } } } }
+      responses: { '200': { description: Sanitized device heartbeat saved } }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+    printerAgentToken:
+      type: http
+      scheme: bearer
+  parameters:
+    IfMatchVersion:
+      name: If-Match-Version
+      in: header
+      required: true
+      schema: { type: integer, minimum: 1 }
+  schemas:
+    TrainingTerm:
+      type: object
+      required: [id, name, startsOn, endsOn, active, version]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        startsOn: { type: string, format: date }
+        endsOn: { type: string, format: date }
+        active: { type: boolean }
+        version: { type: integer }
+    PublishPublicContent:
+      type: object
+      required: [labName]
+      properties:
+        labName: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        projects:
+          type: array
+          maxItems: 12
+          items:
+            type: object
+            required: [title]
+            properties:
+              title: { type: string, maxLength: 120 }
+              summary: { type: string, maxLength: 500 }
+    Session:
+      type: object
+      required: [authenticated, memberId, displayName, roles, issuer]
+      properties:
+        authenticated: { type: boolean, const: true }
+        memberId: { type: string, format: uuid }
+        displayName: { type: string }
+        roles: { type: array, items: { type: string } }
+        issuer: { type: string, format: uri }
+    Profile:
+      type: object
+      required: [id, displayName, version]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        direction: { type: string, nullable: true }
+        introduction: { type: string, nullable: true }
+        version: { type: integer }
+    Project:
+      type: object
+      required: [id, title, description, status, leadId, version]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        status: { type: string }
+        leadId: { type: string, format: uuid }
+        version: { type: integer }
+        updatedAt: { type: string, format: date-time }
+    Task:
+      type: object
+      required: [id, title, status, version]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        description: { type: string }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        createdBy: { type: string, format: uuid }
+        dueDate: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, DONE, CANCELED] }
+        version: { type: integer }
+    Meeting:
+      type: object
+      required: [id, title, startsAt, createdBy, version]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        startsAt: { type: string, format: date-time }
+        createdBy: { type: string, format: uuid }
+        version: { type: integer }
+    Leave:
+      type: object
+      required: [id, memberId, memberName, approverId, approverName, startsAt, endsAt, reason, status, version]
+      properties:
+        id: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        memberName: { type: string }
+        approverId: { type: string, format: uuid }
+        approverName: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        reason: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, WITHDRAWN, REVOKED] }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+    EmailApprovalPreview:
+      type: object
+      required: [applicationId, memberId, memberName, startsAt, endsAt, reason, status, version]
+      properties:
+        applicationId: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        memberName: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        reason: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        version: { type: integer }
+    FileObject:
+      type: object
+      required: [id, name, byteSize, pageCount, sha256]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        byteSize: { type: integer, format: int64 }
+        pageCount: { type: integer }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+    Notification:
+      type: object
+      required: [id, kind, payload, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        payload: { type: object, additionalProperties: true }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Seat:
+      type: object
+      required: [id, kind, layoutItem, onLeaveNow]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [seat, printer, facility] }
+        layoutItem: { type: object }
+        memberId: { type: string, format: uuid, nullable: true }
+        displayName: { type: string, nullable: true }
+        direction: { type: string, nullable: true }
+        cohort: { type: integer, nullable: true }
+        onLeaveNow: { type: boolean, description: Current approved leave overlaps the present instant }
+    Overview:
+      type: object
+      required: [activeProjects, openTasks, upcomingMeetings, pendingLeaves]
+      properties:
+        activeProjects: { type: integer }
+        openTasks: { type: integer }
+        upcomingMeetings: { type: integer }
+        pendingLeaves: { type: integer }
+        assignedSeat: { type: string, nullable: true }
+    ProjectPage: { $ref: '#/components/schemas/PageEnvelopeProject' }
+    TaskPage: { $ref: '#/components/schemas/PageEnvelopeTask' }
+    MeetingPage: { $ref: '#/components/schemas/PageEnvelopeMeeting' }
+    SeatPage: { $ref: '#/components/schemas/PageEnvelopeSeat' }
+    LeavePage: { $ref: '#/components/schemas/PageEnvelopeLeave' }
+    NotificationPage: { $ref: '#/components/schemas/PageEnvelopeNotification' }
+    MemberPage:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties:
+            items: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string }, direction: { type: string, nullable: true }, cohort: { type: integer, nullable: true }, studentNumber: { type: string, nullable: true }, contact: { type: string, nullable: true }, version: { type: integer } } } }
+    PageEnvelopeBase:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items: { type: array, items: { type: object } }
+        total: { type: integer, format: int64 }
+        page: { type: integer }
+        pageSize: { type: integer }
+    PageEnvelopeProject:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/Project' } } }
+    PageEnvelopeTask:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/Task' } } }
+    PageEnvelopeMeeting:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/Meeting' } } }
+    PageEnvelopeSeat:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/Seat' } } }
+    PageEnvelopeLeave:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/Leave' } } }
+    PageEnvelopeNotification:
+      allOf:
+        - $ref: '#/components/schemas/PageEnvelopeBase'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/Notification' } } }
+    ProfileUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        direction: { type: string, maxLength: 160 }
+        introduction: { type: string, maxLength: 1000 }
+    LabSettings:
+      type: object
+      required: [name, location, timezone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        location: { type: string, minLength: 1, maxLength: 160 }
+        timezone: { type: string }
+        description: { type: string, maxLength: 2000 }
+        mailEnabled: { type: boolean }
+        tonerAlertEnabled: { type: boolean }
+  responses:
+    ApiError:
+      description: Consistent request error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message, requestId]
+            properties:
+              code: { type: string }
+              message: { type: string }
+              requestId: { type: string }
+              fieldErrors: { type: object, additionalProperties: { type: string } }
+security:
+  - sessionCookie: []

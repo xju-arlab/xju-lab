@@ -5,6 +5,7 @@ target/
 .env.*
 !.env.example
 !.env.*.example
+!frontend/.env.demo
 *.log
 frontend/playwright-report/
 frontend/test-results/

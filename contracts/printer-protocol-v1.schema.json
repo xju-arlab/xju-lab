@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xju-arlab.github.io/xju-lab/contracts/printer-protocol-v1.schema.json",
+  "title": "XJU Lab Printer Agent Protocol v1",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/pollResponse" },
+    { "$ref": "#/$defs/statusUpdate" },
+    { "$ref": "#/$defs/heartbeat" }
+  ],
+  "$defs": {
+    "pollResponse": {
+      "type": "object",
+      "required": ["job", "cancelRequests", "serverTime"],
+      "properties": {
+        "job": { "oneOf": [{ "$ref": "#/$defs/leasedJob" }, { "type": "null" }] },
+        "cancelRequests": { "type": "array", "items": { "type": "object", "required": ["jobId", "fencingToken"], "properties": { "jobId": { "type": "string", "format": "uuid" }, "fencingToken": { "type": "integer", "minimum": 1 } } } },
+        "serverTime": { "type": "string", "format": "date-time" }
+      }
+    },
+    "leasedJob": {
+      "type": "object",
+      "required": ["jobId", "version", "fencingToken", "leaseUntil", "contentUrl", "sha256", "byteSize", "pageCount", "options"],
+      "properties": {
+        "jobId": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "fencingToken": { "type": "integer", "minimum": 1 },
+        "leaseUntil": { "type": "string", "format": "date-time" },
+        "contentUrl": { "type": "string", "format": "uri-reference" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "pageCount": { "type": "integer", "minimum": 1 },
+        "options": { "type": "object", "required": ["pages", "copies", "sides", "color", "estimatedSheets"], "additionalProperties": false }
+      }
+    },
+    "statusUpdate": {
+      "type": "object",
+      "required": ["state", "fencingToken", "version"],
+      "properties": {
+        "state": { "enum": ["SUBMITTING", "SUBMITTED", "COMPLETED", "FAILED", "CANCELED", "UNKNOWN"] },
+        "fencingToken": { "type": "integer", "minimum": 1 },
+        "version": { "type": "integer", "minimum": 1 },
+        "detail": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+    "heartbeat": {
+      "type": "object",
+      "required": ["agentVersion", "deviceState", "capabilities"],
+      "properties": {
+        "agentVersion": { "type": "string", "maxLength": 80 },
+        "deviceState": { "enum": ["READY", "BUSY", "PAPER_OUT", "JAMMED", "ERROR", "UNKNOWN"] },
+        "tonerSupported": { "type": "boolean" },
+        "tonerPercent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "capabilities": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "algorithmVersion": "xju-ranking-v1",
+  "rankPoints": [
+    { "name": "top-of-20", "midRank": 1, "count": 20, "expected": 100 },
+    { "name": "bottom-of-20", "midRank": 20, "count": 20, "expected": 0 },
+    { "name": "singleton-neutral", "midRank": 1, "count": 1, "expected": 50 },
+    { "name": "no-participants", "midRank": 1, "count": 0, "expected": null }
+  ],
+  "blend": [
+    { "name": "weighted-history", "current": 90, "history": 80, "expected": 87.5 },
+    { "name": "first-appearance", "current": 90, "history": null, "expected": 90 },
+    { "name": "missing-current", "current": null, "history": 80, "expected": null }
+  ],
+  "acm": {
+    "students": [
+      { "id": "a", "number": "01", "name": "A", "veteran": false },
+      { "id": "b", "number": "02", "name": "B", "veteran": false },
+      { "id": "v", "number": "03", "name": "Veteran", "veteran": true }
+    ],
+    "selectedId": "current",
+    "excludeVeterans": true,
+    "contests": [
+      { "id": "same-day-before", "title": "Earlier event", "termId": "term-1", "endedAt": "2026-09-19T10:00:00Z", "eventOrder": 1, "complete": true, "results": [{ "studentId": "a", "solved": 2, "penalty": 10 }, { "studentId": "b", "solved": 1, "penalty": 20 }, { "studentId": "v", "solved": 9, "penalty": 1 }] },
+      { "id": "current", "title": "Selected event", "termId": "term-1", "endedAt": "2026-09-19T10:00:00Z", "eventOrder": 2, "complete": true, "results": [{ "studentId": "b", "solved": 10, "penalty": 10 }, { "studentId": "a", "solved": 8, "penalty": 30 }, { "studentId": "v", "solved": 12, "penalty": 1 }] },
+      { "id": "same-day-after", "title": "Later event", "termId": "term-1", "endedAt": "2026-09-19T10:00:00Z", "eventOrder": 3, "complete": true, "results": [{ "studentId": "a", "solved": 10, "penalty": 1 }, { "studentId": "b", "solved": 0, "penalty": 100 }] },
+      { "id": "other-term", "title": "Different term", "termId": "term-2", "endedAt": "2026-09-18T10:00:00Z", "eventOrder": 1, "complete": true, "results": [{ "studentId": "a", "solved": 0, "penalty": 1 }] }
+    ],
+    "expected": [
+      { "studentId": "a", "currentRank": 2, "currentPoints": 0, "historyAverage": 100, "historyCount": 1, "historyTotal": 1, "composite": 25, "overallRank": 2 },
+      { "studentId": "b", "currentRank": 1, "currentPoints": 100, "historyAverage": 0, "historyCount": 1, "historyTotal": 1, "composite": 75, "overallRank": 1 }
+    ]
+  },
+  "theory": {
+    "students": [
+      { "id": "a", "number": "01", "name": "A", "veteran": false },
+      { "id": "b", "number": "02", "name": "B", "veteran": false },
+      { "id": "v", "number": "03", "name": "Veteran", "veteran": false }
+    ],
+    "selectedId": "exam-current",
+    "exams": [
+      { "id": "exam-past", "title": "Practical", "termId": "term-1", "kind": "PRACTICAL", "startsAt": "2026-09-12T10:00:00Z", "eventOrder": 1, "grades": [{ "studentId": "a", "status": "GRADED", "score": 80 }, { "studentId": "b", "status": "GRADED", "score": 0 }, { "studentId": "v", "status": "ABSENT", "score": null }] },
+      { "id": "exam-current", "title": "Written", "termId": "term-1", "kind": "WRITTEN", "startsAt": "2026-09-19T10:00:00Z", "eventOrder": 1, "grades": [{ "studentId": "a", "status": "GRADED", "score": 100 }, { "studentId": "b", "status": "GRADED", "score": 90 }, { "studentId": "v", "status": "PENDING", "score": null }] },
+      { "id": "exam-future", "title": "Future", "termId": "term-1", "kind": "PRACTICAL", "startsAt": "2026-09-19T10:00:00Z", "eventOrder": 2, "grades": [{ "studentId": "a", "status": "GRADED", "score": 0 }] },
+      { "id": "exam-other-term", "title": "Other", "termId": "term-2", "kind": "WRITTEN", "startsAt": "2026-09-10T10:00:00Z", "eventOrder": 1, "grades": [{ "studentId": "a", "status": "GRADED", "score": 0 }] }
+    ],
+    "expected": [
+      { "studentId": "a", "currentRank": 1, "currentScore": 100, "historyAverage": 80, "historyCount": 1, "historyTotal": 1, "composite": 95, "overallRank": 1 },
+      { "studentId": "b", "currentRank": 2, "currentScore": 90, "historyAverage": 0, "historyCount": 1, "historyTotal": 1, "composite": 67.5, "overallRank": 2 },
+      { "studentId": "v", "currentRank": null, "currentScore": null, "historyAverage": null, "historyCount": 0, "historyTotal": 1, "composite": null, "overallRank": null }
+    ]
+  }
+}
