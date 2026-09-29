@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-29。本轮已连续实施 B00–B12 的本地交付。剩余工作是重跑修正后的后端全套测试、完成恢复演练/前端最终矩阵，并依据真实外部缺项安排联调；当前没有生产发布。
+> 2026-09-29。本轮连续完成 B00–B12 本地实现，最新 GitHub Actions 全部通过。剩余是隔离数据库/对象存储恢复演练、生产/外部联调与最终交互式响应矩阵；当前没有生产发布。
 
 ## 新对话提示词
 
@@ -18,7 +18,7 @@
 - `backend/` 是 Java 21 / Spring Boot 模块化单体；PostgreSQL/Flyway、Redis 会话、OIDC、权限、审计/outbox、各业务模块和 OpenAPI 契约均已创建。
 - `printer-agent/` 包含独立 Python Agent、SQLite journal、CUPS/IPP 适配器和 systemd 服务文件。Agent 5 项 unittest 通过；隔离虚拟 CUPS/IPP 已收到测试 PDF。
 - `deploy/`、GitHub Actions、Compose、Nginx、开发 Keycloak realm、Prometheus 模板、备份/恢复脚本和运维说明已加入。
-- 最新前端 `pnpm build` 通过（1651 模块）；assessment/seats 回归需要恢复 Linux 命令后完整复跑。后端全量 `./mvnw -B verify` 上次 28 项中两条新增断言未通过，断言已修正但待重跑，不能记录为全通过。
+- 最新 GitHub Actions [CI](https://github.com/xju-arlab/xju-lab/actions/runs/36646167259) 通过前端 build、assessment/seats、后端 28 项测试、6 个 Flyway 迁移、Python Agent 5 项单测及 Compose 配置检查；本机 `pnpm build` 与 assessment 17/17、Agent 5/5 也通过。
 - OJ 目标接口、生产 Authentik/SMTP/S3/Prometheus、真实成员名单、实机打印、域名/TLS、生产备份恢复与上线均未验证。详见 [`integration-status.md`](integration-status.md)。
 
 ## 必须保留
@@ -47,7 +47,7 @@ pnpm test:assessment
 pnpm test:seats
 ```
 
-从最先未通过的验证继续，不重做已经实施的 B00–B12：先运行 `scripts/verify.sh`，修复并重跑 `backend/` 的 `./mvnw -B verify`；随后运行 Compose 配置检查和隔离数据库/测试 bucket 的备份恢复演练，再完成前端 375/768/1440 px、键盘和下载产物复核。不要执行生产上线；有真实 OJ 接口/身份/邮件/设备时再按集成状态开展对应验收。5173 可能已有开发服务，启动前检查并复用本项目进程。
+从本地灾备演练与外部联调继续，不重做已通过 CI 的 B00–B12：在隔离数据库/测试 bucket 演练备份恢复，再启动 API 完成双账户业务与前端 375/768/1440 px、键盘/下载产物复核。不要执行生产上线；有真实 OJ 接口/身份/邮件/设备时再按集成状态开展对应验收。5173 可能已有开发服务，启动前检查并复用本项目进程。
 
 当前预览路由：`/app/dashboard`、`/app/assessment`、`/app/seats`。服务是否仍运行须现场核实，本文不承诺进程常驻。
 

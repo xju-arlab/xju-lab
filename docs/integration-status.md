@@ -4,7 +4,7 @@
 
 | 系统 | 本仓状态 | 已有本地证据 | 仍需完成 |
 |---|---|---|---|
-| PostgreSQL / Redis | 完成服务配置、Flyway 迁移、会话/业务存储 | 本轮测试启动 PostgreSQL 17.6、Redis 7.4.3；6 个迁移成功。最近 28 项后端用例中两条新断言失败，已修正待全量重跑 | 干净环境启动、最终完整 `./mvnw -B verify`、生产容量和备份恢复 |
+| PostgreSQL / Redis | 完成服务配置、Flyway 迁移、会话/业务存储 | GitHub Actions 对 PostgreSQL 17.6、Redis 7.4.3 和 RustFS 执行 Testcontainers；6 个迁移、28 项后端测试及 Compose 配置检查通过 | 生产容量和备份恢复演练 |
 | 身份提供方 | OIDC 会话、`iss + sub` 映射、角色和本地 Keycloak realm 已实现 | 合成 OIDC principal / MockMvc 权限测试；尚未验证本地 Keycloak 浏览器登录闭环 | 生产 Authentik issuer/client/准入组、首位管理员精确 subject、至少两名真实用户隔离/撤权/CSRF 验收 |
 | 成员名册 | 管理员目录、角色/停用/映射接口和前端页已实现 | 后端目录/权限相关集成用例 | 实际名单、学号/可信账户映射、导师关系的安全导入与人工核验；当前没有真实成员资料 |
 | 私有文件与对象存储 | S3 兼容私有对象接口、服务端文件校验和授权下载已实现 | RustFS 1.0.0 Testcontainers 集成用例通过 | 生产 bucket、TLS、最小权限凭据、生命周期和完整数据库/对象一致性恢复演练 |

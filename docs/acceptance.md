@@ -4,16 +4,16 @@
 
 ## 1. 前端原型验收
 
-此表为回归用例，是否通过以 `progress.md` 的实际证据为准。当前后端、前端 API 模式与 Agent 已实现；最后一次完整后端运行中 28 项有两条新增断言失败，断言已修正但待重跑。前端本轮 build 通过，assessment/seats 本轮回归测试待重跑。受控虚拟 CUPS 已实际接收打印任务；这不替代真实打印机验收。
+此表为回归用例，是否通过以 `progress.md` 的实际证据为准。GitHub Actions 最新运行通过前端 build/assessment/seats、后端 28 项集成与单测、Printer Agent 5 项测试及 Compose 配置检查。受控虚拟 CUPS 已实际接收打印任务；这不替代真实打印机验收。
 
 ## 0. B00–B12 总体验收状态（2026-09-29）
 
 | 范围 | 当前证据 | 仍待完成 |
 |---|---|---|
-| 前端 | API 类型生成、TypeScript 与 Vite build 通过；assessment 17/17；Agent 5 项 Python 单测通过；浏览器错误态如实显示 502 且未回退演示内容 | seats 最新复跑、API 正常登录闭环、375/768/1440 px、键盘/焦点/下载文件复核 |
-| 后端 | PostgreSQL 17.6 / Redis 7.4.3 Testcontainers 启动，6 个迁移成功，S3 RustFS 集成通过；28 项中 2 条新增断言失败后已修正 | 重跑 `./mvnw -B verify` 并记录完整通过结果 |
+| 前端 | CI 中 OpenAPI 类型漂移检查、TypeScript/Vite build、assessment 17 项、seats 测试通过；浏览器错误态如实显示 502 且未回退演示内容 | API 正常登录闭环、375/768/1440 px、键盘/焦点/下载文件复核 |
+| 后端 | CI 中 PostgreSQL 17.6、Redis 7.4.3、RustFS Testcontainers 启动，6 个迁移和 28 项后端测试通过 | 目标环境容量、生产部署与数据恢复验收 |
 | Printer Agent | Python 3.12 单测 5/5；隔离 CUPS + 虚拟 IPP 打印完成且清理临时队列 | 树莓派、实际打印机/驱动、双面/彩色/纸张能力 |
-| 部署与恢复 | Docker Compose config 校验通过；Nginx、环境示例、备份/恢复脚本和运行说明已创建 | 容器化干净环境启动、隔离数据库/对象存储备份恢复演练 |
+| 部署与恢复 | GitHub Actions Docker Compose config 校验通过；Nginx、环境示例、备份/恢复脚本和运行说明已创建 | 容器化干净环境启动、隔离数据库/对象存储备份恢复演练 |
 | 外部联调 | LabOS 固定用途 OJ connector/outbox 和接口契约已交付 | OJ 端实现/补丁、Authentik、SMTP、生产 S3、Prometheus/exporter、域名/TLS |
 
 全量、本地和外部结果分别记录在 [progress.md](progress.md) 与 [integration-status.md](integration-status.md)。未重跑或未接入项不按通过处理。

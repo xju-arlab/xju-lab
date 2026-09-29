@@ -6,16 +6,16 @@
 
 ## 当前状态
 
-本轮已建立后端、前端正式 API 模式、Printer Agent 和部署/CI 基座，并完成大部分本地模块。前端设计与确认的业务规则保留。**仍有真实外部验收缺项：OJ 端新接口、生产身份/邮件/对象存储/监控配置、树莓派实机与生产部署。** 最后一次全量后端运行发现两条新增集成测试断言不匹配；已修正断言，待恢复 Linux 执行环境后重跑。不要据此记录后端全套测试已通过。
+本轮已建立后端、前端正式 API 模式、Printer Agent 和部署/CI 基座，并完成本仓自动化实现。前端设计与确认的业务规则保留。**当前 GitHub Actions 全部通过；生产/外部验收仍有缺项：OJ 端接口、生产身份/邮件/对象存储/监控配置、树莓派实机、备份恢复演练和生产部署。** 当前分支及提交以本文件末尾交付记录为准。
 
 ## 后端与全栈工作包状态
 
 | 包 | 目标 | 状态 |
 |---|---|---|
-| B00 | 工程、契约、数据库和 CI 基座 | 本地实现；全量验收收尾中 |
+| B00 | 工程、契约、数据库和 CI 基座 | 本地实现；GitHub Actions 全量通过 |
 | B01 | OIDC、成员、角色与设置 | 本地实现；生产 IdP/真实名册待验证 |
 | B02 | 工位、布局版本与分配历史 | 本地实现；确认布局保留，真实名册待导入 |
-| B03 | 项目、统一任务、会议与总览 | 本地实现；数据库集成断言修正后待重跑 |
+| B03 | 项目、统一任务、会议与总览 | 本地实现；PostgreSQL 集成测试在 CI 通过 |
 | B04 | 站内请假审批 | 本地实现；生产 SMTP 待验证 |
 | B05 | 私有文件、通知和邮件 | 本地实现；RustFS 测试端已纳入对象存储集成验证，生产 S3/SMTP 待验证 |
 | B06 | 服务端考核与管理 | 本地实现；计分向量/管理、导入和发布实现，OJ 双系统待联调 |
@@ -24,7 +24,7 @@
 | B09 | 服务器监控与告警 | 本地实现；安全固定查询与单测，生产 Prometheus/exporter 待验证 |
 | B10 | OJ 导入与来源角色同步 | LabOS 连接器/outbox 已实现；OJ 端接口缺失，契约已记录，未改相邻仓库 |
 | B11 | 公开展示、PWA、前端收尾 | 本地 API、快照和静态缓存实现；最终浏览器矩阵待复验 |
-| B12 | 全栈验证、运维和交付 | Compose/CI/备份恢复文档与脚本已创建；数据库/对象备份恢复演练、性能基准及生产部署未验证 |
+| B12 | 全栈验证、运维和交付 | GitHub Actions 的前端、后端、Agent、Compose 校验均通过；备份恢复演练、性能基准及生产部署未验证 |
 
 具体范围和退出条件见 [06 计划](plan/06-backend-completion.md)。以下列明本轮实际执行结果与待重跑项；外部待验证项见[集成状态](integration-status.md)。
 
@@ -34,11 +34,10 @@
 - 保留已确认的 31 个可坐人工位布局和方向/年级配色；保留 ACM / 理论双 Tab、老成员逐场过滤重算、单场理论类型互斥与历史 25% / 本次 75% 规则。前后端共用计分向量。
 - 创建独立 Python Agent（SQLite journal、CUPS/IPP、服务端租约与版本回报），Docker Compose / Nginx / 隔离 Keycloak realm、Prometheus 安全固定查询配置、GitHub Actions 和运行/备份说明。
 - 本轮实际验证：前端 `pnpm build`（API 类型生成、TypeScript、Vite，1651 模块）通过；Printer Agent 通过 Python 3.12 `unittest` 5/5。隔离 CUPS 服务器/虚拟 IPP 设备收到一份 PDF，CUPS 状态为 `COMPLETED`，提交后移除了临时队列且确认原有队列仍在。
-- 后端本轮 `./mvnw -B verify` 启动 PostgreSQL 17.6、Redis 7.4.3、RustFS 测试容器，Flyway 六个迁移通过，对象存储集成与多数 API 用例通过；总计 28 项中新增目录字段和未发布快照的两条断言失败。根因为测试把尚未映射的 `accountId` 期待成 `iss+sub`，以及把 `{}` 中缺失的 `projects` 误判为空数组；断言已修正，但该全量命令尚未重跑，因此后端全套验收保持待确认。
-- 前端 `assessment.test.ts` 在 Node 24.21.0 下 17/17 通过；`seats.test.mjs` 依赖 Vite，而当前 Windows 进程不能复用 WSL `node_modules`，因此本轮未跑此项。此前工位测试已通过，最终仍建议在 Linux 上复跑。WSL 命令通道本轮停止响应。CI 已改为不复制环境文件并加入 Agent 单测，CI 远端结果仍待实际运行。
-- `docker compose --env-file .env.example -f deploy/compose.yaml config --quiet` 本轮通过；Windows Docker Desktop engine 不可用，没有启动容器。备份/恢复脚本已创建但尚未执行。
-- 浏览器在 `http://localhost:5173/app/dashboard` 显示统一登录页与明确的请求失败（502）；公开路由展示未发布占位和请求失败提示，没有回退成演示公开数据。此项验证了失败反馈和不泄露未发布内容；没有登录服务、业务 API 与完整页面联调。响应式视口覆盖未能在当前浏览器工具中设置。
-- 后续：恢复 Linux shell 后运行 `scripts/verify.sh`；单独重跑后端 `./mvnw -B verify`；在隔离数据库/测试 bucket 演练备份恢复；完成浏览器 375/768/1440 与键盘/下载产物复核。所有未验证外部条件集中见 `docs/integration-status.md`。
+- 推送后 GitHub Actions [CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36646167259)（HEAD `6a02e5d`）：pnpm install、OpenAPI 类型漂移检查、前端 build、assessment 17 项与 seats 测试；Java 21 后端 `./mvnw -B verify`，PostgreSQL/Redis/RustFS Testcontainers、6 个 Flyway 迁移和 28 项后端测试；Python 3.12 Agent compileall/unittest 5 项；Compose 配置展开检查。
+- 本机前端 build 与 assessment 17/17、Agent 5/5 也通过。Windows Docker Desktop engine 不可用，本机没有启动容器；CI 已提供同提交的完整数据库、Compose 和前端回归验证。
+- 浏览器在 `http://localhost:5173/app/dashboard` 显示统一登录页与明确的请求失败（502）；公开路由展示未发布占位和请求失败提示，没有回退成演示公开数据。此项验证了失败反馈和未发布内容隔离；没有完整登录服务/业务 API 页面联调。响应式视口覆盖未能在当前浏览器工具中设置。
+- 仍待：在隔离数据库/测试 bucket 演练备份恢复；API 服务启动后的双账户业务端到端、375/768/1440 与键盘/下载文件复核；生产身份、OJ、SMTP、S3、Prometheus/exporter、实际打印机和生产部署联调。详见 `docs/integration-status.md`。
 
 ## 前端基线
 
