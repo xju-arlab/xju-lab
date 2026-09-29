@@ -140,10 +140,15 @@ class BaselineIntegrationTest {
         UUID target=member("member-directory-target","SUPER_ADMIN");
         member("member-directory-outsider",null);
         jdbc.update("INSERT INTO external_role_sync(member_id,desired,version,confirmed_version,status) VALUES (?,true,3,2,'RETRYING')",target);
-        mvc.perform(get("/api/v1/admin/members").with(login("member-directory-admin")))
-            .andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id=='"+target+"')].displayName[0]").value("member-directory-target"))
-            .andExpect(jsonPath("$[?(@.id=='"+target+"')].ojSyncStatus[0]").value("RETRYING"))
-            .andExpect(jsonPath("$[?(@.id=='"+target+"')].ojConfirmedVersion[0]").value(2));
+        String directoryJson=mvc.perform(get("/api/v1/admin/members").with(login("member-directory-admin")))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var directoryRows=new com.fasterxml.jackson.databind.ObjectMapper().readTree(directoryJson);
+        com.fasterxml.jackson.databind.JsonNode targetRow=null;
+        for(var row:directoryRows)if(row.path("id").asText().equals(target.toString())){targetRow=row;break;}
+        assertThat(targetRow).isNotNull();
+        assertThat(targetRow.path("displayName").asText()).isEqualTo("member-directory-target");
+        assertThat(targetRow.path("ojSyncStatus").asText()).isEqualTo("RETRYING");
+        assertThat(targetRow.path("ojConfirmedVersion").asInt()).isEqualTo(2);
         mvc.perform(get("/api/v1/admin/members").with(login("member-directory-outsider")))
             .andExpect(status().isForbidden());
         assertThat(jdbc.queryForObject("SELECT id FROM member WHERE id=?",UUID.class,admin)).isEqualTo(admin);
