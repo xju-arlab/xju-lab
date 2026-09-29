@@ -37,3 +37,58 @@ jobs:
         with: { python-version: '3.12' }
       - run: python -m compileall -q printer_agent && python -m unittest discover -s tests -v
         working-directory: printer-agent
+  backup-restore:
+    runs-on: ubuntu-24.04
+    env:
+      COMPOSE_PROJECT_NAME: xju-lab-backup-restore-${{ github.run_id }}-${{ github.run_attempt }}
+      AWS_ACCESS_KEY_ID: local-object-store
+      AWS_SECRET_ACCESS_KEY: local-object-store-password-change-me
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_ENDPOINT_URL: http://127.0.0.1:9000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL 17 client and AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          if ! command -v aws >/dev/null; then sudo apt-get install -y awscli; fi
+      - name: Start isolated PostgreSQL and RustFS services
+        run: docker compose --env-file .env.example -f deploy/compose.yaml up -d postgres object-store
+      - name: Restore a database row and private object into separate targets
+        env:
+          POSTGRES_PASSWORD: local-db-password-change-me
+          DATABASE_URL: postgresql://xju_lab:local-db-password-change-me@127.0.0.1:5432/xju_lab_backup_restore_source
+          RESTORE_DATABASE_URL: postgresql://xju_lab:local-db-password-change-me@127.0.0.1:5432/xju_lab_backup_restore_target
+          S3_BUCKET: xju-lab-restore-source-${{ github.run_id }}-${{ github.run_attempt }}
+          RESTORE_S3_BUCKET: xju-lab-restore-target-${{ github.run_id }}-${{ github.run_attempt }}
+          BACKUP_ROOT: ${{ runner.temp }}/xju-lab-backup-restore
+          BACKUP_RESTORE_TEST_CONFIRM: I_UNDERSTAND_THIS_USES_DISPOSABLE_LOCAL_TARGETS
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 60); do
+            if pg_isready -h 127.0.0.1 -p 5432 -U xju_lab -d xju_lab >/dev/null 2>&1 \
+              && curl -fsS "$AWS_ENDPOINT_URL/health" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          [[ "$ready" == true ]]
+          mkdir -p "$RUNNER_TEMP/aws"
+          printf '[default]\nregion = us-east-1\ns3 =\n    addressing_style = path\n' > "$RUNNER_TEMP/aws/config"
+          export AWS_CONFIG_FILE="$RUNNER_TEMP/aws/config"
+          export PGPASSWORD="$POSTGRES_PASSWORD"
+          psql -h 127.0.0.1 -p 5432 -U xju_lab -d xju_lab -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE xju_lab_backup_restore_source' \
+            -c 'CREATE DATABASE xju_lab_backup_restore_target'
+          mkdir -p "$BACKUP_ROOT"
+          bash scripts/test-backup-restore.sh
+      - name: Stop isolated services
+        if: always()
+        run: docker compose --env-file .env.example -f deploy/compose.yaml down --volumes --remove-orphans

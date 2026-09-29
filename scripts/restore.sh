@@ -19,6 +19,8 @@ pg_restore --clean --if-exists --no-owner --dbname="$RESTORE_DATABASE_URL" "$BAC
 if [[ -n "${RESTORE_S3_BUCKET:-}" ]]; then
   aws_args=()
   if [[ -n "${AWS_ENDPOINT_URL:-}" ]]; then aws_args+=(--endpoint-url "$AWS_ENDPOINT_URL"); fi
-  aws s3 sync "$BACKUP_DIR/objects/" "s3://$RESTORE_S3_BUCKET/" "${aws_args[@]}" --only-show-errors
+  # Make the restored bucket reflect the backup exactly. The caller must set
+  # RESTORE_S3_BUCKET explicitly; this can remove objects absent from backup.
+  aws s3 sync "$BACKUP_DIR/objects/" "s3://$RESTORE_S3_BUCKET/" "${aws_args[@]}" --delete --only-show-errors
 fi
 echo 'Database restore completed. Object restore runs only when RESTORE_S3_BUCKET is set.'
