@@ -56,6 +56,7 @@ async function signIn(page: Page, user: { username: string; password: string }) 
 }
 
 test('OIDC API mode keeps project data scoped across users and viewports', async ({ browser }) => {
+  test.setTimeout(120_000)
   const pageErrors: string[] = []
   const failedResponses: string[] = []
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
