@@ -15,7 +15,10 @@
 - Lab 登录卡片提供“还没有账号？立即注册”，登录/注册分别显示跳转反馈并防止重复普通点击，保留键盘、新窗口和浏览器后退行为。固定地址为 `https://auth.icthub.top/if/flow/icthub-public-registration/`，`next=/application/launch/xju-lab/` 是 Authentik 接受的相对返回入口，不接受页面输入任意跳转地址。
 - 注册后回到已配置的 Lab 首页；进入平台时由新的 OIDC 流程创建会话，沿用已验证 `@icthub.top`、实名/学号/班级/方向的服务端准入规则。未新增本地账号、密码表单或身份绕过。
 - 本机隔离 Windows 副本：TypeScript 与 Vite 构建通过；登录、缓存、失败重试和新增注册入口共 7 项浏览器检查通过，覆盖 375/768/1440 px、键盘操作、跳转状态及无横向溢出。没有提交真实注册或发送验证邮件。
-- 生产发布与公网复核结果在部署后补录。
+- `e937697` 已推送并由 huawei2 的 `./deploy.sh` 直接从 GitHub 快进拉取后部署。首页、健康和 readiness 检查通过，公网 `/api/v1/health` 返回 `{"status":"ok"}`；线上资源为 `index-BlKRIb1Q.js` / `index-DYiWc0ZJ.css`。
+- [功能提交的七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36754753347)，覆盖前端、后端、统一验证、浏览器、状态 Agent、SSH、备份恢复。
+- 生产源站 375/768/1440 px 实际匿名登录页均显示固定注册链接、无横向溢出；经 SSH 隧道将注册文档导航转到同一生产 Authentik origin，实际注册表单加载且保留 `next=/application/launch/xju-lab/`。没有提交注册或发送邮件。Windows 直连公网浏览器超时，不将源站检查记为公网浏览器闭环通过。
+- 本机及 huawei2 的 Lab、auth-login 均保持 `main`，已有内容均已保存到版本，工作区无未提交改动。认证仓库仍使用已核对 SHA 的 Git bundle 同步，直接 GitHub 拉取的授权缺项见其品牌运维记录；Lab 的直接 GitHub 拉取已实际成功。
 
 ## 后端与全栈工作包状态
 
