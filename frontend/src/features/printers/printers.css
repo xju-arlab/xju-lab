@@ -1,13 +1,18 @@
-.printer-device { padding: 17px 0 3px; border-top: 1px solid var(--color-border); }
+.printer-device { padding: 17px 0 3px; border-top: 1px solid var(--color-border); container-type: inline-size; }
 .printer-device + .printer-device { margin-top: 16px; }
-.printer-device-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.printer-device-heading { display: flex; align-items: center; gap: 10px; }
 .printer-device-heading h3 { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .printer-device-heading .tag { flex-shrink: 0; }
-.printer-model { margin-top: 5px; color: var(--color-text-muted); font-size: 12px; }
-.printer-details { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; font-size: 12px; }
+.printer-device-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 440px); align-items: center; gap: 12px 24px; margin-top: 12px; }
+.printer-info { min-width: 0; }
+.printer-model { color: var(--color-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.printer-details { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; font-size: 12px; }
+.printer-details:empty { display: none; }
+.printer-pill { display: inline-flex; align-items: center; min-height: 25px; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: 6px; background: #f7f6f2; line-height: 1.4; }
+.printer-pill-state { color: #3e685d; background: #edf3ef; border-color: #dce7df; }
 .printer-status-panel .printer-stale-note, .printer-status-panel .printer-paper-note { margin: 10px 0 0; }
 .printer-warning, .printer-supply-low small { color: #a16232; }
-.printer-supplies { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 580px; margin-top: 16px; }
+.printer-supplies { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .printer-supply { padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: #faf9f6; min-width: 0; }
 .printer-supply-label { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 5px; font-size: 12px; }
 .printer-supply-label strong { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -17,4 +22,5 @@
 .printer-supply-unknown { background: repeating-linear-gradient(120deg, #e8e8e0 0 4px, #f7f6f2 4px 8px); }
 .printer-supply small { display: block; margin-top: 6px; font-size: 11px; }
 .printer-observed { margin-top: 14px; color: var(--color-text-muted); font-size: 11px; }
+@container (max-width: 600px) { .printer-device-body { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .printer-supply-track > span { transition: none; } }

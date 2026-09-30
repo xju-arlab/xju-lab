@@ -28,14 +28,20 @@ export function PrinterStatusPanel() {
       const old = ['STALE', 'UNAVAILABLE', 'OFFLINE'].includes(printer.status)
       const supplies = report?.supplies ?? []
       return <article className="printer-device" key={printer.id} aria-label={printer.name}>
-        <div className="printer-device-heading"><div><h3>{printer.name}</h3>{(report?.model || printer.location) && <div className="printer-model">{[report?.model, printer.location].filter(Boolean).join(' · ')}</div>}</div><span className={`tag tag-${current ? 'teal' : 'orange'}`}>{printerStatusLabels[printer.status]}</span></div>
-        {old && <p className="printer-stale-note">{printer.status === 'OFFLINE' ? '设备离线' : printerStatusLabels[printer.status]}{printer.lastSeenAt ? '，以下为最近一次读取的信息。' : '，尚未取得设备信息。'}</p>}
-        {report && <>
-          <div className="printer-details">
-            {current && <span>{report.stateLabel || deviceStateLabels[report.deviceState] || '状态未知'}</span>}
-            {report.paperLabel && <span className={report.paperEmpty || report.paperLow ? 'printer-warning' : undefined}>纸张 · {report.paperLabel}</span>}
+        <div className="printer-device-heading"><h3>{printer.name}</h3><span className={`tag tag-${current ? 'teal' : 'orange'}`}>{printerStatusLabels[printer.status]}</span></div>
+        <div className="printer-device-body">
+          <div className="printer-info">
+            {(report?.model || printer.location) && <div className="printer-model">{[report?.model, printer.location].filter(Boolean).join(' · ')}</div>}
+            {old && <p className="printer-stale-note">{printer.status === 'OFFLINE' ? '设备离线' : printerStatusLabels[printer.status]}{printer.lastSeenAt ? '，以下为最近一次读取的信息。' : '，尚未取得设备信息。'}</p>}
+            {report && <>
+              <div className="printer-details">
+                {current && <span className="printer-pill printer-pill-state">{report.stateLabel || deviceStateLabels[report.deviceState] || '状态未知'}</span>}
+                {report.paperLabel && <span className={`printer-pill${report.paperEmpty || report.paperLow ? ' printer-warning' : ''}`}>纸张 · {report.paperLabel}</span>}
+              </div>
+              {report.paperReportsDiffer && <p className="printer-paper-note">设备：{report.devicePaperLabel || '未知'}；队列：{report.queuePaperLabel || '未知'}</p>}
+            </>}
           </div>
-          {report.paperReportsDiffer && <p className="printer-paper-note">设备：{report.devicePaperLabel || '未知'}；队列：{report.queuePaperLabel || '未知'}</p>}
+          {report && <>
           {supplies.length > 0 && <div className="printer-supplies">{supplies.map((supply, index) => {
             const level = supply.levelPercent
             const known = typeof level === 'number' && Number.isFinite(level) && level >= 0 && level <= 100
@@ -48,7 +54,8 @@ export function PrinterStatusPanel() {
           })}</div>}
           {printer.source === 'HP_STATUS' && supplies.length === 0 && <p>耗材余量未知</p>}
           {printer.source === 'AGENT' && report.tonerSupported && report.tonerPercent != null && <p>耗材余量 {report.tonerPercent}%</p>}
-        </>}
+          </>}
+        </div>
         <div className="printer-observed">最近读取 · {dateText(printer.lastSeenAt, '暂无记录')}</div>
       </article>
     })}
