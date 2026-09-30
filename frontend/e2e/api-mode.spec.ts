@@ -120,6 +120,18 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
       expect(dimensions.document, `${path} overflows at ${width}px`).toBeLessThanOrEqual(dimensions.viewport)
     }
   }
+  await expect.poll(() => adminPage.evaluate(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active))).toBe(true)
+  const serviceWorkerCache = await adminPage.evaluate(async () => {
+    const names = await caches.keys()
+    const cachedUrls = await Promise.all(names.filter(name => name.startsWith('xju-lab-static-')).map(async name => {
+      const cache = await caches.open(name)
+      return (await cache.keys()).map(request => new URL(request.url).pathname)
+    }))
+    return { cacheNames: names, cachedUrls: cachedUrls.flat() }
+  })
+  expect(serviceWorkerCache.cacheNames).toContain('xju-lab-static-v1')
+  expect(serviceWorkerCache.cachedUrls).toContain('/offline.html')
+  expect(serviceWorkerCache.cachedUrls.every(path => path === '/offline.html' || /^\/assets\/[A-Za-z0-9._-]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2|svg|png|jpg|webp)$/i.test(path))).toBe(true)
 
   const projectTitle = `浏览器验收项目-${Date.now()}`
   const taskTitle = `浏览器验收任务-${Date.now()}`
