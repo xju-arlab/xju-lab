@@ -73,7 +73,12 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   })
 
   await signIn(adminPage, admin)
-  adminPage.on('console', message => { if (message.type() === 'error') pageErrors.push(`${message.text()} @ ${JSON.stringify(message.location())}`) })
+  adminPage.on('console', message => {
+    if (message.type() !== 'error') return
+    const location = message.location()
+    const expectedInjectedFailure = location.url.endsWith('/api/v1/overview') && message.text().includes('503')
+    if (!expectedInjectedFailure) pageErrors.push(`${message.text()} @ ${JSON.stringify(location)}`)
+  })
   const adminSession = await adminPage.evaluate(async () => (await fetch('/api/v1/session')).json())
   expect(adminSession.roles.some((role: string) => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role)), JSON.stringify(adminSession)).toBe(true)
   const responsiveRoutes = [
