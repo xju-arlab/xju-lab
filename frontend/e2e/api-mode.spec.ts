@@ -1,8 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 const admin = { username: 'local-admin', password: 'local-admin-change-me' }
 const memberA = { username: 'local-member-a', password: 'local-member-a-change-me' }
 const memberB = { username: 'local-member-b', password: 'local-member-b-change-me' }
+
+function percentile(samples: number[], percentileValue: number) {
+  const sorted = [...samples].sort((left, right) => left - right)
+  return sorted[Math.ceil(sorted.length * percentileValue) - 1]
+}
 
 async function signIn(page: Page, user: { username: string; password: string }) {
   await page.goto('/app/dashboard')
@@ -66,6 +72,54 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await taskForm.getByPlaceholder('下一步任务').fill(taskTitle)
   await taskForm.getByRole('button', { name: '添加任务' }).click()
   await expect(adminPage.getByText(taskTitle)).toBeVisible()
+
+  const concurrentProjectReads = await adminPage.evaluate(async () => Promise.all(
+    Array.from({ length: 50 }, async () => {
+      const startedAt = performance.now()
+      const response = await fetch('/api/v1/projects?page=1&pageSize=100')
+      await response.arrayBuffer()
+      return { durationMs: performance.now() - startedAt, status: response.status }
+    }),
+  ))
+  expect(concurrentProjectReads.map(result => result.status)).toEqual(Array(50).fill(200))
+  const projectReadP95 = percentile(concurrentProjectReads.map(result => result.durationMs), 0.95)
+
+  const dashboardLoads: number[] = []
+  for (let sample = 0; sample < 10; sample += 1) {
+    const startedAt = performance.now()
+    await adminPage.goto('/app/dashboard')
+    await expect(adminPage.getByRole('heading', { name: '总览' })).toBeVisible()
+    await expect(adminPage.locator('.api-stat-grid strong')).toHaveCount(4)
+    dashboardLoads.push(performance.now() - startedAt)
+  }
+  const dashboardP95 = percentile(dashboardLoads, 0.95)
+  console.log(`PERFORMANCE_BASELINE ${JSON.stringify({
+    environment: 'GitHub-hosted Ubuntu 24.04, local Compose stack, Chromium',
+    dataset: '3 local identities, 1 project, 1 task',
+    api: { route: 'GET /api/v1/projects?page=1&pageSize=100', concurrentRequests: 50, authenticatedSessions: 1, p95Ms: Math.round(projectReadP95) },
+    dashboard: { samples: dashboardLoads.length, p95Ms: Math.round(dashboardP95) },
+  })}`)
+  expect(projectReadP95).toBeLessThan(500)
+  expect(dashboardP95).toBeLessThan(1000)
+
+  await adminPage.goto('/app/seats')
+  await expect(adminPage.getByRole('heading', { name: '工位一览' })).toBeVisible()
+  const [svgDownload] = await Promise.all([
+    adminPage.waitForEvent('download'),
+    adminPage.getByRole('button', { name: 'SVG' }).click(),
+  ])
+  expect(svgDownload.suggestedFilename()).toBe('实验室工位平面图.svg')
+  const svgContents = await readFile((await svgDownload.path())!)
+  expect(svgContents.toString('utf8')).toContain('<svg')
+  expect(svgContents.toString('utf8')).toContain('data-seat-id')
+
+  const [pngDownload] = await Promise.all([
+    adminPage.waitForEvent('download'),
+    adminPage.getByRole('button', { name: 'PNG' }).click(),
+  ])
+  expect(pngDownload.suggestedFilename()).toBe('实验室工位平面图.png')
+  const pngContents = await readFile((await pngDownload.path())!)
+  expect([...pngContents.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
 
   const projectId = await adminPage.evaluate(async title => {
     const response = await fetch('/api/v1/projects?page=1&pageSize=100')
