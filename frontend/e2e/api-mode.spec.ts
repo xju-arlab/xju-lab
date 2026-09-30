@@ -133,6 +133,19 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   expect(serviceWorkerCache.cachedUrls).toContain('/offline.html')
   expect(serviceWorkerCache.cachedUrls.every(path => path === '/offline.html' || /^\/assets\/[A-Za-z0-9._-]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2|svg|png|jpg|webp)$/i.test(path))).toBe(true)
 
+  await adminPage.goto('/app/dashboard')
+  await adminPage.route('**/api/v1/overview', async route => {
+    await new Promise(resolve => setTimeout(resolve, 600))
+    await route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ code: 'E2E_UNAVAILABLE', message: '隔离错误状态校验', requestId: 'e2e-error-state' }) })
+  })
+  await adminPage.reload()
+  await expect(adminPage.getByText('正在读取服务端数据…').first()).toBeVisible()
+  await expect(adminPage.getByRole('alert')).toContainText('隔离错误状态校验')
+  await expect(adminPage.locator('.api-stat-grid')).toHaveCount(0)
+  await adminPage.unroute('**/api/v1/overview')
+  await adminPage.getByRole('alert').getByRole('button', { name: '重试' }).click()
+  await expect(adminPage.locator('.api-stat-grid')).toHaveCount(4)
+
   const projectTitle = `浏览器验收项目-${Date.now()}`
   const taskTitle = `浏览器验收任务-${Date.now()}`
   await adminPage.goto('/app/projects')
