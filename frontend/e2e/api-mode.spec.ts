@@ -158,7 +158,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   memberAPage.on('pageerror', error => pageErrors.push(error.message))
   await signIn(memberAPage, memberA)
   await memberAPage.getByRole('button', { name: '打开导航' }).click()
-  await memberAPage.getByRole('link', { name: '项目空间' }).click()
+  await memberAPage.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '项目空间' }).click()
   const sharedProject = memberAPage.getByRole('button', { name: new RegExp(projectTitle) })
   await expect(sharedProject).toBeVisible()
   await sharedProject.click()
@@ -173,7 +173,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const memberBPage = await memberBContext.newPage()
   memberBPage.on('pageerror', error => pageErrors.push(error.message))
   await signIn(memberBPage, memberB)
-  await memberBPage.getByRole('link', { name: '项目空间' }).click()
+  await memberBPage.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '项目空间' }).click()
   await expect(memberBPage.getByText('你还没有可见项目。')).toBeVisible()
   const memberBAccess = await memberBPage.evaluate(async id => {
     const projectsResponse = await fetch('/api/v1/projects?page=1&pageSize=100')
