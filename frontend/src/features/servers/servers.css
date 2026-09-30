@@ -1,9 +1,10 @@
-.server-dialog { width: min(600px, calc(100vw - 32px)); max-width: 600px; max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 12px; background: var(--color-bg-subtle, #f7f6f3); }
+.server-dialog-overlay[data-state] { background: rgba(35, 34, 30, .24); }
+.server-dialog[role="dialog"] { width: min(600px, calc(100vw - 32px)); max-width: 600px; max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 12px; background: var(--color-bg-subtle, #f7f6f3); }
 .server-dialog h2 { font-family: var(--font-serif); font-size: 22px; }
 .server-dialog textarea { font-family: ui-monospace, monospace; font-size: 12px; resize: vertical; }
 .server-dialog .field { min-width: 0; }
 .server-dialog .form-stack { gap: 16px; }
-.server-challenge { max-width: 440px; }
+.server-challenge[role="dialog"] { max-width: 440px; }
 .server-connection { display: flex; align-items: center; gap: 14px; padding: 18px; }
 .server-connection strong { font-size: 15px; }
 .server-connection p { margin: 3px 0 0; font-size: 12px; color: #4d6655; }

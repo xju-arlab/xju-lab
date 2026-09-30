@@ -105,7 +105,8 @@ class RealSshTests(unittest.TestCase):
                 client.set_missing_host_key_policy(ExactFixtureKey())
                 try:
                     client.connect('127.0.0.1', port=port, username='lab', pkey=key, allow_agent=False, look_for_keys=False)
-                    lab_ssh.install_key(client.get_transport(), key)
+                    with patch.dict(os.environ, LAB_SSH_STATE_DIR=directory):
+                        lab_ssh.install_key(client.get_transport(), key)
                     output = lab_ssh.run_fixed(client.get_transport(), 'cat ~/.ssh/authorized_keys')
                     self.assertEqual(output.count(key.get_base64()), 1)
                 finally:

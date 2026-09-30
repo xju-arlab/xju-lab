@@ -102,6 +102,7 @@ def fingerprint(key):
 def state_dir():
     path = Path(os.environ.get("LAB_SSH_STATE_DIR", "/app/ssh-state"))
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.chmod(0o700)
     return path
 
 

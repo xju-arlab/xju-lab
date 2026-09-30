@@ -738,6 +738,36 @@ class BaselineIntegrationTest {
         mvc.perform(post("/api/v1/monitor/admin/ssh/connections/"+cancelled+"/save").with(login("ssh-cancel-admin")).with(csrf())).andExpect(status().isConflict());
     }
 
+    @Test void sshPasswordsAreTransientAndCancellationWinsOverInflightResults() throws Exception {
+        UUID owner=member("ssh-transient-admin","LAB_ADMIN");
+        UUID id=jdbc.queryForObject("INSERT INTO server_connection_draft(owner_id,name,nodes,status,result) VALUES (?,'密码测试','[]','PASSWORD_REQUIRED','{\"host\":\"lab@fixture:22\"}') RETURNING id",UUID.class,owner);
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        org.mockito.Mockito.when(sshWorker.run(any())).thenAnswer(call->{
+            var input=(com.fasterxml.jackson.databind.JsonNode)call.getArgument(0);
+            assertThat(input.path("password").asText()).isEqualTo("transient-fixture-password");
+            assertThat(input.path("passwordTarget").asText()).isEqualTo("lab@fixture:22");
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return mapper.readTree("{\"status\":\"CONNECTED\",\"keyVerified\":true,\"hardware\":{\"kind\":\"CPU\"}}");
+        });
+        String path="/api/v1/monitor/admin/ssh/connections/"+id;
+        mvc.perform(post(path+"/connect").with(login("ssh-transient-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"transient-fixture-password\"}")).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT row_to_json(d)::text FROM server_connection_draft d WHERE id=?",String.class,id)).doesNotContain("transient-fixture-password");
+        reset(sshWorker);
+        org.mockito.Mockito.when(sshWorker.run(any())).thenAnswer(call->{
+            jdbc.update("UPDATE server_connection_draft SET status='CANCELLED' WHERE id=?",id);
+            return mapper.readTree("{\"status\":\"CONNECTED\",\"keyVerified\":true}");
+        });
+        mvc.perform(post(path+"/connect").with(login("ssh-transient-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isConflict());
+        mvc.perform(post(path+"/save").with(login("ssh-transient-admin")).with(csrf())).andExpect(status().isConflict());
+        // A process restart can leave RUNNING; it becomes retryable after the worker's bound.
+        jdbc.update("UPDATE server_connection_draft SET status='RUNNING',updated_at=now() WHERE id=?",id);
+        mvc.perform(post(path+"/connect").with(login("ssh-transient-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isConflict());
+        jdbc.update("UPDATE server_connection_draft SET updated_at=now()-interval '3 minutes' WHERE id=?",id);
+        reset(sshWorker);
+        org.mockito.Mockito.when(sshWorker.run(any())).thenReturn(mapper.readTree("{\"status\":\"PASSWORD_REQUIRED\",\"host\":\"lab@fixture:22\"}"));
+        mvc.perform(post(path+"/connect").with(login("ssh-transient-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PASSWORD_REQUIRED"));
+    }
+
     private UUID member(String subject,String role){
         String studentNumber="t"+UUID.randomUUID().toString().replace("-","").substring(0,20);
         UUID id=jdbc.queryForObject("INSERT INTO member(display_name,real_name,student_number,class_name,cohort,directions,direction) VALUES (?,?,?,'计算机24-3',24,'[\"算法\"]'::jsonb,'算法') RETURNING id",UUID.class,subject,subject,studentNumber);
