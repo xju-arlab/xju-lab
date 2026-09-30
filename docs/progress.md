@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `4e29315` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36721774675)，实时查询现为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `3a17b7b` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36723780669)，实时查询现为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
 
@@ -15,7 +15,7 @@
 - 删除会议页「会议时间使用实验室业务时区…」说明。会议、请假、项目任务、会议行动项、里程碑和演示表单共用中文日期输入/日历，输入提示不再依赖浏览器的英文 `yyyy/mm`；支持直接输入或粘贴日期、中文日历、清空与键盘操作，沿用原有细边框和青绿配色。
 - 日期展示统一为 `2026年09月30日`，含时间时使用 24 小时制 `2026年09月30日 14:30`；覆盖总览、项目/行动项截止日期、会议/请假、通知、打印机心跳、服务器硬件采集及演示考核日期。日历日期不跨时区转换，时间点使用 Asia/Shanghai，提交仍为原有 ISO 日期 / `+08:00` 时间。
 - 本地 TypeScript、Vite production build（1664 模块）和两项新增浏览器回归通过。英文浏览器 + America/Los_Angeles 时区验证中文呈现、北京时间跨日、闰年/无效日期拦截、必填、表单重置、原 API 提交格式；375/768/1440 px 验证日历边界、方向键/Enter/Escape、焦点返回和清空。截图位于 Windows 隔离验证目录 `frontend/test-results/date-input-Chinese-calenda-f759f-earing-and-narrow-viewports/`，已查看手机日历与桌面表单。首次断言因行动项日期与负责人同一行而过严，按实际整行文本修正后通过。
-- CI 与 huawei2 发布结果完成后补记。
+- huawei2 已通过 `./deploy.sh` 发布 `3a17b7b`；公网会议页与 ready 均 200，资源为 `index-CnXWwhdy.js` / `index-DhpVTxjt.css`，部署日志 `~/.local/state/xju-lab-tools/deploy-chinese-dates.log`。对公网构建使用隔离合成 API 重跑两项日期浏览器用例通过（不写入生产会议）；本地另重跑四项登录/缓存/实时查询开关回归通过。代码 `3a17b7b` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36723780669)，含既有真实 OIDC/业务流程与新增中文日期用例。
 
 ### 2026-09-30：按需查询开关与 GPU 型号汇总
 
