@@ -32,13 +32,28 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   const registrationHeading = page.getByRole('heading', { name: '完成成员实名登记' })
   const registrationNetwork: string[] = []
   if (await registrationHeading.isVisible().catch(() => false)) {
-    await page.getByLabel('真实姓名').fill(`${user.username} 实名测试`)
+    const realName = page.getByLabel('真实姓名')
+    const studentNumberField = page.getByLabel('学号')
+    const className = page.getByLabel('班级')
+    await realName.fill(`${user.username} 实名测试`)
+    await expect(realName).toHaveValue(`${user.username} 实名测试`)
     const studentNumber = user.username === 'local-admin' ? '20260001' : user.username === 'local-member-a' ? '20260002' : '20260003'
-    await page.getByLabel('学号').fill(studentNumber)
-    await page.getByLabel('班级').fill('计算机24-3')
+    await studentNumberField.fill(studentNumber)
+    await expect(studentNumberField).toHaveValue(studentNumber)
+    await expect(realName).toHaveValue(`${user.username} 实名测试`)
+    await className.fill('计算机24-3')
+    await expect(className).toHaveValue('计算机24-3')
+    await expect(realName).toHaveValue(`${user.username} 实名测试`)
+    await expect(studentNumberField).toHaveValue(studentNumber)
     await page.getByRole('button', { name: '深度学习', exact: true }).click()
+    await expect(className).toHaveValue('计算机24-3')
+    await expect(studentNumberField).toHaveValue(studentNumber)
     await page.getByLabel('自定义方向').fill('图神经网络')
+    await expect(className).toHaveValue('计算机24-3')
     await page.getByRole('button', { name: '添加', exact: true }).click()
+    await expect(realName).toHaveValue(`${user.username} 实名测试`)
+    await expect(studentNumberField).toHaveValue(studentNumber)
+    await expect(className).toHaveValue('计算机24-3')
     page.on('request', request => {
       const path = new URL(request.url()).pathname
       if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`${request.method()} ${path}`)
@@ -51,6 +66,7 @@ async function signIn(page: Page, user: { username: string; password: string }) 
       const path = new URL(request.url()).pathname
       if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`FAILED ${path}: ${request.failure()?.errorText ?? 'unknown'}`)
     })
+    await expect(page.getByRole('button', { name: '保存并进入实验室' })).toBeEnabled()
     await page.getByRole('button', { name: '保存并进入实验室' }).click()
   }
   try {
