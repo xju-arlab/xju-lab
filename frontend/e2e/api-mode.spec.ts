@@ -75,23 +75,48 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   adminPage.on('console', message => { if (message.type() === 'error') pageErrors.push(`${message.text()} @ ${JSON.stringify(message.location())}`) })
   const adminSession = await adminPage.evaluate(async () => (await fetch('/api/v1/session')).json())
   expect(adminSession.roles.some((role: string) => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role)), JSON.stringify(adminSession)).toBe(true)
+  const responsiveRoutes = [
+    ['/app/dashboard', '总览'],
+    ['/app/seats', '工位一览'],
+    ['/app/projects', '项目空间'],
+    ['/app/meetings', '会议记录'],
+    ['/app/leave', '请假申请'],
+    ['/app/print', '云打印'],
+    ['/app/assessment', '成长与考核'],
+    ['/app/servers', '计算资源'],
+    ['/app/profile', '个人资料'],
+    ['/app/members', '成员管理'],
+    ['/app/settings', '管理与设置'],
+    ['/app/publish', '公开发布'],
+    ['/app/notifications', '通知中心'],
+  ] as const
   for (const width of [375, 768, 1440]) {
     await adminPage.setViewportSize({ width, height: 900 })
-    await adminPage.goto('/app/dashboard')
-    await expect(adminPage.getByRole('heading', { name: '总览' })).toBeVisible()
-    const dimensions = await adminPage.evaluate(() => ({
-      viewport: document.documentElement.clientWidth,
-      document: document.documentElement.scrollWidth,
-    }))
-    expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport)
-
     if (width === 375) {
+      await adminPage.goto('/app/dashboard')
       const menu = adminPage.getByRole('button', { name: '打开导航' })
       await menu.focus()
       await adminPage.keyboard.press('Enter')
       await expect(menu).toHaveAttribute('aria-expanded', 'true')
+      await expect(menu).toBeFocused()
+      await adminPage.keyboard.press('Escape')
+      await expect(menu).toHaveAttribute('aria-expanded', 'false')
+      await expect(menu).toBeFocused()
+      await adminPage.keyboard.press('Enter')
+      await expect(menu).toHaveAttribute('aria-expanded', 'true')
       await adminPage.getByRole('button', { name: '关闭导航' }).click()
       await expect(menu).toHaveAttribute('aria-expanded', 'false')
+    }
+
+    for (const [path, heading] of responsiveRoutes) {
+      await adminPage.goto(path)
+      await expect(adminPage.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+      await adminPage.waitForLoadState('networkidle')
+      const dimensions = await adminPage.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        document: document.documentElement.scrollWidth,
+      }))
+      expect(dimensions.document, `${path} overflows at ${width}px`).toBeLessThanOrEqual(dimensions.viewport)
     }
   }
 
@@ -290,6 +315,14 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await expect(adminPage.getByRole('row').filter({ hasText: '本地测试成员甲' })).toContainText('86')
   await adminPage.getByRole('button', { name: '发布排行' }).click()
   await expect(adminPage.getByText('排行快照已发布', { exact: true })).toBeVisible()
+  const [assessmentCsv] = await Promise.all([
+    adminPage.waitForEvent('download'),
+    adminPage.getByRole('button', { name: '导出 CSV' }).click(),
+  ])
+  expect(assessmentCsv.suggestedFilename()).toBe('assessment-theory.csv')
+  const csvContents = (await readFile((await assessmentCsv.path())!)).toString('utf8')
+  expect(csvContents).toContain('本地测试成员甲')
+  expect(csvContents).toContain('86')
 
   const publicName = `浏览器验收公开页-${Date.now()}`
   const publicDescription = `公开说明-${Date.now()}`
