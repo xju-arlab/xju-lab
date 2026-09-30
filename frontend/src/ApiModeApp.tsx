@@ -393,7 +393,7 @@ function AssessmentPage({ session }: { session: Session }) {
   </>
 }
 
-function DirectionPicker({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+function DirectionPicker({ value, onChange, allowCustom = true }: { value: string[]; onChange: (value: string[]) => void; allowCustom?: boolean }) {
   const [custom, setCustom] = useState('')
   const choices = [...new Set(['算法', '深度学习', ...value])]
   function toggle(direction: string) { onChange(value.includes(direction) ? value.filter(item => item !== direction) : [...value, direction]) }
@@ -402,10 +402,10 @@ function DirectionPicker({ value, onChange }: { value: string[]; onChange: (valu
     if (!direction || value.includes(direction) || value.length >= 8) return
     onChange([...value, direction]); setCustom('')
   }
-  return <div className="field"><span>研究方向（可多选）</span><div className="profile-direction-options">{choices.map(direction => <button key={direction} type="button" className={`profile-direction-option ${value.includes(direction) ? 'selected' : ''}`} aria-pressed={value.includes(direction)} onClick={() => toggle(direction)}>{direction}</button>)}</div><div className="profile-direction-add"><input aria-label="自定义方向" value={custom} onChange={event => setCustom(event.target.value)} placeholder="添加自定义方向" maxLength={32} /><Button type="button" variant="outline" disabled={!custom.trim() || value.length >= 8} onClick={addCustom}>添加</Button></div><small>至少选择一个，最多八个；可多选建议方向或添加自定义方向。</small></div>
+  return <div className="field"><span>研究方向（可多选）</span><div className="profile-direction-options">{choices.map(direction => <button key={direction} type="button" className={`profile-direction-option ${value.includes(direction) ? 'selected' : ''}`} aria-pressed={value.includes(direction)} onClick={() => toggle(direction)}>{direction}</button>)}</div>{allowCustom && <div className="profile-direction-add"><input aria-label="自定义方向" value={custom} onChange={event => setCustom(event.target.value)} placeholder="添加自定义方向" maxLength={32} /><Button type="button" variant="outline" disabled={!custom.trim() || value.length >= 8} onClick={addCustom}>添加</Button></div>}<small className="profile-direction-hint">{allowCustom ? '至少选择一个，最多八个；可多选建议方向或添加自定义方向。' : '至少选择一个。'}</small></div>
 }
 
-function RegistrationPage({ session }: { session: Session }) {
+function RegistrationPage() {
   const profile = useLoad<Profile>('/members/me')
   const [directions, setDirections] = useState<string[]>(['算法'])
   const [realName, setRealName] = useState('')
@@ -429,7 +429,20 @@ function RegistrationPage({ session }: { session: Session }) {
     } catch (error) { setNotice(messageOf(error)); profile.reload() }
   }
   async function logout() { try { await apiRequest('/logout', { method: 'POST' }) } finally { window.location.assign('/') } }
-  return <main className="api-auth-screen"><section className="api-auth-card api-registration-card"><div className="eyebrow">XJU Lab · LabOS</div><h1>完成成员实名登记</h1><p>使用已验证的 icthub.top 邮箱登录后，请填写实验室成员资料。真实姓名和学号登记后不可自行修改。</p><LoadingOrError loading={profile.loading} error={profile.error} retry={profile.reload} />{notice && <p className="api-feedback" role="alert">{notice}</p>}{profile.data && formInitialized && <form className="form-stack" onSubmit={save}><label className="field"><span>真实姓名</span><input name="realName" required maxLength={80} value={realName} onChange={event => setRealName(event.target.value)} readOnly={Boolean(profile.data.realName)} /></label><label className="field"><span>学号</span><input name="studentNumber" required maxLength={32} value={studentNumber} onChange={event => setStudentNumber(event.target.value)} readOnly={Boolean(profile.data.studentNumber)} /></label><label className="field"><span>班级</span><input name="className" required maxLength={32} value={className} onChange={event => setClassName(event.target.value)} /></label><p className="api-note">格式：专业简称 + 两位入学年份 - 班号，例如 计算机24-3、信安25-1、电信26-2。年级会根据班级自动生成。</p><DirectionPicker value={directions} onChange={setDirections} /><Button type="submit" disabled={!profile.data || directions.length === 0}>保存并进入实验室</Button></form>}<p className="api-note">当前登录身份：{session.issuer}</p><button className="api-auth-public" onClick={() => void logout()}>退出登录</button></section></main>
+  return <main className="api-auth-screen"><section className="api-auth-card api-registration-card">
+    <div className="eyebrow">XJU Lab · LabOS</div><h1>完成成员实名登记</h1>
+    <LoadingOrError loading={profile.loading} error={profile.error} retry={profile.reload} />
+    {notice && <p className="api-feedback" role="alert">{notice}</p>}
+    {profile.data && formInitialized && <form className="form-stack" onSubmit={save}>
+      <label className="field"><span>真实姓名<span className="api-required-mark" aria-hidden="true">*</span></span><input name="realName" required maxLength={80} value={realName} onChange={event => setRealName(event.target.value)} readOnly={Boolean(profile.data.realName)} /></label>
+      <label className="field"><span>学号<span className="api-required-mark" aria-hidden="true">*</span></span><input name="studentNumber" required maxLength={32} value={studentNumber} onChange={event => setStudentNumber(event.target.value)} readOnly={Boolean(profile.data.studentNumber)} /></label>
+      <label className="field"><span>班级<span className="api-required-mark" aria-hidden="true">*</span></span><input name="className" required maxLength={32} value={className} onChange={event => setClassName(event.target.value)} /></label>
+      <p className="api-note">格式：专业简称 + 两位入学年份 - 班号，例如 计算机24-3。</p>
+      <DirectionPicker value={directions} onChange={setDirections} allowCustom={false} />
+      <Button type="submit" disabled={!profile.data || directions.length === 0}>保存并进入实验室</Button>
+    </form>}
+    <button className="api-auth-public" onClick={() => void logout()}>退出登录</button>
+  </section></main>
 }
 
 function ProfilePage({ session }: { session: Session }) {
@@ -561,7 +574,7 @@ function SignedInApp({ session }: { session: Session }) {
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileNav(false) }; window.addEventListener('keydown', escape); return () => window.removeEventListener('keydown', escape) }, [])
   async function logout() { try { await apiRequest('/logout', { method: 'POST' }); window.location.assign('/') } catch { window.location.assign('/') } }
   const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
-  if (!session.registrationComplete) return <RegistrationPage session={session} />
+  if (!session.registrationComplete) return <RegistrationPage />
   return <div className="app-shell api-app-shell">{mobileNav && <button className="nav-backdrop" aria-label="关闭导航" onClick={() => setMobileNav(false)} />}<aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`} id="primary-navigation"><Link className="brand" to="/app/dashboard"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><div className="workspace-picker"><span className="workspace-icon">算</span><span><strong>算法与科研实验室</strong><small>信息楼A411</small></span></div><div className="nav-caption">工作空间</div><nav aria-label="主导航">{navigation.map(({ path, label, icon: Icon }) => <NavLink key={path} to={`/app/${path}`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Icon size={17} strokeWidth={1.65} /><span>{label}</span></NavLink>)}</nav><div className="nav-caption nav-caption-second">实验室</div><NavLink to="/" className="nav-item"><BookOpen size={17} /><span>公开主页</span></NavLink>{isAdmin && <><NavLink to="/app/members" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Users size={17} /><span>成员管理</span></NavLink><NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Settings2 size={17} /><span>管理与设置</span></NavLink><NavLink to="/app/publish" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><ShieldCheck size={17} /><span>公开发布</span></NavLink></>}<div className="sidebar-bottom"><NavLink className="profile-button" to="/app/profile"><span className="avatar">{(currentProfile?.displayName ?? session.displayName ?? '成').slice(0, 1)}</span><span><strong>{currentProfile?.displayName ?? session.displayName}</strong></span><ShieldCheck size={15} /></NavLink></div></aside><div className="main-shell"><header className="topbar"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={mobileNav} onClick={() => setMobileNav(true)}><Menu size={19} /></button><div className="breadcrumbs"><span>工作空间</span><ChevronRight size={13} /><strong>{title}</strong></div><div className="topbar-actions"><Status tone="teal"><span className="status-dot" />API 实时数据</Status><Link className="icon-button" to="/app/notifications" aria-label="查看通知"><Bell size={18} /></Link><button className="icon-button" aria-label="退出登录" onClick={logout}><X size={17} /></button><div className="topbar-divider" /><span className="avatar avatar-sm">{(currentProfile?.displayName ?? session.displayName ?? '成').slice(0, 1)}</span></div></header><main id="main-content" className="page-content" key={location.pathname}><Routes><Route path="/" element={<Navigate to="/app/dashboard" replace />} /><Route path="/app/dashboard" element={<DashboardPage />} /><Route path="/app/seats" element={<SeatsPage session={session} />} /><Route path="/app/projects" element={<ProjectsPage session={session} />} /><Route path="/app/meetings" element={<MeetingsPage />} /><Route path="/app/leave" element={<LeavePage />} /><Route path="/app/print" element={<Navigate to="/app/dashboard" replace />} /><Route path="/app/assessment" element={<AssessmentPage session={session} />} /><Route path="/app/servers" element={<ServersPage session={session} />} /><Route path="/app/profile" element={<ProfilePage session={session} />} /><Route path="/app/members" element={isAdmin ? <MembersAdminPage session={session} /> : <div className="api-error" role="alert">当前账户无权访问成员管理。</div>} /><Route path="/app/settings" element={isAdmin ? <SettingsPage /> : <div className="api-error" role="alert">当前账户无权访问实验室设置。</div>} /><Route path="/app/publish" element={isAdmin ? <PublicationPage /> : <div className="api-error" role="alert">当前账户无权发布公开内容。</div>} /><Route path="/app/notifications" element={<NotificationsPage />} /></Routes></main></div></div>
 }
 

@@ -101,12 +101,15 @@
 .api-auth-screen { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: var(--color-bg); }
 .api-auth-card { width: min(100%,460px); padding: 32px; background: #fffefa; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .api-registration-card { width: min(100%,560px); }
+.api-registration-card .form-stack { margin-top: 20px; }
+.api-required-mark { margin-left: 4px; color: var(--cat-research); font-weight: 600; }
 .profile-direction-options { display: flex; flex-wrap: wrap; gap: 7px; }
 .profile-direction-option { padding: 7px 10px; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: 999px; font: inherit; font-size: 11px; cursor: pointer; }
 .profile-direction-option.selected { color: #31584f; background: #edf3ef; border-color: #abc1b5; }
+.api-registration-card .profile-direction-option { border-radius: var(--radius-sm); }
 .profile-direction-add { display: flex; gap: 8px; margin-top: 8px; }
 .profile-direction-add input { flex: 1; min-width: 0; padding: 8px 10px; color: var(--color-text); background: white; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 11px; }
-.profile-direction-add + small { color: var(--color-text-muted); font-size: 10px; }
+.profile-direction-hint { color: var(--color-text-muted); font-size: 10px; }
 .api-auth-card h1 { margin: 12px 0; font: 500 30px var(--font-serif); }
 .api-auth-card p { margin-bottom: 22px; color: var(--color-text-muted); font-size: 12px; line-height: 1.7; }
 .api-auth-public { display: block; margin-top: 18px; color: var(--cat-tools); font-size: 11px; }

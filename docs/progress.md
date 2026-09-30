@@ -10,6 +10,12 @@
 
 ## 后端与全栈工作包状态
 
+### 2026-09-30：精简成员实名登记页
+
+- 按用户六点调整：移除邮箱/实名说明和身份 issuer 展示；姓名、学号、班级添加红色必填星号；班级示例仅保留 `计算机24-3`；研究方向改为 6px 小圆角选项；登记页移除自定义方向输入和添加按钮，保留多选与至少一项校验。
+- TypeScript 与 Vite production build 通过（1653 模块）。隔离 Chromium 使用本地合成会话核对文案删除、三个 required 字段/红星、无自定义输入、两个方向选项，以及 375/768/1440 px 无横向溢出；截图为 `C:\Users\genev\AppData\Local\Temp\xju-lab-registration-{375,768,1440}.png`，不含真实个人资料。
+- 现有 OIDC 浏览器登记流程同步移除自定义方向填写步骤，并检查该输入不存在。该调整限于登记页呈现，不修改实名保护、班级派生年级和数据库接口。
+
 ### 2026-09-30：生产身份配置与飞跃风格修订
 
 - `1a20457` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36702857241)：frontend、backend、verify-script、ssh-onboarding、printer-agent、backup-restore、browser-e2e。新 PostgreSQL 用例确认外域管理员引导必须精确匹配 issuer/subject 且邮箱已验证，身份不符、未验证和停用均拒绝，撤权后登录不再次授予超级管理员。
