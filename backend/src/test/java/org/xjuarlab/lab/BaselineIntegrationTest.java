@@ -163,6 +163,36 @@ class BaselineIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM role_assignment WHERE member_id=? AND role IN ('LAB_ADMIN','SUPER_ADMIN') AND revoked_at IS NULL", Integer.class, memberId)).isZero();
     }
 
+    @Test void bootstrapDomainExceptionRequiresExactIssuerSubjectAndVerifiedEmailAndCannotRegrantRevokedRole() throws Exception {
+        var handler = new OidcMemberProvisioningSuccessHandler(jdbc,
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager),
+                "icthub.top", "http://idp.invalid", "operator-bootstrap", "http://lab.invalid");
+        for (var authentication : List.of(
+                oidcAuthentication("operator@external.invalid", false, "operator-bootstrap"),
+                oidcAuthentication("operator@external.invalid", true, "wrong-bootstrap"),
+                oidcAuthentication("operator@external.invalid", true, "operator-bootstrap", "http://other-idp.invalid"))) {
+            var request = new MockHttpServletRequest();
+            var response = new MockHttpServletResponse();
+            handler.onAuthenticationSuccess(request, response, authentication);
+            assertThat(response.getStatus()).isEqualTo(403);
+            assertThat(request.getSession(false)).isNull();
+        }
+        var request = new MockHttpServletRequest();
+        var response = new MockHttpServletResponse();
+        var verified = oidcAuthentication("operator@external.invalid", true, "operator-bootstrap");
+        handler.onAuthenticationSuccess(request, response, verified);
+        assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid");
+        UUID id = UUID.fromString((String) request.getSession().getAttribute("lab.memberId"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_assignment WHERE member_id=? AND role='SUPER_ADMIN' AND revoked_at IS NULL", Integer.class, id)).isEqualTo(1);
+        jdbc.update("UPDATE role_assignment SET revoked_at=now() WHERE member_id=? AND role='SUPER_ADMIN'", id);
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), new MockHttpServletResponse(), verified);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_assignment WHERE member_id=? AND role='SUPER_ADMIN' AND revoked_at IS NULL", Integer.class, id)).isZero();
+        jdbc.update("UPDATE member SET active=false WHERE id=?", id);
+        var disabled = new MockHttpServletResponse();
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), disabled, verified);
+        assertThat(disabled.getStatus()).isEqualTo(403);
+    }
+
     @Test void selfRegistrationDerivesGradeAndDoesNotAllowMembersToEditNameOrStudentNumber() throws Exception {
         UUID id = incompleteMember("registration-self-service");
         String studentNumber = "s-" + UUID.randomUUID().toString().substring(0, 8);
@@ -782,9 +812,12 @@ class BaselineIntegrationTest {
         return id;
     }
     private UsernamePasswordAuthenticationToken oidcAuthentication(String email, boolean verified, String subject) {
+        return oidcAuthentication(email, verified, subject, "http://idp.invalid");
+    }
+    private UsernamePasswordAuthenticationToken oidcAuthentication(String email, boolean verified, String subject, String issuer) {
         Instant now = Instant.now();
         Map<String,Object> claims = new java.util.HashMap<>();
-        claims.put("iss", "http://idp.invalid"); claims.put("sub", subject); claims.put("aud", List.of("integration-test"));
+        claims.put("iss", issuer); claims.put("sub", subject); claims.put("aud", List.of("integration-test"));
         claims.put("iat", now); claims.put("exp", now.plusSeconds(300)); claims.put("email", email);
         claims.put("email_verified", verified); claims.put("name", "OIDC Test Member");
         var idToken = new OidcIdToken("test-token", now.minusSeconds(30), now.plusSeconds(300), claims);

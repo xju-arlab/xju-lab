@@ -1,6 +1,7 @@
 name: xju-lab
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:17.6-bookworm
     environment:
       POSTGRES_DB: xju_lab
@@ -15,6 +16,7 @@ services:
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     networks: [private]
   redis:
+    restart: unless-stopped
     image: redis:7.4.3-alpine
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
     environment:
@@ -74,6 +76,7 @@ services:
     expose: ["9090"]
     networks: [private]
   app:
+    restart: unless-stopped
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -98,6 +101,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_AUTH: ${SMTP_AUTH:-true}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_SSL: ${SMTP_SSL:-false}
       MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
       LAB_FRONTEND_ORIGIN: ${LAB_FRONTEND_ORIGIN:?set public HTTPS application origin}
       LAB_TIMEZONE: ${LAB_TIMEZONE:-Asia/Shanghai}
@@ -119,6 +123,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     networks: [private]
   web:
+    restart: unless-stopped
     build:
       context: ../
       dockerfile: deploy/Dockerfile.web

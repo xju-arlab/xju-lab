@@ -37,7 +37,12 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
         if (!(authentication.getPrincipal() instanceof OidcUser user)) { response.sendError(403); return; }
         String email = user.getClaimAsString("email");
         Boolean emailVerified = user.getClaimAsBoolean("email_verified");
-        if (!Boolean.TRUE.equals(emailVerified) || !isAllowedEmail(email)) { response.sendError(403, "A verified @" + registrationDomain + " email address is required"); return; }
+        boolean exactBootstrapIdentity = !bootstrapIssuer.isBlank() && !bootstrapSubject.isBlank()
+            && bootstrapIssuer.equals(user.getIdToken().getIssuer().toString())
+            && bootstrapSubject.equals(user.getIdToken().getSubject());
+        if (!Boolean.TRUE.equals(emailVerified) || email == null || email.isBlank() || (!isAllowedEmail(email) && !exactBootstrapIdentity)) {
+            response.sendError(403, "A verified @" + registrationDomain + " email address is required"); return;
+        }
         try {
             UUID memberId = transactions.execute(status -> provision(user, request));
             if (memberId == null) { response.sendError(403, "Member is inactive"); return; }

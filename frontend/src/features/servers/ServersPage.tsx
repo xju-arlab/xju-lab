@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Check, LoaderCircle, Plus, Server, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle2, LoaderCircle, Plus, Server, ShieldCheck, Trash2 } from 'lucide-react'
 import { apiRequest, type Session } from '../../api/client'
 import { ComboBox } from '../../components/common/ComboBox'
 import { Button } from '../../components/ui/button'
@@ -82,15 +82,15 @@ function AddServerDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (
   }
   const challenge = !busy && ['PASSWORD_REQUIRED', 'HOST_KEY_REQUIRED'].includes(result.status)
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}><DialogContent overlayClassName="server-dialog-overlay" className="server-dialog" onInteractOutside={event => event.preventDefault()}>
-    <DialogHeader><DialogTitle>添加服务器</DialogTitle><DialogDescription>连接并识别硬件信息，确认后保存到计算资源。</DialogDescription></DialogHeader>
+    <DialogHeader className="server-dialog-heading"><DialogTitle>添加服务器</DialogTitle><DialogDescription>连接服务器，读取硬件信息后保存。</DialogDescription></DialogHeader>
     <form className="form-stack" onSubmit={submit}>
       <label className="field"><span>中文名称</span><input value={name} onChange={event => setName(event.target.value)} placeholder="例如：算法训练服务器" required maxLength={120} disabled={busy || Boolean(draft.current)} /></label>
       <div className="field"><span id="ssh-alias-label">SSH 配置中的服务器</span><div aria-labelledby="ssh-alias-label"><ComboBox inlineMenu options={aliases.map(value => ({ value, label: value }))} value={alias} onValueChange={setAlias} placeholder={parsing ? '正在解析配置…' : '请选择服务器'} disabled={busy || Boolean(draft.current) || parsing} /></div></div>
       <label className="field"><span>SSH 配置</span><textarea value={config} spellCheck={false} onChange={event => { edited.current = true; setConfig(event.target.value); setAlias(''); setAliases([]); setParsing(true) }} rows={7} maxLength={32768} required disabled={busy || Boolean(draft.current)} placeholder={'Host gpu-lab\n  HostName 192.0.2.10\n  User lab\n  ProxyJump gateway\nHost gateway\n  HostName 192.0.2.20\n  User lab'} /></label>
       <p className="api-note">自动读取 Lab 服务挂载的配置，也可在此粘贴。跳板请声明为 Host 并通过 ProxyJump 引用。首次密码登录后会追加 Lab 专用公钥。</p>
       {ignored.length > 0 && <p className="api-note">已忽略客户端偏好：{ignored.join('、')}。连接统一使用 Lab 专用密钥并校验主机指纹。</p>}
-      {busy && <div className="server-connection connecting" role="status"><LoaderCircle className="server-spinner" size={28} /><div><strong>{result.status === 'CONNECTED' ? '正在保存' : '正在连接服务器'}</strong><p>正在认证、验证公钥并识别硬件，请稍候…</p></div></div>}
-      {!busy && result.status === 'CONNECTED' && <div className="server-connected" role="status"><div className="server-connection"><span className="server-success-icon"><Check size={26} strokeWidth={3} /></span><div><strong>连接成功</strong><p>硬件信息已读取，公钥登录已验证。</p></div></div>{result.hardware && <HardwareDetails data={result.hardware} />}</div>}
+      {busy && <div className="server-connecting" role="status"><div className="server-connection"><LoaderCircle className="server-spinner" size={16} aria-hidden="true" /><span>{result.status === 'CONNECTED' ? '正在保存' : '正在连接服务器'}<small>认证与硬件检测中，请稍候</small></span></div><div className="server-progress" aria-hidden="true"><span /></div></div>}
+      {!busy && result.status === 'CONNECTED' && <div className="server-connected" role="status"><div className="server-connection"><CheckCircle2 className="server-success-icon" size={18} strokeWidth={1.8} aria-hidden="true" /><strong>连接成功</strong><span className="server-connection-note">已验证密钥登录</span></div>{result.hardware && <HardwareDetails data={result.hardware} />}</div>}
       {error && <p role="alert" className="api-error-text">{error}</p>}
       <DialogFooter className="server-dialog-footer">{draft.current && !busy && <Button type="button" variant="ghost" onClick={() => void reset().catch(reason => setError(message(reason)))}>修改配置</Button>}<Button type="button" variant="outline" onClick={onClose}>取消</Button><Button type="submit" disabled={busy || parsing || !alias || challenge}>{result.status === 'CONNECTED' ? '保存' : '连接'}</Button></DialogFooter>
     </form>
