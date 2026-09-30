@@ -24,6 +24,7 @@ RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
 COPY --chmod=0644 ssh-helper/requirements.txt /app/ssh-helper/requirements.txt
 RUN /opt/ssh/bin/pip install --no-cache-dir -r /app/ssh-helper/requirements.txt
 COPY --chmod=0755 ssh-helper /app/ssh-helper
+RUN chmod -R a+rX /app/ssh-helper
 COPY --from=build /workspace/target/xju-lab-backend-0.1.0-SNAPSHOT.jar /app/app.jar
 USER app
 RUN /opt/ssh/bin/python -c "import runpy; runpy.run_path('/app/ssh-helper/lab_ssh.py', run_name='build_check')"

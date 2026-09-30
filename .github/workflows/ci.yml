@@ -102,6 +102,7 @@ jobs:
       - name: Build and start the API and web containers
         run: |
           chmod 600 backend/ssh-helper/lab_ssh.py
+          chmod 700 backend/ssh-helper
           docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev up --build -d app web
       - name: Wait for the app and web
         run: |
