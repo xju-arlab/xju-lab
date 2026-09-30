@@ -1,8 +1,33 @@
-# XJU Lab · 实验室协作平台
+<div align="center">
+
+<h1>XJU Lab</h1>
+<p><strong>算法与科研实验室 · 成员协作与资源管理平台</strong></p>
+
+[![CI](https://github.com/xju-arlab/xju-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/xju-arlab/xju-lab/actions/workflows/ci.yml)
+
+![React 18](https://img.shields.io/badge/React-18-149ECA?style=flat-square&logo=react&logoColor=white)
+![TypeScript 5.6](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Vite 8](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Tailwind CSS 3.4](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+
+![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square)
+![Spring Boot 3.5](https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![Python 3](https://img.shields.io/badge/Python-3-3776AB?style=flat-square&logo=python&logoColor=white)
+
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Redis 7](https://img.shields.io/badge/Redis-7-FF4438?style=flat-square&logo=redis&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat-square&logo=nginx&logoColor=white)
+
+[快速启动](#快速启动) · [功能范围](#已有功能与接入范围) · [文档索引](docs/README.md) · [验收记录](docs/progress.md)
+
+</div>
+
+---
 
 面向算法与科研实验室的成员、工位、项目、会议、请假、计算资源、成长考核和打印机状态管理平台，同时提供经审核的公开实验室主页。
 
-**当前状态：B00–B12 本地实现与验收已完成，2026-09-30 主分支全栈 CI 六个作业通过。** 已验证邮箱自助注册、实名/唯一学号登记、班级解析年级、多选研究方向与角色约束；打印页、打印提交和任务队列已移除，仅保留设备登记、Agent 心跳和打印机状态。Lab 与 OJ 是同级应用，共用身份提供方但角色隔离。CI 覆盖 PostgreSQL 后端、前端构建与回归、OIDC 浏览器业务流程、Printer Agent、部署校验和隔离备份恢复。生产 Authentik 自助注册/验证邮件、项目 OIDC client/secret、SMTP、真实成员/设备、生产域名路由和部署仍待目标环境配置与联调。现有前端设计和确认过的业务规则已保留。逐包证据见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
+**当前状态：B00–B12 本地实现与验收已完成，2026-09-30 主分支全栈 CI 七个作业通过。** 已验证邮箱自助注册、实名/唯一学号登记、班级解析年级、多选研究方向与角色约束；打印页、打印提交和任务队列已移除，仅保留设备登记、Agent 心跳和打印机状态。Lab 与 OJ 是同级应用，共用身份提供方但角色隔离。CI 覆盖 PostgreSQL 后端、前端构建与回归、OIDC 浏览器业务流程、SSH 服务器接入、Printer Agent、部署校验和隔离备份恢复。生产 Authentik 自助注册/验证邮件、项目 OIDC client/secret、SMTP、真实成员/设备、生产域名路由和部署仍待目标环境配置与联调。现有前端设计和确认过的业务规则已保留。逐包证据见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
 
 ## 快速启动
 
