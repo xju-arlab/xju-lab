@@ -308,11 +308,13 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
     const heartbeat = await fetch('/api/v1/printer-agent/heartbeat', { method: 'POST', headers, body: JSON.stringify({ agentVersion: 'browser-e2e', deviceState: 'READY', tonerSupported: false, tonerPercent: null }) })
     const list = await fetch('/api/v1/printers')
     const printers = await list.json()
-    const retiredPoll = await fetch('/api/v1/printer-agent/poll', { method: 'POST', headers, body: '{}' })
-    const retiredQueue = await fetch('/api/v1/print/jobs')
-    return { heartbeatStatus: heartbeat.status, listStatus: list.status, status: printers[0]?.status, deviceState: printers[0]?.lastReport?.deviceState, retiredPollStatus: retiredPoll.status, retiredQueueStatus: retiredQueue.status }
+    return { heartbeatStatus: heartbeat.status, listStatus: list.status, status: printers[0]?.status, deviceState: printers[0]?.lastReport?.deviceState }
   }, { token: agentToken! })
-  expect(printerStatus).toEqual({ heartbeatStatus: 200, listStatus: 200, status: 'ONLINE', deviceState: 'READY', retiredPollStatus: 404, retiredQueueStatus: 404 })
+  expect(printerStatus).toEqual({ heartbeatStatus: 200, listStatus: 200, status: 'ONLINE', deviceState: 'READY' })
+  const appOrigin = new URL(adminPage.url()).origin
+  const retiredPoll = await adminContext.request.post(`${appOrigin}/api/v1/printer-agent/poll`, { headers: { Authorization: `Bearer ${agentToken}` }, data: {} })
+  const retiredQueue = await adminContext.request.get(`${appOrigin}/api/v1/print/jobs`)
+  expect([retiredPoll.status(), retiredQueue.status()]).toEqual([404, 404])
   await adminPage.reload()
   await expect(adminPage.locator('.api-row').filter({ hasText: printerName }).getByText('在线')).toBeVisible()
   await adminPage.goto('/app/dashboard')
