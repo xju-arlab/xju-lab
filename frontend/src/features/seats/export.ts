@@ -71,22 +71,20 @@ export async function createFloorPlanExport(svg: SVGSVGElement, format: 'svg' | 
   for (const [key, value] of Object.entries(frame)) background.setAttribute(key, String(value))
   const blob = new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml;charset=utf-8' })
   if (format === 'svg') return { blob, width: frame.width, height: frame.height }
-  const url = URL.createObjectURL(blob)
-  try {
-    const image = new Image()
-    image.src = url
-    await image.decode()
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(frame.width * 2)
-    canvas.height = Math.round(frame.height * 2)
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('浏览器无法创建图片画布')
-    context.fillStyle = BACKGROUND_COLOR
-    context.fillRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(image, 0, 0, canvas.width, canvas.height)
-    const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('图片生成失败')), 'image/png'))
-    return { blob: png, width: canvas.width, height: canvas.height }
-  } finally { URL.revokeObjectURL(url) }
+  const image = new Image()
+  // The site's CSP permits data images but blocks blob images; keep the rasterizer within that policy.
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await blob.text())}`
+  await image.decode()
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(frame.width * 2)
+  canvas.height = Math.round(frame.height * 2)
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('浏览器无法创建图片画布')
+  context.fillStyle = BACKGROUND_COLOR
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+  const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('图片生成失败')), 'image/png'))
+  return { blob: png, width: canvas.width, height: canvas.height }
 }
 
 export async function exportFloorPlan(svg: SVGSVGElement, format: 'svg' | 'png') {
