@@ -13,7 +13,7 @@
 ### 2026-09-30：打印机卡片横向布局
 
 - 打印机名称放在左上；按追加反馈，将最近读取时间与在线标签合并到右上角同排，移除底部时间。型号、运行状态与纸张信息放在左侧，两个墨盒卡片在右侧并排，与左侧信息区域对齐。运行状态和纸张信息使用 6 px 小圆角胶囊；窄屏元信息自动换行靠右，两个墨盒仍保持并排。
-- 仅调整展示结构/样式。TypeScript、Vite production build（1666 模块）及现有 3 项打印机浏览器用例通过；已查看 1440/375 px 截图，768 px 边界检查也通过。截图仍位于隔离验证目录 `frontend/test-results/printer-status-printer-car-1fbde-dges-and-fits-all-viewports/`。本次部署结果待发布后补记。
+- 仅调整展示结构/样式。TypeScript、Vite production build（1666 模块）及现有 3 项打印机浏览器用例通过；已查看 1440/375 px 截图，768 px 边界检查也通过。截图仍位于隔离验证目录 `frontend/test-results/printer-status-printer-car-1fbde-dges-and-fits-all-viewports/`。huawei2 已通过 `./deploy.sh` 部署包含追加布局调整的 `d063995`，公网资源为 `index-CUYCAIp_.js` / `index-BljnnIrw.css`，ready 返回 200；对公网构建使用隔离合成 API 重跑 3 项打印机浏览器回归通过，已查看公网构建桌面截图，无生产数据写入。部署日志 `~/.local/state/xju-lab-tools/deploy-printer-meta.log`。
 
 ### 2026-09-30：绑定惠普只读状态接口
 
