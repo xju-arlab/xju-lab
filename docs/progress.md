@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `6da246c` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36708522067)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `614e8f2` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36712495895)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
 
@@ -15,6 +15,8 @@
 - 移除“培养期、成员与场次管理”卡片及其专用前端查询/表单；ACM / 深度学习切换移到标题同排右侧。保留既有计分、筛选、导入、成绩修订、发布及 CSV 流程，后端管理 API 不变。
 - 增加排行区域占位、同一查询刷新时保留/淡化内容、180–240ms 缓动/轻微淡入和高度过渡；方向切换时导入卡片平滑收起。加载状态按请求路径关联，取消过时请求，错误时显示重试，不将其他查询的旧结果显示到新条件下；支持 reduced-motion。
 - 本地 TypeScript、Vite production build（1656 模块）、17 项计分与工位回归通过，浏览器用例可加载。隔离 Chromium 合成数据覆盖 375/768/1440 px 标题同排右对齐、卡片移除、慢请求占位/禁用操作、快速切换、错误重试、空状态、本次/历史排行与减少动画。截图 `C:\Users\genev\AppData\Local\Temp\xju-lab-assessment-{heading,theory}-{375,768,1440}.png`；已查看手机与桌面截图，不含真实成员数据。
+- 代码 `614e8f2` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36712495895)。浏览器业务用例通过真实鉴权 API 准备被移除表单对应的测试资料，继续验证成绩修订/发布/CSV，并新增延迟排行查询、占位与禁用操作检查；业务用例 33.4 秒，SSH 用例 10.7 秒，两项共 44.7 秒。
+- huawei2 已在 `main` 执行 `./deploy.sh` 成功，应用和 Web 已重建；日志 `~/.local/state/xju-lab-tools/deploy-assessment-transitions.log`。公网 `/app/assessment`、ready 均 200，已提供新版标题切换和过渡资源；生产成员数据呈现需真实登录查看。
 
 ### 2026-09-30：气泡取消滚动条并柔化指示角
 
