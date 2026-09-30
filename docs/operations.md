@@ -26,9 +26,9 @@ docker compose --env-file .env.example -f deploy/compose.yaml config --quiet
 
 ## 恢复
 
-先准备**空的隔离数据库**和空的目标 bucket。设置 `BACKUP_DIR`、`RESTORE_DATABASE_URL`、`RESTORE_CONFIRM=I_HAVE_VERIFIED_THE_TARGET_BEFORE_RESTORING`。若也要恢复文件，设置 `RESTORE_S3_BUCKET`；脚本会验证清单后恢复数据库，并把备份中的对象同步到目标 bucket。S3 同步不会删除目标中多余对象，所以精确切换前必须使用新的空 bucket。恢复前再次核对连接目标；`pg_restore --clean` 会删除目标数据库内的冲突对象。
+先准备**隔离数据库**和专用目标 bucket。设置 `BACKUP_DIR`、`RESTORE_DATABASE_URL`、`RESTORE_CONFIRM=I_HAVE_VERIFIED_THE_TARGET_BEFORE_RESTORING`。若也要恢复文件，显式设置 `RESTORE_S3_BUCKET`；脚本会验证清单后恢复数据库，并让目标 bucket 精确匹配备份，删除目标中多余的对象。恢复前再次核对数据库和 bucket；`pg_restore --clean` 会删除目标数据库内的冲突对象，S3 `--delete` 会删除目标中备份没有的对象。
 
-当前没有生产恢复演练结果。完成此验证需记录隔离目标、数据库和对象数量/校验、耗时、应用健康检查及未恢复的外部配置；不要把脚本通过或 Testcontainers 测试替代生产灾备验收。
+`scripts/test-backup-restore.sh` 只接受回环 PostgreSQL/S3 测试端点、不同的源/目标数据库与桶，并要求 `BACKUP_RESTORE_TEST_CONFIRM=I_UNDERSTAND_THIS_USES_DISPOSABLE_LOCAL_TARGETS`。它在专用目标中创建探针行和对象，执行备份，移除源对象，再恢复并比对对象内容与数据库引用；同时确认目标桶的陈旧对象被清除。CI [运行记录](https://github.com/xju-arlab/xju-lab/actions/runs/36665041393)已在 PostgreSQL 17.6/RustFS 1.0 上通过，演练 job 用时 43 秒。该测试验证脚本链路，不验证完整应用库、生产 RTO/RPO、应用健康或跨区域恢复。
 
 ## 回退与运维限制
 

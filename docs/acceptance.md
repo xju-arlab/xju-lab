@@ -4,19 +4,19 @@
 
 ## 1. 前端原型验收
 
-此表为回归用例，是否通过以 `progress.md` 的实际证据为准。GitHub Actions 最新运行通过前端 build/assessment/seats、后端 28 项集成与单测、Printer Agent 5 项测试及 Compose 配置检查。受控虚拟 CUPS 已实际接收打印任务；这不替代真实打印机验收。
+此表为回归用例，是否通过以 `progress.md` 的实际证据为准。GitHub Actions 的 B00–B12 全栈验收通过，实际运行统一 `scripts/verify.sh`、OIDC 双用户浏览器业务流程、PostgreSQL 17.6/RustFS 隔离备份恢复演练。CI 虚拟 Agent 协议和本地虚拟 CUPS 验证不替代真实打印机验收。
 
 ## 0. B00–B12 总体验收状态（2026-09-29）
 
 | 范围 | 当前证据 | 仍待完成 |
 |---|---|---|
-| 前端 | CI 中 OpenAPI 类型漂移检查、TypeScript/Vite build、assessment 17 项、seats 测试通过；浏览器错误态如实显示 502 且未回退演示内容 | API 正常登录闭环、375/768/1440 px、键盘/焦点/下载文件复核 |
-| 后端 | CI 中 PostgreSQL 17.6、Redis 7.4.3、RustFS Testcontainers 启动，6 个迁移和 28 项后端测试通过 | 目标环境容量、生产部署与数据恢复验收 |
-| Printer Agent | Python 3.12 单测 5/5；隔离 CUPS + 虚拟 IPP 打印完成且清理临时队列 | 树莓派、实际打印机/驱动、双面/彩色/纸张能力 |
-| 部署与恢复 | GitHub Actions Docker Compose config 校验通过；Nginx、环境示例、备份/恢复脚本和运行说明已创建 | 容器化干净环境启动、隔离数据库/对象存储备份恢复演练 |
+| 前端 | OpenAPI 类型漂移检查、build、assessment/seats 单测通过；Keycloak 管理员/双成员登录与跨用户隔离通过。13 个 API 路由在 375/768/1440 px 无页面级横向溢出；移动导航 Enter/Esc/焦点、503 加载/错误/重试、空/无权状态、静态 Service Worker 缓存、CSV/SVG/PNG 内容通过 | 屏幕阅读器和真实设备辅助功能检查 |
+| 后端 | CI PostgreSQL 17.6、Redis 7.4.3、RustFS Testcontainers；6 个迁移和当前后端测试通过；业务闭环覆盖项目/会议/请假/通知/考核/公开发布 | 目标环境容量、生产部署与完整业务数据恢复验收 |
+| Printer Agent | Python 3.12 单测 5/5；浏览器流程验证私有 PDF 上载、Agent 心跳/取件/受控下载/状态版本流转；隔离 CUPS + 虚拟 IPP 完成打印 | 树莓派、实际打印机/驱动、双面/彩色/纸张能力 |
+| 部署与恢复 | CI 干净 Compose 启动 API/Web/Keycloak/数据服务并通过健康检查；统一 `scripts/verify.sh` 与 PostgreSQL 17.6/RustFS 探针恢复演练通过 | 完整业务数据库/文件一致性、生产 RTO/RPO、真实部署和回退 |
 | 外部联调 | LabOS 固定用途 OJ connector/outbox 和接口契约已交付 | OJ 端实现/补丁、Authentik、SMTP、生产 S3、Prometheus/exporter、域名/TLS |
 
-全量、本地和外部结果分别记录在 [progress.md](progress.md) 与 [integration-status.md](integration-status.md)。未重跑或未接入项不按通过处理。
+浏览器容量 smoke 使用 GitHub-hosted Ubuntu 24.04、100 条合成成员记录、50 个并发查询（同一登录会话）和 10 次仪表盘加载；测量值见 [progress.md](progress.md)，不是生产 SLO。其余本地与外部结果也分别记录在进度和[集成状态](integration-status.md)中。未重跑或未接入项不按通过处理。
 
 | 用例 | 步骤 | 操作 | 预期与证据 |
 |---|---|---|---|
