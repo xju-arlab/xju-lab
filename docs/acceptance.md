@@ -4,7 +4,7 @@
 
 ## 1. 前端原型验收
 
-此表为回归用例，是否通过以 `progress.md` 的实际证据为准。GitHub Actions 的 B00–B12 全栈验收通过，实际运行统一 `scripts/verify.sh`、OIDC 双用户浏览器业务流程、PostgreSQL 17.6/RustFS 隔离备份恢复演练。CI 虚拟 Agent 协议和本地虚拟 CUPS 验证不替代真实打印机验收。
+此表为回归用例，是否通过以 `progress.md` 的实际证据为准。代码提交 `163f79a` 的 [GitHub Actions 六个作业全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36669375197)，覆盖统一 `scripts/verify.sh`、OIDC 双用户浏览器业务流程、PostgreSQL 17.6/RustFS 隔离备份恢复及并发边界回归。CI 虚拟 Agent 协议和本地虚拟 CUPS 验证不替代真实打印机验收。
 
 ## 0. B00–B12 总体验收状态（2026-09-29）
 

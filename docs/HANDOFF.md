@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-29。本仓 B00–B12 实现与隔离验收已由 GitHub Actions 跑通：统一 `scripts/verify.sh`、OIDC 双用户业务闭环、13 个路由三种视口、键盘/Esc/焦点、PWA 静态缓存、加载/错误/重试、CSV/SVG/PNG、Printer Agent 协议、性能 smoke 和 PostgreSQL/RustFS 隔离恢复均通过。没有生产发布；后续从真实外部服务、硬件及生产部署联调开始。
+> 2026-09-29。本仓 B00–B12 实现与隔离验收已由 GitHub Actions 跑通。代码提交 `163f79a` 的[六个 CI 作业](https://github.com/xju-arlab/xju-lab/actions/runs/36669375197)全部通过，包含 33 项后端测试、OIDC 双用户业务闭环、13 个路由三种视口、键盘/Esc/焦点、PWA 静态缓存、加载/错误/重试、CSV/SVG/PNG、Printer Agent 协议、并发分配/审批边界、性能 smoke 和 PostgreSQL/RustFS 隔离恢复。没有生产发布；后续从真实外部服务、硬件及生产部署联调开始。
 
 ## 新对话提示词
 

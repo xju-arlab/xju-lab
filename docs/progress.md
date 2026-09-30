@@ -6,17 +6,17 @@
 
 ## 当前状态
 
-本仓已实现后端、前端真实 API 模式、Printer Agent 和部署基座，并保留前端设计与确认的业务规则。**最终代码提交 `1319c1b` 的 [CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36665041393)：统一 `scripts/verify.sh`、前后端/Agent 检查、OIDC 双用户业务、13 路由三视口与状态检查、PWA 静态缓存、CSV/SVG/PNG 下载、Compose 全栈启动、性能 smoke、PostgreSQL 17.6/RustFS 隔离恢复。**生产 OJ/身份/邮件/S3/监控/名单/实机打印、完整灾备与生产部署待真实环境联调。性能 smoke 的具体口径见本节证据；它不是生产 SLO。
+本仓已实现后端、前端真实 API 模式、Printer Agent 和部署基座，并保留前端设计与确认的业务规则。**代码提交 `163f79a` 的 [CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36669375197)：统一 `scripts/verify.sh`、前后端/Agent 检查、OIDC 双用户业务、13 路由三视口与状态检查、PWA 静态缓存、CSV/SVG/PNG 下载、Compose 全栈启动、性能 smoke、PostgreSQL 17.6/RustFS 隔离恢复。**生产 OJ/身份/邮件/S3/监控/名单/实机打印、完整灾备与生产部署待真实环境联调。性能 smoke 的具体口径见本节证据；它不是生产 SLO。
 
 ## 后端与全栈工作包状态
 
 | 包 | 目标 | 状态 |
 |---|---|---|
 | B00 | 工程、契约、数据库和 CI 基座 | 本地实现；契约漂移、配置、CI 通过 |
-| B01 | OIDC、成员、角色与设置 | 本地 Keycloak OIDC 浏览器登录、角色隔离通过；生产 IdP/名册待接入 |
-| B02 | 工位、布局版本与分配历史 | 确认的 31 可坐位布局保留；测试及导出通过；真实名册待导入 |
-| B03 | 项目、统一任务、会议与总览 | 双成员可见范围、会议纪要/共享行动项、总览浏览器流程通过 |
-| B04 | 站内请假审批 | 成员申请、管理员批准和用户通知流程通过；生产 SMTP 待验证 |
+| B01 | OIDC、成员、角色与设置 | 本地 Keycloak 和双用户隔离通过；`iss + sub` 冲突、CSRF、成员停用后会话拒绝与重新启用有 PostgreSQL 回归测试；生产 IdP/名册待接入 |
+| B02 | 工位、布局版本与分配历史 | 确认的 31 可坐位布局保留；并发为同一成员分配两个工位时仅一个成功；导出通过；真实名册待导入 |
+| B03 | 项目、统一任务、会议与总览 | 双成员可见范围通过；会议行动项完成后个人待办、会议和项目视图状态一致，并验证过期版本冲突 |
+| B04 | 站内请假审批 | 非法/重叠、自批、半开区间与竞态通过；审批与撤回并发时仅一项转换成功；生产 SMTP 待验证 |
 | B05 | 私有文件、通知和邮件 | RustFS 私有 PDF 上传/授权下载、通知创建和读取通过；生产 S3/SMTP 待接入 |
 | B06 | 服务端考核与管理 | 理论成绩/历史排名/发布通过；计分边界测试通过，OJ 双系统待联调 |
 | B07 | 打印服务与队列 | 持久队列、版本围栏、幂等/取消实现并验证 |
@@ -24,7 +24,7 @@
 | B09 | 服务器监控与告警 | 安全固定查询与单测通过；生产 Prometheus/exporter 待接入 |
 | B10 | OJ 导入与来源角色同步 | LabOS 连接器/outbox 已实现；OJ 端接口缺失，契约已记录，未改相邻仓库 |
 | B11 | 公开展示、PWA、前端收尾 | 13 路由三视口无溢出、键盘/Esc/焦点、PWA 静态缓存、空/错/加载/无权状态和 CSV/SVG/PNG 浏览器检查通过；屏幕阅读器/真实设备辅助检查待人工 |
-| B12 | 全栈验证、运维和交付 | 全部 CI job 通过：统一检查、OIDC 多用户业务闭环、Compose 健康、性能 smoke、DB+对象隔离恢复；生产部署与完整灾备待真实环境 |
+| B12 | 全栈验证、运维和交付 | 最新全栈 CI 六个 job 全部通过：统一检查、OIDC 多用户业务闭环、Compose 健康、性能 smoke、DB+对象隔离恢复；生产部署与完整灾备待真实环境 |
 
 具体范围和退出条件见 [06 计划](plan/06-backend-completion.md)。以下列明本轮验收证据与尚未完成项；外部待验证项见[集成状态](integration-status.md)。
 
@@ -35,7 +35,8 @@
 - 创建独立 Python Agent（SQLite journal、CUPS/IPP、服务端租约与版本回报），Docker Compose / Nginx / 隔离 Keycloak realm、Prometheus 安全固定查询配置、GitHub Actions 和运行/备份说明。
 - 本轮实际验证：前端 `pnpm build`（API 类型生成、TypeScript、Vite，1651 模块）通过；Printer Agent 通过 Python 3.12 `unittest` 5/5。隔离 CUPS 服务器/虚拟 IPP 设备收到一份 PDF，CUPS 状态为 `COMPLETED`，提交后移除了临时队列且确认原有队列仍在。
 - 之前的 [CI](https://github.com/xju-arlab/xju-lab/actions/runs/36648285104)（HEAD `b1601a2`）已直接运行统一检查与 PostgreSQL/RustFS 探针恢复链路。随后为完成完整前端/API验收，增加隔离 Keycloak 和端到端工作流。
-- 最新全栈 [CI](https://github.com/xju-arlab/xju-lab/actions/runs/36665041393)（HEAD `1319c1b`）全部 6 个 job 通过：前端 OpenAPI 类型漂移、build、assessment/seats；Java 21 `./mvnw -B verify`，PostgreSQL/Redis/RustFS Testcontainers、6 个 Flyway 迁移、29 项后端测试；统一 `scripts/verify.sh`；Python 3.12 Agent 5/5；Compose 配置；以及 Compose API/Web/Keycloak/数据服务干净启动和浏览器测试。浏览器使用本地 Keycloak 合成账户，覆盖管理员/两名成员 OIDC cookie 登录、项目/任务隔离、会议纪要/行动项、请假审批/通知、理论成绩/历史排行、私有 PDF/Agent heartbeat-poll-download-status、匿名公开快照发布/撤回。
+- 首轮全栈 [CI](https://github.com/xju-arlab/xju-lab/actions/runs/36665041393)（HEAD `1319c1b`）全部 6 个 job 通过：前端 OpenAPI 类型漂移、build、assessment/seats；Java 21 `./mvnw -B verify`，PostgreSQL/Redis/RustFS Testcontainers、6 个 Flyway 迁移、29 项后端测试；统一 `scripts/verify.sh`；Python 3.12 Agent 5/5；Compose 配置；以及 Compose API/Web/Keycloak/数据服务干净启动和浏览器测试。浏览器使用本地 Keycloak 合成账户，覆盖管理员/两名成员 OIDC cookie 登录、项目/任务隔离、会议纪要/行动项、请假审批/通知、理论成绩/历史排行、私有 PDF/Agent heartbeat-poll-download-status、匿名公开快照发布/撤回。
+- 完成验收复核后，在真实 PostgreSQL 集成测试中补充 `iss + sub` 冲突、成员停用/恢复及 CSRF、双工位分配竞态、请假审批/撤回竞态；扩展行动项完成后的个人待办/会议/项目状态一致性检查。代码提交 `163f79a` 的 [CI](https://github.com/xju-arlab/xju-lab/actions/runs/36669375197) 全部 6 个 job 通过，Java 21 `./mvnw -B verify` 共 33 项后端测试通过。
 - 13 个已接入 API 页面逐一在 375/768/1440 px 检查页面级横向溢出；移动导航 Enter/Esc 和焦点保持通过。Service Worker cache 仅含离线页与 hash 静态资源；注入的 503 验证加载提示、错误态无假统计及重试恢复；成员空项目/无权页面通过。CSV 成绩姓名/分数、工位 SVG 结构和 PNG 文件签名均核验。屏幕阅读器/真实设备辅助功能未在 CI 检查。容量 smoke 为 100 条合成记录；50 个并发 `GET /api/v1/members?page=1&pageSize=100` 来自同一登录 browser session，另有 10 次仪表盘加载。GitHub-hosted Ubuntu 24.04/Compose/Chromium 样本：API p95 417 ms、dashboard p95 171 ms；单次 smoke guardrail 为 1000 ms，不是多会话或生产硬件 SLO。
 - CI 同时以 PostgreSQL 17.6/RustFS 运行备份/恢复脚本，验证隔离探针行、对象 key/字节和目标桶陈旧对象清理（job 43 秒）；不等于完整业务库/生产一致性、RTO/RPO 或异地灾备。Windows 本机 Docker engine 不可用，因此未在本机启动容器；容器和浏览器验收由 GitHub-hosted runner 完成。
 - 生产/外部待项：OJ 接口和授权同步、Authentik、真实名单、SMTP 投递、生产 S3/TLS、Prometheus/exporter、Raspberry Pi/实物打印、目标 DNS/TLS/资源限制、完整数据灾备与生产发布。详见 `docs/integration-status.md` 和 `docs/acceptance.md`。
