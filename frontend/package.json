@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test:assessment": "node --experimental-strip-types --test tests/assessment.test.ts",
     "test:seats": "node tests/seats.test.mjs",
+    "test:e2e": "playwright test",
     "export:floor-plan": "node scripts/export-floor-plan.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
@@ -27,6 +28,7 @@
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

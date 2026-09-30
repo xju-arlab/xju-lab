@@ -1,0 +1,17 @@
+# Explicit local-only test overrides for the browser/API end-to-end workflow.
+services:
+  keycloak:
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      KC_HOSTNAME: http://keycloak:8080
+  app:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      OIDC_ISSUER_URI: http://keycloak:8080/realms/xju-lab
+      OIDC_CLIENT_ID: lab-dev
+      OIDC_CLIENT_SECRET: lab-dev-secret
+      BOOTSTRAP_ADMIN_ISSUER: http://keycloak:8080/realms/xju-lab
+      BOOTSTRAP_ADMIN_SUBJECT: 00000000-0000-4000-8000-000000000101
+      LAB_FRONTEND_ORIGIN: http://localhost:18080
+      SESSION_COOKIE_SECURE: "false"

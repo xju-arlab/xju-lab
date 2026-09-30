@@ -15,8 +15,8 @@
     "secret": "lab-dev-secret",
     "standardFlowEnabled": true,
     "directAccessGrantsEnabled": false,
-    "redirectUris": ["http://localhost:8080/login/oauth2/code/lab"],
-    "webOrigins": ["http://localhost:8080"],
+    "redirectUris": ["http://localhost:8080/login/oauth2/code/lab", "http://localhost:18080/login/oauth2/code/lab"],
+    "webOrigins": ["http://localhost:8080", "http://localhost:18080"],
     "protocol": "openid-connect",
     "attributes": { "pkce.code.challenge.method": "S256" },
     "protocolMappers": [{

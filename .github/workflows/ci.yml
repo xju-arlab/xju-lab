@@ -44,6 +44,51 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: frontend
       - run: bash scripts/verify.sh
+  browser-e2e:
+    runs-on: ubuntu-24.04
+    env:
+      COMPOSE_PROJECT_NAME: xju-lab-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.17.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24.16.0, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Install Chromium for the API-mode browser test
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Route the local IdP hostname to the isolated test service
+        run: echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts >/dev/null
+      - name: Build and start the isolated full stack with test IdP
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp up --build -d
+      - name: Wait for the app, web and IdP
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:18080/api/v1/health >/dev/null \
+              && curl -fsS http://127.0.0.1:18080/ >/dev/null \
+              && curl -fsS http://127.0.0.1:8080/realms/xju-lab/.well-known/openid-configuration >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$ready" != true ]]; then
+            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 app web keycloak postgres redis object-store
+            exit 1
+          fi
+      - name: Run OIDC, project isolation and responsive browser checks
+        run: pnpm test:e2e
+        working-directory: frontend
+      - name: Collect stack logs on failure
+        if: failure()
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 app web keycloak postgres redis object-store
+      - name: Stop the isolated stack
+        if: always()
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp down --volumes --remove-orphans
   printer-agent:
     runs-on: ubuntu-24.04
     steps:
