@@ -242,6 +242,18 @@ class BaselineIntegrationTest {
             .andExpect(status().isBadRequest());
     }
 
+    @Test void concurrentSeatAssignmentsForOneMemberHaveExactlyOneWinner() throws Exception {
+        member("seat-race-admin","LAB_ADMIN");
+        UUID person=member("seat-race-person","MEMBER");
+        String body="{\"memberId\":\""+person+"\"}";
+        List<Integer> outcomes=runConcurrently(
+            () -> mvc.perform(put("/api/v1/seats/A01/assignment").with(login("seat-race-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse().getStatus(),
+            () -> mvc.perform(put("/api/v1/seats/B01/assignment").with(login("seat-race-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse().getStatus());
+
+        assertThat(outcomes).containsExactlyInAnyOrder(HttpStatus.OK.value(),HttpStatus.CONFLICT.value());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM seat_assignment WHERE member_id=? AND released_at IS NULL",Integer.class,person)).isEqualTo(1);
+    }
+
     @Test void projectMeetingAndMyTaskViewsShareOneAuthorizedTaskRecord() throws Exception {
         UUID actor=member("collab-owner","MEMBER");member("collab-unrelated","MEMBER");
         var created=mvc.perform(post("/api/v1/projects").with(login("collab-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Access study\",\"description\":\"Private work\"}"))
@@ -374,6 +386,26 @@ class BaselineIntegrationTest {
         String adjacent="{\"startsAt\":\""+later+"\",\"endsAt\":\""+later2+"\",\"approverId\":\""+approver+"\",\"reason\":\"Adjacent\"}";
         mvc.perform(post("/api/v1/leaves").with(login("leave-boundary-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(first)).andExpect(status().isCreated());
         mvc.perform(post("/api/v1/leaves").with(login("leave-boundary-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(adjacent)).andExpect(status().isCreated());
+    }
+
+    @Test void concurrentLeaveApprovalAndWithdrawalAllowOnlyOneTransition() throws Exception {
+        member("leave-race-applicant","MEMBER");
+        UUID approver=member("leave-race-approver","TEACHER");
+        String starts=Instant.now().plusSeconds(3600).toString(), ends=Instant.now().plusSeconds(7200).toString();
+        var created=mvc.perform(post("/api/v1/leaves").with(login("leave-race-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"startsAt\":\""+starts+"\",\"endsAt\":\""+ends+"\",\"approverId\":\""+approver+"\",\"reason\":\"Concurrent decision test\"}"))
+            .andExpect(status().isCreated()).andReturn();
+        String application=new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString()).get("id").asText();
+        List<Integer> outcomes=runConcurrently(
+            () -> mvc.perform(post("/api/v1/leaves/"+application+"/decision").with(login("leave-race-approver")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"decision\":\"APPROVED\",\"version\":1}" )).andReturn().getResponse().getStatus(),
+            () -> mvc.perform(post("/api/v1/leaves/"+application+"/withdraw").with(login("leave-race-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":1}" )).andReturn().getResponse().getStatus());
+
+        assertThat(outcomes).containsExactlyInAnyOrder(HttpStatus.OK.value(),HttpStatus.CONFLICT.value());
+        assertThat(jdbc.queryForObject("SELECT status FROM leave_application WHERE id=?",String.class,UUID.fromString(application)))
+            .isIn("APPROVED","WITHDRAWN");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM leave_decision WHERE application_id=? AND decision IN ('APPROVED','WITHDRAWN')",Integer.class,UUID.fromString(application))).isEqualTo(1);
     }
 
     @Test void privatePdfUploadRangeDownloadAndOwnershipAreEnforced() throws Exception {
@@ -595,6 +627,18 @@ class BaselineIntegrationTest {
     private RequestPostProcessor login(String issuer,String subject){
         Instant now=Instant.now();
         return oidcLogin().idToken(token->token.claim("iss",issuer).claim("sub",subject).claim("aud",List.of("integration-test")).issuedAt(now.minusSeconds(30)).expiresAt(now.plusSeconds(300)));
+    }
+    private <T> List<T> runConcurrently(java.util.concurrent.Callable<T> first,java.util.concurrent.Callable<T> second) throws Exception {
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(2);
+        var ready=new java.util.concurrent.CountDownLatch(2);var start=new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.Callable<T> gatedFirst=()->{ready.countDown();if(!start.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new IllegalStateException("Concurrent request start timed out");return first.call();};
+        java.util.concurrent.Callable<T> gatedSecond=()->{ready.countDown();if(!start.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new IllegalStateException("Concurrent request start timed out");return second.call();};
+        try {
+            var firstResult=executor.submit(gatedFirst);var secondResult=executor.submit(gatedSecond);
+            if(!ready.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new IllegalStateException("Concurrent requests did not reach the start barrier");
+            start.countDown();
+            return List.of(firstResult.get(30,java.util.concurrent.TimeUnit.SECONDS),secondResult.get(30,java.util.concurrent.TimeUnit.SECONDS));
+        } finally { start.countDown();executor.shutdownNow(); }
     }
     private static java.nio.file.Path temporaryPrivateFiles(){try{return java.nio.file.Files.createTempDirectory("xju-lab-private-files-");}catch(java.io.IOException ex){throw new ExceptionInInitializerError(ex);}}
 }
