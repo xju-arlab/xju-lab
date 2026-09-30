@@ -10,6 +10,28 @@ function percentile(samples: number[], percentileValue: number) {
   return sorted[Math.ceil(sorted.length * percentileValue) - 1]
 }
 
+function onePagePdf() {
+  const stream = 'BT /F1 18 Tf 72 720 Td (Local browser acceptance) Tj ET'
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ]
+  let pdf = '%PDF-1.4\n'
+  const offsets = [0]
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'))
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii')
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  pdf += offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  return Buffer.from(pdf, 'ascii')
+}
+
 async function signIn(page: Page, user: { username: string; password: string }) {
   await page.goto('/app/dashboard')
   const loginLink = page.getByRole('link', { name: /统一身份登录/ })
@@ -146,6 +168,130 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const pngContents = await readFile((await pngDownload.path())!)
   expect([...pngContents.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
 
+  const meetingTitle = `浏览器验收会议-${Date.now()}`
+  const meetingAction = `浏览器验收会议行动项-${Date.now()}`
+  await adminPage.goto('/app/meetings')
+  await adminPage.getByText('安排会议', { exact: true }).click()
+  await adminPage.getByLabel('会议主题').fill(meetingTitle)
+  await adminPage.getByLabel('开始时间（北京时间）').fill('2030-05-20T09:00')
+  await adminPage.locator('select[name="participants"]').selectOption('00000000-0000-4000-8000-000000000102')
+  await adminPage.getByRole('button', { name: '创建会议' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('会议已创建')
+  await adminPage.getByRole('button', { name: new RegExp(meetingTitle) }).click()
+  await adminPage.getByLabel('纪要内容').fill('浏览器验收会议纪要，行动项写入共享任务。')
+  await adminPage.getByRole('button', { name: '保存纪要' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('会议纪要已保存')
+  const meetingActionForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '创建行动项' }) })
+  await meetingActionForm.locator('input[name="title"]').fill(meetingAction)
+  await meetingActionForm.locator('select[name="assigneeId"]').selectOption('00000000-0000-4000-8000-000000000102')
+  await meetingActionForm.getByRole('button', { name: '创建行动项' }).click()
+  await expect(adminPage.getByText('会议行动项已加入统一任务')).toBeVisible()
+
+  await adminPage.goto('/app/print')
+  const printerName = `浏览器验收虚拟打印机-${Date.now()}`
+  const printerForm = adminPage.locator('form').filter({ has: adminPage.locator('input[name="printerName"]') })
+  await printerForm.locator('input[name="printerName"]').fill(printerName)
+  await printerForm.locator('input[name="printerLocation"]').fill('CI 隔离环境')
+  await printerForm.getByRole('button', { name: '登记打印机' }).click()
+  const issuedCredentials = await adminPage.locator('pre.api-credential').innerText()
+  const printerId = issuedCredentials.match(/PRINTER_ID=([\w-]+)/)?.[1]
+  const agentToken = issuedCredentials.match(/AGENT_TOKEN=([\w-]+)/)?.[1]
+  expect(printerId).toBeTruthy()
+  expect(agentToken).toBeTruthy()
+  await adminPage.getByRole('button', { name: '已安全保存' }).click()
+  await adminPage.locator('select[name="printerId"]').selectOption(printerId!)
+  await adminPage.locator('input[name="file"]').setInputFiles({ name: 'browser-acceptance.pdf', mimeType: 'application/pdf', buffer: onePagePdf() })
+  await adminPage.getByRole('button', { name: '提交打印' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('打印任务已提交到服务端队列。')
+  const queuedPrint = await adminPage.evaluate(async () => {
+    const response = await fetch('/api/v1/print/jobs?page=1&pageSize=20')
+    const result = await response.json()
+    return result.items[0] as { id: string; status: string; fileName: string }
+  })
+  expect(queuedPrint).toMatchObject({ status: 'QUEUED', fileName: 'browser-acceptance.pdf' })
+  const printerAgentPoll = await adminPage.evaluate(async ({ token, fileId }) => {
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const heartbeat = await fetch('/api/v1/printer-agent/heartbeat', { method: 'POST', headers, body: JSON.stringify({ agentVersion: 'browser-e2e', deviceState: 'READY', tonerSupported: false, tonerPercent: null, capabilities: { known: true, colorSupported: false, duplexSupported: false, maxCopies: 1, paperSizes: ['A4'] } }) })
+    const poll = await fetch('/api/v1/printer-agent/poll', { method: 'POST', headers, body: '{}' })
+    const lease = (await poll.json()).job as { jobId: string; version: number; fencingToken: number; contentUrl: string; byteSize: number }
+    const content = await fetch(lease.contentUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const contentBytes = new Uint8Array(await content.arrayBuffer())
+    const states = ['SUBMITTING', 'SUBMITTED', 'COMPLETED'] as const
+    let version = lease.version
+    const transitions: string[] = []
+    for (const state of states) {
+      const response = await fetch(`/api/v1/printer-agent/jobs/${lease.jobId}/status`, { method: 'POST', headers, body: JSON.stringify({ state, fencingToken: lease.fencingToken, version, detail: { deviceState: 'READY', cupsJobId: 'e2e-1' } }) })
+      const result = await response.json()
+      transitions.push(result.state)
+      version = result.version
+    }
+    return { heartbeatStatus: heartbeat.status, pollStatus: poll.status, leaseJobId: lease.jobId, expectedJobId: fileId, contentStatus: content.status, pdfHeader: String.fromCharCode(...contentBytes.slice(0, 5)), contentByteSize: contentBytes.length, expectedByteSize: lease.byteSize, transitions }
+  }, { token: agentToken!, fileId: queuedPrint.id })
+  expect(printerAgentPoll).toEqual({ heartbeatStatus: 200, pollStatus: 200, leaseJobId: queuedPrint.id, expectedJobId: queuedPrint.id, contentStatus: 200, pdfHeader: '%PDF-', contentByteSize: onePagePdf().length, expectedByteSize: onePagePdf().length, transitions: ['SUBMITTING', 'SUBMITTED', 'COMPLETED'] })
+  await adminPage.reload()
+  await expect(adminPage.locator('.api-print-job').filter({ hasText: 'browser-acceptance.pdf' }).getByText('COMPLETED')).toBeVisible()
+
+  await adminPage.goto('/app/assessment')
+  await expect(adminPage.getByLabel('培养期名称')).toBeVisible()
+  const termTitle = `浏览器验收培养期-${Date.now()}`
+  const termForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '创建培养期' }) })
+  await termForm.locator('input[name="name"]').fill(termTitle)
+  await termForm.locator('input[name="startsOn"]').fill('2030-01-01')
+  await termForm.locator('input[name="endsOn"]').fill('2030-12-31')
+  await termForm.locator('input[name="active"]').check()
+  await termForm.getByRole('button', { name: '创建培养期' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('培养期已创建')
+  const termMemberForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '加入培养期' }) })
+  await termMemberForm.locator('select[name="memberId"]').selectOption('00000000-0000-4000-8000-000000000102')
+  await termMemberForm.getByRole('button', { name: '加入培养期' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('成员已加入培养期')
+  const examTitle = `浏览器验收理论考试-${Date.now()}`
+  const examForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '创建理论考试' }) })
+  await examForm.locator('input[name="title"]').fill(examTitle)
+  await examForm.locator('select[name="kind"]').selectOption('WRITTEN')
+  await examForm.locator('input[name="startsAt"]').fill('2030-06-01T09:00')
+  await examForm.getByRole('button', { name: '创建理论考试' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('理论考试已创建')
+  const assessedMemberRow = adminPage.getByRole('row').filter({ hasText: '本地测试成员甲' })
+  await expect(assessedMemberRow).toBeVisible()
+  await assessedMemberRow.locator('details').getByText('录入 / 修订').click()
+  const gradeForm = assessedMemberRow.locator('form')
+  await gradeForm.locator('select[name="status"]').selectOption('GRADED')
+  await gradeForm.locator('input[name="score"]').fill('86')
+  await gradeForm.locator('input[name="reason"]').fill('浏览器验收修订')
+  await gradeForm.getByRole('button', { name: '保存修订' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('成绩修订已保存并记录')
+  await expect(assessedMemberRow).toContainText('86')
+  await adminPage.getByRole('button', { name: '历史排名' }).click()
+  await expect(adminPage.getByRole('row').filter({ hasText: '本地测试成员甲' })).toBeVisible()
+  await adminPage.reload()
+  await adminPage.getByRole('tab', { name: '深度学习理论基础' }).click()
+  await expect(adminPage.getByRole('row').filter({ hasText: '本地测试成员甲' })).toContainText('86')
+  await adminPage.getByRole('button', { name: '发布排行' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('排行快照已发布')
+
+  const publicName = `浏览器验收公开页-${Date.now()}`
+  const publicDescription = `公开说明-${Date.now()}`
+  const publicProject = `公开项目-${Date.now()}`
+  await adminPage.goto('/app/publish')
+  await adminPage.getByLabel('公开名称').fill(publicName)
+  await adminPage.getByLabel('公开简介').fill(publicDescription)
+  await adminPage.getByLabel('公开项目（每行一个：标题｜简介）').fill(`${publicProject}｜仅展示显式发布项目`)
+  await adminPage.getByRole('button', { name: '发布公开快照' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('脱敏公开快照已发布')
+  const anonymousContext = await browser.newContext()
+  const anonymousPage = await anonymousContext.newPage()
+  await anonymousPage.goto('/')
+  await expect(anonymousPage.locator('h1')).toContainText(publicName)
+  await expect(anonymousPage.getByText(publicProject)).toBeVisible()
+  await expect(anonymousPage.getByText(taskTitle)).toHaveCount(0)
+  await adminPage.getByRole('button', { name: '撤回公开内容' }).click()
+  await expect(adminPage.getByRole('status')).toHaveText('公开内容已撤回')
+  await anonymousPage.reload()
+  await expect(anonymousPage.getByText('尚未发布公开内容 · 内部资料不会自动公开')).toBeVisible()
+  await expect(anonymousPage.getByText(publicProject)).toHaveCount(0)
+  await anonymousContext.close()
+
   const projectId = await adminPage.evaluate(async title => {
     const response = await fetch('/api/v1/projects?page=1&pageSize=100')
     const page = await response.json()
@@ -168,6 +314,30 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   expect(memberAAdminStatus).toBe(403)
   await memberAPage.reload()
   await expect(memberAPage.getByRole('button', { name: new RegExp(projectTitle) })).toBeVisible()
+  await memberAPage.goto('/app/meetings')
+  await memberAPage.getByRole('button', { name: new RegExp(meetingTitle) }).click()
+  await expect(memberAPage.getByText(meetingAction)).toBeVisible()
+
+  const leaveReason = `PRIVATE_LEAVE_REASON_DO_NOT_PUBLISH-${Date.now()}`
+  await memberAPage.goto('/app/leave')
+  await memberAPage.getByLabel('开始时间（北京时间）').fill('2030-05-21T09:00')
+  await memberAPage.getByLabel('结束时间（北京时间）').fill('2030-05-21T10:00')
+  await memberAPage.locator('select[name="approverId"]').selectOption('00000000-0000-4000-8000-000000000101')
+  await memberAPage.getByLabel('请假原因').fill(leaveReason)
+  await memberAPage.getByRole('button', { name: '提交申请' }).click()
+  await expect(memberAPage.getByRole('status')).toHaveText('申请已提交')
+  await adminPage.goto('/app/leave')
+  const pendingLeave = adminPage.locator('.api-leave-card').filter({ hasText: leaveReason })
+  await expect(pendingLeave).toBeVisible()
+  await pendingLeave.getByRole('button', { name: '批准' }).click()
+  await expect(adminPage.locator('.api-leave-card').filter({ hasText: leaveReason }).getByText('APPROVED')).toBeVisible()
+  await memberAPage.goto('/app/leave')
+  await expect(memberAPage.locator('.api-leave-card').filter({ hasText: leaveReason }).getByText('APPROVED')).toBeVisible()
+  await memberAPage.goto('/app/notifications')
+  const leaveNotification = memberAPage.locator('.api-row').filter({ hasText: 'LEAVE_APPROVED' })
+  await expect(leaveNotification).toBeVisible()
+  await leaveNotification.getByRole('button', { name: '标为已读' }).click()
+  await expect(leaveNotification.getByText('已读')).toBeVisible()
 
   const memberBContext = await browser.newContext()
   const memberBPage = await memberBContext.newPage()
