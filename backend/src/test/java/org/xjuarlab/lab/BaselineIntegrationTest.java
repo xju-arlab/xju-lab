@@ -90,6 +90,8 @@ class BaselineIntegrationTest {
     @Autowired org.xjuarlab.lab.monitoring.SshMonitoring sshMonitoring;
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     org.xjuarlab.lab.servers.infrastructure.SshWorker sshWorker;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    org.xjuarlab.lab.printer.HpPrinterStatusClient hpPrinterStatusClient;
 
     @BeforeEach void isolateMutableFixtures(){
         jdbc.update("DELETE FROM approval_token");
@@ -100,6 +102,8 @@ class BaselineIntegrationTest {
         jdbc.update("UPDATE lab_setting SET mail_enabled=false WHERE singleton=true");
         reset(mailSender);
         reset(sshWorker);
+        reset(hpPrinterStatusClient);
+        jdbc.update("DELETE FROM printer WHERE status_source='HP_STATUS'");
         jdbc.update("DELETE FROM seat_assignment");
         jdbc.update("DELETE FROM layout_revision WHERE version>1");
         jdbc.update("UPDATE seat s SET layout_item=d.value FROM layout_revision r CROSS JOIN LATERAL jsonb_array_elements(r.payload->'desks') d(value) WHERE r.version=1 AND d.value->>'id'=s.id");
@@ -611,6 +615,62 @@ class BaselineIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$[0].payload.rows.length()").value(1)).andExpect(jsonPath("$[0].payload.rows[0].student.id").value(alice.toString()));
         mvc.perform(get("/api/v1/assessment/exams/"+selected+"/ranking").with(login("assessment-alice")))
             .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].student.id").value(alice.toString()));
+    }
+
+    @Test void fixedHpPrinterBindingIsIdempotentFreshPermissionCheckedAndStopsWhenDisabled() throws Exception {
+        member("hp-admin", "LAB_ADMIN"); member("hp-reader", "MEMBER");
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        var sync=new org.xjuarlab.lab.printer.HpPrinterStatusSync(jdbc,hpPrinterStatusClient,mapper,true);
+        var observed=java.time.OffsetDateTime.now();
+        var report=mapper.createObjectNode().put("sourceAvailable",true).put("online",true).put("stale",false)
+            .put("model","Fixture model").put("deviceState","READY").put("agentVersion","hp-status-v1")
+            .put("tonerSupported",false).putNull("tonerPercent").put("reportedAt",observed.toString());
+        report.putArray("supplies").addObject().put("name","彩色墨盒").put("levelPercent",27).put("low",false);
+        org.mockito.Mockito.when(hpPrinterStatusClient.fetch()).thenAnswer(invocation->{
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new org.xjuarlab.lab.printer.HpPrinterStatusClient.Snapshot("HTTP fixture",observed,report);
+        });
+        new org.xjuarlab.lab.printer.HpPrinterStatusSync(jdbc,hpPrinterStatusClient,mapper,false).sync();
+        org.mockito.Mockito.verifyNoInteractions(hpPrinterStatusClient);
+        sync.sync(); sync.sync();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM printer WHERE status_source='HP_STATUS'",Integer.class)).isEqualTo(1);
+        UUID printer=jdbc.queryForObject("SELECT id FROM printer WHERE status_source='HP_STATUS'",UUID.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_identity WHERE printer_id=?",Integer.class,printer)).isZero();
+        mvc.perform(get("/api/v1/printers")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader"))).andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("ONLINE")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].lastReport.model").value(org.hamcrest.Matchers.contains("Fixture model")));
+        mvc.perform(patch("/api/v1/admin/printers/"+printer+"/enabled").with(login("hp-reader")).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":false}")).andExpect(status().isForbidden());
+        report.put("online",false); sync.sync();
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("OFFLINE")));
+        report.put("online",true).put("stale",true); sync.sync();
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("STALE")));
+        report.put("stale",false); sync.sync();
+        jdbc.update("UPDATE printer SET source_observed_at=now()-interval '5 minutes' WHERE id=?",printer);
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("STALE")));
+        sync.sync();
+        org.mockito.Mockito.when(hpPrinterStatusClient.fetch()).thenThrow(new IllegalStateException("fixture unavailable"));
+        sync.sync();
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("UNAVAILABLE")));
+        assertThat(jdbc.queryForObject("SELECT source_report->'supplies'->0->>'levelPercent' FROM printer WHERE id=?",String.class,printer)).isEqualTo("27");
+        assertThat(jdbc.queryForObject("SELECT source_observed_at FROM printer WHERE id=?",java.time.OffsetDateTime.class,printer).toEpochSecond()).isEqualTo(observed.toEpochSecond());
+        mvc.perform(patch("/api/v1/admin/printers/"+printer+"/enabled").with(login("hp-admin")).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":false}")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DISABLED"));
+        reset(hpPrinterStatusClient); sync.sync(); org.mockito.Mockito.verifyNoInteractions(hpPrinterStatusClient);
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')]").isEmpty());
+        mvc.perform(post("/api/v1/admin/printers/"+printer+"/rotate-agent-token").with(login("hp-admin")).with(csrf())).andExpect(status().isNotFound());
+        mvc.perform(patch("/api/v1/admin/printers/"+printer+"/enabled").with(login("hp-admin")).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}")).andExpect(status().isOk());
+        org.mockito.Mockito.when(hpPrinterStatusClient.fetch()).thenReturn(new org.xjuarlab.lab.printer.HpPrinterStatusClient.Snapshot("HTTP fixture",observed,report));
+        sync.sync(); verify(hpPrinterStatusClient).fetch();
+        mvc.perform(get("/api/v1/printers").with(login("hp-reader")))
+            .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("ONLINE")));
     }
 
     @Test void printerAgentReportsOnlyAuthenticatedDeviceStatus() throws Exception {

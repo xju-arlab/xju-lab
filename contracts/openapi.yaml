@@ -603,12 +603,13 @@ components:
         hardware: { $ref: '#/components/schemas/ServerHardware' }
     Printer:
       type: object
-      required: [id, name, location, status, lastSeenAt, lastReport]
+      required: [id, name, location, status, lastSeenAt, lastReport, source]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         location: { type: string }
-        status: { type: string, enum: [ONLINE, OFFLINE, DISABLED] }
+        status: { type: string, enum: [ONLINE, OFFLINE, DISABLED, STALE, UNAVAILABLE] }
+        source: { type: string, enum: [AGENT, HP_STATUS] }
         lastSeenAt: { type: string, format: date-time, nullable: true }
         lastReport:
           type: object
@@ -620,6 +621,28 @@ components:
             tonerSupported: { type: boolean }
             tonerPercent: { type: integer, nullable: true, minimum: 0, maximum: 100 }
             reportedAt: { type: string, format: date-time }
+            sourceAvailable: { type: boolean }
+            online: { type: boolean }
+            stale: { type: boolean }
+            model: { type: string }
+            stateLabel: { type: string }
+            paperLabel: { type: string }
+            paperEmpty: { type: boolean }
+            paperLow: { type: boolean }
+            paperReportsDiffer: { type: boolean }
+            devicePaperLabel: { type: string }
+            queuePaperLabel: { type: string }
+            suppliesApproximate: { type: boolean }
+            supplies:
+              type: array
+              maxItems: 8
+              items:
+                type: object
+                required: [name, levelPercent, low]
+                properties:
+                  name: { type: string }
+                  levelPercent: { type: number, nullable: true, minimum: 0, maximum: 100 }
+                  low: { type: boolean }
     AgentCredential:
       type: object
       required: [printerId, agentId, token]

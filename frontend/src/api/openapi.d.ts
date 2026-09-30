@@ -3540,7 +3540,9 @@ export interface components {
             name: string;
             location: string;
             /** @enum {string} */
-            status: "ONLINE" | "OFFLINE" | "DISABLED";
+            status: "ONLINE" | "OFFLINE" | "DISABLED" | "STALE" | "UNAVAILABLE";
+            /** @enum {string} */
+            source: "AGENT" | "HP_STATUS";
             /** Format: date-time */
             lastSeenAt: string | null;
             lastReport: {
@@ -3551,6 +3553,23 @@ export interface components {
                 tonerPercent: number | null;
                 /** Format: date-time */
                 reportedAt: string;
+                sourceAvailable?: boolean;
+                online?: boolean;
+                stale?: boolean;
+                model?: string;
+                stateLabel?: string;
+                paperLabel?: string;
+                paperEmpty?: boolean;
+                paperLow?: boolean;
+                paperReportsDiffer?: boolean;
+                devicePaperLabel?: string;
+                queuePaperLabel?: string;
+                suppliesApproximate?: boolean;
+                supplies?: {
+                    name: string;
+                    levelPercent: number | null;
+                    low: boolean;
+                }[];
             } | null;
         };
         AgentCredential: {

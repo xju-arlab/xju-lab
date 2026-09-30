@@ -54,6 +54,15 @@ cd /home/winbeau/projects/xju-lab && ./deploy.sh
 
 脚本只允许 `main` 分支，快进拉取 `origin/main`；若脚本自身更新则重新执行新版。拒绝开发占位值，校验 Compose 后构建并启动 API/Web，最后直接探测本机 Web、health 和 ready（回环请求不经过代理）。公开资料未发布时 lab-profile 返回 404，不作为部署故障。发布路由的本地上游填 `http://127.0.0.1:18080`，外部站点是 `https://lab.icthub.top`。路由应转发原始 Host 与 `X-Forwarded-Proto: https`，并确保该域名规则优先于更宽泛的规则。
 
+## 惠普状态接口绑定
+
+生产 `.env` 设置 `HP_PRINTER_STATUS_ENABLED=true`，再运行 `./deploy.sh`。服务只读访问固定地址 `https://hp.icthub.top/v1/status`；默认关闭，CI/本地不会请求真实打印机。无需安装或签发这台设备的 Agent 凭据，也不接受用户输入任意 URL。
+
+- 启用后以唯一来源 `HP_STATUS` 自动登记一个设备，重启/重复同步不会新增副本。每 15 秒读取一次，连接/请求超时为 3/6 秒，不跟随重定向。管理员在管理设置中停用设备后停止请求；重新启用恢复读取。
+- 总览显示接口给出的名称、型号、纸张状态和每个墨盒的独立余量。估计值保留「约」，未知显示未知；「未报告缺纸」不推断为纸张充足。设备与队列纸张报告不一致时分别显示。
+- 源接口失联为「状态暂不可用」，上游声明过期、设备观察时间缺失/超过 90 秒或明显超前为「数据已过期」；读取时间过期也不能报告在线。保留的旧信息带最后读取时间，不以同步任务活跃冒充设备在线。
+- 状态存于 PostgreSQL V10 的 `printer.source_*` 列；只保存展示所需字段，不保存队列任务/用户信息。API 仍要求成员登录，浏览器不直接跨域访问源服务；现有 CUPS 状态 Agent 可继续登记其他设备。本项目不触发打印。
+
 ## 备份
 
 设置受限文件系统上的 `BACKUP_ROOT`（必须在仓库外）、`DATABASE_URL`、`S3_BUCKET`，并通过 AWS CLI 的标准环境或凭据配置提供只读对象列表/读取及备份目录写入权限，然后运行 `scripts/backup.sh`。可设置 `AWS_ENDPOINT_URL` 用于兼容 S3 的测试端点。脚本创建权限为当前用户私有的目录，保存 PostgreSQL custom dump、指定 bucket 的对象副本和 SHA-256 清单。

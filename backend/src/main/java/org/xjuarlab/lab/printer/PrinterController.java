@@ -53,11 +53,21 @@ public class PrinterController {
     }
 
     private List<PrinterView> listPrinters(String filter, Object... parameters) {
-        String sql = "SELECT p.id,p.name,p.location,CASE WHEN NOT p.enabled THEN 'DISABLED' WHEN ai.last_seen_at>now()-interval '90 seconds' THEN 'ONLINE' ELSE 'OFFLINE' END AS state,ai.last_seen_at,ai.last_report FROM printer p LEFT JOIN agent_identity ai ON ai.id=p.agent_id "
+        String sql = "SELECT p.*,CASE WHEN NOT p.enabled THEN 'DISABLED' WHEN ai.last_seen_at>now()-interval '90 seconds' THEN 'ONLINE' ELSE 'OFFLINE' END AS state,ai.last_seen_at,ai.last_report FROM printer p LEFT JOIN agent_identity ai ON ai.id=p.agent_id "
             + filter + " ORDER BY p.name,p.id";
-        return jdbc.query(sql, (rs, row) -> new PrinterView(
-            (UUID) rs.getObject("id"), rs.getString("name"), rs.getString("location"), rs.getString("state"),
-            rs.getObject("last_seen_at", OffsetDateTime.class), parse(rs.getString("last_report"))), parameters);
+        return jdbc.query(sql, (rs, row) -> {
+            boolean external="HP_STATUS".equals(rs.getString("status_source"));
+            JsonNode report=parse(rs.getString(external?"source_report":"last_report"));
+            OffsetDateTime observed=rs.getObject(external?"source_observed_at":"last_seen_at",OffsetDateTime.class);
+            String state=rs.getString("state");
+            if(external && rs.getBoolean("enabled")) {
+                OffsetDateTime checked=rs.getObject("source_checked_at",OffsetDateTime.class), now=OffsetDateTime.now();
+                if(!report.path("sourceAvailable").asBoolean()) state="UNAVAILABLE";
+                else if(checked==null || checked.isBefore(now.minusSeconds(90)) || observed==null || observed.isBefore(now.minusSeconds(90)) || observed.isAfter(now.plusSeconds(30)) || report.path("stale").asBoolean()) state="STALE";
+                else state=report.path("online").asBoolean()?"ONLINE":"OFFLINE";
+            }
+            return new PrinterView((UUID)rs.getObject("id"),rs.getString("name"),rs.getString("location"),state,observed,report,external?"HP_STATUS":"AGENT");
+        }, parameters);
     }
 
     @PostMapping("/admin/printers")
@@ -140,7 +150,7 @@ public class PrinterController {
     }
 
     public record PrinterView(UUID id, String name, String location, String status,
-                              OffsetDateTime lastSeenAt, JsonNode lastReport) {}
+                              OffsetDateTime lastSeenAt, JsonNode lastReport, String source) {}
     public record AgentCredential(UUID printerId, UUID agentId, String token) {}
     public record CreatePrinter(String name, String location) {}
     public record EnabledInput(boolean enabled) {}
