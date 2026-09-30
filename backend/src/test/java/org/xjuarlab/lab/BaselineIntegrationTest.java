@@ -185,12 +185,12 @@ class BaselineIntegrationTest {
 
         mvc.perform(put("/api/v1/members/me/registration").with(login("registration-self-service")).with(csrf())
                 .header("If-Match-Version", 2).contentType(MediaType.APPLICATION_JSON)
-                .content("""{"realName":"另一个姓名","studentNumber":"another-number","className":"信安25-1","directions":["算法"]}"""))
+                .content("{\"realName\":\"另一个姓名\",\"studentNumber\":\"another-number\",\"className\":\"信安25-1\",\"directions\":[\"算法\"]}"))
             .andExpect(status().isConflict());
 
         mvc.perform(patch("/api/v1/members/me").with(login("registration-self-service")).with(csrf())
                 .header("If-Match-Version", 2).contentType(MediaType.APPLICATION_JSON)
-                .content("""{"className":"信安25-1","directions":["算法","量子计算"],"introduction":"研究者","realName":"伪造姓名","studentNumber":"伪造学号"}"""))
+                .content("{\"className\":\"信安25-1\",\"directions\":[\"算法\",\"量子计算\"],\"introduction\":\"研究者\",\"realName\":\"伪造姓名\",\"studentNumber\":\"伪造学号\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.realName").value("李晓"))
             .andExpect(jsonPath("$.studentNumber").value(studentNumber)).andExpect(jsonPath("$.className").value("信安25-1"))
             .andExpect(jsonPath("$.grade").value(25)).andExpect(jsonPath("$.directions.length()").value(2));
@@ -198,7 +198,7 @@ class BaselineIntegrationTest {
 
         mvc.perform(patch("/api/v1/members/me").with(login("registration-self-service")).with(csrf())
                 .header("If-Match-Version", 3).contentType(MediaType.APPLICATION_JSON)
-                .content("""{"className":"计算机2024-3","directions":["算法"]}"""))
+                .content("{\"className\":\"计算机2024-3\",\"directions\":[\"算法\"]}"))
             .andExpect(status().isBadRequest());
     }
 
