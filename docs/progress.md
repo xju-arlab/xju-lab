@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `9c199ff` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36719040292)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `4e29315` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36721774675)，实时查询现为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
 
@@ -16,7 +16,7 @@
 - 删除全资产 SSH 后台定时采集，仅由已鉴权的指标请求触发；复用 25 秒内样本和进行中的请求，最多两台并行。定时任务只保留旧样本清理。按型号合并 GPU，例如 `NVIDIA H100 80GB HBM3 ✕ 4`，不展示重复的原始显存数值；删除「SSH 自动采集 · 每 30 秒更新」说明。
 - 本地 TypeScript、Vite production build（1661 模块）及四项浏览器测试通过；新增检查覆盖 375/768/1440 px 默认关闭不请求、键盘开启、开启期间刷新、关闭后停止、重新进入恢复关闭、开关位于添加按钮左侧和同型号/异构 GPU 汇总。合成截图位于 Windows 隔离验证目录 `frontend/test-results/loading-cache-server-live--d5a11-d-off-and-reset-on-revisits/`。
 - huawei2 已通过 `./deploy.sh` 发布 `88705a6`，公网资源为 `index-DalQLptW.js` / `index-CPo5iY8j.css`，计算资源页和 ready 均 200。对公网构建使用隔离合成 API 重跑开关/三视口浏览器测试通过；生产两次只读数据库检查，三个资产的采样总数及最后时间均未变化，确认无人查询时不再自动采集。发布和核验日志为 `~/.local/state/xju-lab-tools/deploy-on-demand-monitor.log` / `on-demand-{before,after}.log`。
-- 新增真实 PostgreSQL 回归覆盖资产列表/历史查询/清理不连接 SSH、并发请求复用、近期样本复用及过期后按需更新。首轮前端、SSH、浏览器、备份与 Agent 检查通过；后端用例在构造过期数据时把两个样本改成同一主键时间而失败，已改为保留间隔整体减去 26 小时，等待重跑。
+- 新增真实 PostgreSQL 回归覆盖资产列表/历史查询/清理不连接 SSH、并发请求复用、近期样本复用及过期后按需更新。首轮后端用例在构造过期数据时把两个样本改成同一主键时间而失败，修正后 `4e29315` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36721774675)，包含完整浏览器验收。huawei2 已快进同步测试/文档修订；应用代码与已部署 `88705a6` 相同。
 
 ### 2026-09-30：登录过渡、会话缓存与 SSH 运行指标
 
