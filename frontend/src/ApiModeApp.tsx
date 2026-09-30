@@ -29,7 +29,7 @@ type ApiAsset = { id: string; name: string; prometheusJob: string | null; target
 type Metric = { metric: string; unit: string; value: number | null; status: string; sampledAt: string | null; expiresAt: string | null }
 type AdminMember = { id: string; accountId: string | null; displayName: string; studentNumber: string | null; contact: string | null; cohort: number | null; active: boolean; version: number; roles: string[]; ojAdminDesired: boolean | null; ojSyncVersion: number | null; ojConfirmedVersion: number | null; ojSyncStatus: string | null; ojLastError: string | null }
 
-function useLoad<T>(path: string): Loaded<T> {
+function useLoad<T>(path: string | null): Loaded<T> {
   const [data, setData] = useState<T | null>(null)
   const [loadedPath, setLoadedPath] = useState('')
   const [loading, setLoading] = useState(true)
@@ -38,6 +38,10 @@ function useLoad<T>(path: string): Loaded<T> {
   const reload = useCallback(() => setVersion(value => value + 1), [])
   useEffect(() => {
     let active = true
+    if (!path) {
+      setData(null); setLoadedPath(''); setLoading(false); setError('')
+      return () => { active = false }
+    }
     setLoading(true); setError('')
     apiRequest<T>(path).then(value => { if (active) { setData(value); setLoadedPath(path) } })
       .catch(reason => { if (active) setError(messageOf(reason)) })
@@ -214,8 +218,8 @@ function MeetingsPage() {
   const meetings = useLoad<Page<Meeting>>('/meetings?page=1&pageSize=50')
   const members = useLoad<Page<{ id: string; displayName: string }>>('/members?page=1&pageSize=100')
   const [selected, setSelected] = useState<Meeting | null>(null)
-  const minutes = useLoad<{ meetingId: string; version: number; body: string }>(selected ? `/meetings/${selected.id}/minutes` : '/meetings/00000000-0000-0000-0000-000000000000/minutes')
-  const actions = useLoad<Task[]>(selected ? `/meetings/${selected.id}/actions` : '/meetings')
+  const minutes = useLoad<{ meetingId: string; version: number; body: string }>(selected ? `/meetings/${selected.id}/minutes` : null)
+  const actions = useLoad<Task[]>(selected ? `/meetings/${selected.id}/actions` : null)
   const [notice, setNotice] = useState('')
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement)
