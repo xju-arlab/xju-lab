@@ -247,7 +247,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const taskTitle = `浏览器验收任务-${Date.now()}`
   await adminPage.goto('/app/projects')
   await expect(adminPage.getByRole('heading', { name: '项目空间' })).toBeVisible()
-  await adminPage.getByRole('button', { name: '新建项目', exact: true }).click()
+  await adminPage.getByText('新建项目', { exact: true }).click()
   await adminPage.getByLabel('项目名称').fill(projectTitle)
   await adminPage.getByLabel('项目简介').fill('用于真实 API 会话和对象权限验收')
   await adminPage.getByLabel('GitHub 链接').fill('https://github.com/example/browser-fixture')

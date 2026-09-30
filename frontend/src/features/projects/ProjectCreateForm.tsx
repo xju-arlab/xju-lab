@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ChevronDown, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { apiRequest } from '../../api/client'
 import './projects.css'
 
@@ -25,15 +25,18 @@ export function ProjectCreateForm({ onCreated }: { onCreated: () => void }) {
     } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败，请重试。') }
     finally { setBusy(false) }
   }
-  return <div className="api-create project-create">
-    <div className="project-create-heading"><button type="button" className="project-create-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}><ChevronDown size={15} className={open ? 'is-open' : ''} />新建项目</button><div className={`project-mode-switch${mode === 'BAIDU' ? ' is-baidu' : ''}`} role="group" aria-label="项目资源类型"><span aria-hidden="true" /><button type="button" disabled={busy} aria-pressed={mode === 'GITHUB'} onClick={() => { setMode('GITHUB'); setOpen(true); setError('') }}>GitHub</button><button type="button" disabled={busy} aria-pressed={mode === 'BAIDU'} onClick={() => { setMode('BAIDU'); setOpen(true); setError('') }}>百度网盘</button></div></div>
-    <form className="form-stack" hidden={!open} onSubmit={submit}>
+  return <div className={`api-create project-create${open ? ' is-open' : ''}`}>
+    <details className="project-create-disclosure" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>新建项目</summary>
+    <form className="form-stack" onSubmit={submit}>
       <label className="field"><span>项目名称</span><input name="title" required maxLength={160} disabled={busy} /></label>
       <label className="field"><span>项目简介</span><input name="description" maxLength={2000} disabled={busy} /></label>
       {fields[mode].map(field => <label className="field" key={field.key}><span>{field.label}</span><input type="url" name={field.key} value={links[field.key] ?? ''} placeholder={field.placeholder} maxLength={2048} disabled={busy} onChange={event => setLinks(values => ({ ...values, [field.key]: event.target.value }))} /></label>)}
       {error && <p className="api-error-text" role="alert">{error}</p>}
       <button className="button button-primary" type="submit" disabled={busy}>{busy ? '正在创建…' : '创建项目'}</button>
     </form>
+    </details>
+    <div className={`project-mode-switch${mode === 'BAIDU' ? ' is-baidu' : ''}`} role="group" aria-label="项目资源类型" aria-hidden={!open}><span aria-hidden="true" /><button type="button" disabled={busy || !open} aria-pressed={mode === 'GITHUB'} onClick={() => { setMode('GITHUB'); setError('') }}>GitHub</button><button type="button" disabled={busy || !open} aria-pressed={mode === 'BAIDU'} onClick={() => { setMode('BAIDU'); setError('') }}>百度网盘</button></div>
   </div>
 }
 
