@@ -144,7 +144,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await expect(adminPage.locator('.api-stat-grid')).toHaveCount(0)
   await adminPage.unroute('**/api/v1/overview')
   await adminPage.getByRole('alert').getByRole('button', { name: '重试' }).click()
-  await expect(adminPage.locator('.api-stat-grid')).toHaveCount(4)
+  await expect(adminPage.locator('.api-stat-grid strong')).toHaveCount(4)
 
   const projectTitle = `浏览器验收项目-${Date.now()}`
   const taskTitle = `浏览器验收任务-${Date.now()}`
