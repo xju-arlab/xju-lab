@@ -34,8 +34,8 @@
     }]
   }],
   "users": [
-    { "id": "00000000-0000-4000-8000-000000000101", "username": "local-admin", "enabled": true, "emailVerified": true, "attributes": { "icthub_account_id": ["local-admin"] }, "groups": ["lab-members"], "credentials": [{ "type": "password", "value": "local-admin-change-me", "temporary": false }] },
-    { "id": "00000000-0000-4000-8000-000000000102", "username": "local-member-a", "enabled": true, "emailVerified": true, "attributes": { "icthub_account_id": ["local-member-a"] }, "groups": ["lab-members"], "credentials": [{ "type": "password", "value": "local-member-a-change-me", "temporary": false }] },
-    { "id": "00000000-0000-4000-8000-000000000103", "username": "local-member-b", "enabled": true, "emailVerified": true, "attributes": { "icthub_account_id": ["local-member-b"] }, "groups": ["lab-members"], "credentials": [{ "type": "password", "value": "local-member-b-change-me", "temporary": false }] }
+    { "id": "00000000-0000-4000-8000-000000000101", "username": "local-admin", "enabled": true, "email": "local-admin@example.test", "firstName": "Local", "lastName": "Admin", "emailVerified": true, "attributes": { "icthub_account_id": ["local-admin"] }, "groups": ["lab-members"], "credentials": [{ "type": "password", "value": "local-admin-change-me", "temporary": false }] },
+    { "id": "00000000-0000-4000-8000-000000000102", "username": "local-member-a", "enabled": true, "email": "local-member-a@example.test", "firstName": "Local", "lastName": "Member A", "emailVerified": true, "attributes": { "icthub_account_id": ["local-member-a"] }, "groups": ["lab-members"], "credentials": [{ "type": "password", "value": "local-member-a-change-me", "temporary": false }] },
+    { "id": "00000000-0000-4000-8000-000000000103", "username": "local-member-b", "enabled": true, "email": "local-member-b@example.test", "firstName": "Local", "lastName": "Member B", "emailVerified": true, "attributes": { "icthub_account_id": ["local-member-b"] }, "groups": ["lab-members"], "credentials": [{ "type": "password", "value": "local-member-b-change-me", "temporary": false }] }
   ]
 }
