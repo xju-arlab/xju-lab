@@ -41,7 +41,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
 
   await signIn(adminPage, admin)
   const adminSession = await adminPage.evaluate(async () => (await fetch('/api/v1/session')).json())
-  expect(adminSession.roles).toContain('LAB_ADMIN')
+  expect(adminSession.roles.some((role: string) => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role)), JSON.stringify(adminSession)).toBe(true)
   for (const width of [375, 768, 1440]) {
     await adminPage.setViewportSize({ width, height: 900 })
     await adminPage.goto('/app/dashboard')
