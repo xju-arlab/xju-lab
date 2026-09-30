@@ -81,6 +81,14 @@ async function signIn(page: Page, user: { username: string; password: string }) 
       const path = new URL(request.url()).pathname
       if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`FAILED ${path}: ${request.failure()?.errorText ?? 'unknown'}`)
     })
+    const beforeSubmit = await page.evaluate(() => {
+      const form = document.querySelector('form')!
+      return {
+        valid: form.checkValidity(),
+        fields: Array.from(form.querySelectorAll('input')).map(input => ({ name: input.name, value: input.value, required: input.required, valid: input.validity.valid })),
+      }
+    })
+    expect(beforeSubmit.valid, `Registration form was invalid before submit: ${JSON.stringify(beforeSubmit)}`).toBe(true)
     await expect(page.getByRole('button', { name: '保存并进入实验室' })).toBeEnabled()
     await page.getByRole('button', { name: '保存并进入实验室' }).click()
   }
