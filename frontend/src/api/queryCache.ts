@@ -18,6 +18,10 @@ export class QueryCache {
   getRevision = () => this.revision
   getInvalidation = () => this.invalidation
   getScope = () => this.scope
+  isExpired(path: string | null) {
+    const entry = path ? this.entries.get(this.key(path)) : undefined
+    return Boolean(entry && !entry.pending && entry.data !== null && this.now() - entry.updatedAt >= this.retention)
+  }
   isPending = () => [...this.entries.values()].some(entry => entry.pending)
   private emit() { this.revision++; this.listeners.forEach(listener => listener()) }
   private key(path: string) { return `${path === '/public/snapshot' ? 'public' : this.scope}:${path}` }

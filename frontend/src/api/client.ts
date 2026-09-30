@@ -57,6 +57,6 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
 
 export type Session = { authenticated: true; memberId: string; displayName: string; roles: string[]; issuer: string; registrationComplete: boolean }
 let sessionRequest: Promise<Session> | undefined
-export const getSession = () => sessionRequest ??= apiRequest<Session>('/session').finally(() => { sessionRequest = undefined })
+export const getSession = () => sessionRequest ??= apiRequest<Session>('/session', { signal: AbortSignal.timeout(15_000) }).finally(() => { sessionRequest = undefined })
 export const sessionScope = (session: Session) => JSON.stringify([session.issuer, session.memberId, [...session.roles].sort(), session.registrationComplete])
 export const loginUrl = () => '/oauth2/authorization/lab'
