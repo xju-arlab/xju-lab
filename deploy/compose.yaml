@@ -80,6 +80,7 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
+      network: ${LAB_BUILD_NETWORK:-default}
     profiles: ["app"]
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -127,6 +128,7 @@ services:
     build:
       context: ../
       dockerfile: deploy/Dockerfile.web
+      network: ${LAB_BUILD_NETWORK:-default}
     profiles: ["app"]
     ports: ["127.0.0.1:18080:8080"]
     depends_on:
