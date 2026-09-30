@@ -26,6 +26,7 @@ type AdminMember = { id: string; accountId: string | null; displayName: string; 
 
 function useLoad<T>(path: string): Loaded<T> {
   const [data, setData] = useState<T | null>(null)
+  const [loadedPath, setLoadedPath] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [version, setVersion] = useState(0)
@@ -33,12 +34,12 @@ function useLoad<T>(path: string): Loaded<T> {
   useEffect(() => {
     let active = true
     setLoading(true); setError('')
-    apiRequest<T>(path).then(value => { if (active) setData(value) })
+    apiRequest<T>(path).then(value => { if (active) { setData(value); setLoadedPath(path) } })
       .catch(reason => { if (active) setError(messageOf(reason)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [path, version])
-  return { data, loading, error, reload }
+  return { data: loadedPath === path ? data : null, loading, error, reload }
 }
 
 function messageOf(error: unknown) {
