@@ -88,18 +88,37 @@ public class SeatController {
     private List<String> strings(String value){if(value==null)return List.of();JsonNode node=parse(value);List<String> result=new ArrayList<>();if(node.isArray())node.forEach(item->{if(item.isTextual())result.add(item.asText());});return List.copyOf(result);}
     private void validateLayout(JsonNode layout){
         JsonNode canvas=layout.path("canvas"), desks=layout.path("desks");
-        if(!canvas.isObject()||canvas.path("width").asDouble(0)<=0||canvas.path("width").asDouble(4000)>3000||canvas.path("height").asDouble(0)<=0||canvas.path("height").asDouble(4000)>3000||!desks.isArray())throw new ResponseStatusException(BAD_REQUEST,"布局画布或桌位列表无效");
+        if(!canvas.isObject()||canvas.path("width").asDouble()!=1400||canvas.path("height").asDouble()!=1060||!desks.isArray())throw new ResponseStatusException(BAD_REQUEST,"布局画布或桌位列表无效");
+        validateRoom(layout.path("room"));
         Set<String> expected=new HashSet<>(jdbc.query("SELECT id FROM seat",(rs,row)->rs.getString(1)));
         Set<String> received=new HashSet<>();
         for(JsonNode desk:desks){
             String id=desk.path("id").asText();
             double x=desk.path("x").asDouble(Double.NaN),y=desk.path("y").asDouble(Double.NaN),width=desk.path("width").asDouble(Double.NaN),depth=desk.path("depth").asDouble(Double.NaN);
-            if(id.isBlank()||!received.add(id)||!expected.contains(id)||!Double.isFinite(x)||!Double.isFinite(y)||!Double.isFinite(width)||!Double.isFinite(depth)||x<0||y<0||width<=0||depth<=0||x+width>canvas.path("width").asDouble()||y+depth>canvas.path("height").asDouble())throw new ResponseStatusException(BAD_REQUEST,"布局包含未知桌位或越界坐标");
+            String facing=desk.path("facing").asText();
+            if(!Set.of("up","down","left","right").contains(facing))throw new ResponseStatusException(BAD_REQUEST,"桌位朝向无效");
+            boolean vertical=facing.equals("left")||facing.equals("right");
+            double halfX=(vertical?depth:width)/2,halfY=(vertical?width:depth)/2;
+            if(id.isBlank()||!received.add(id)||!expected.contains(id)||!Double.isFinite(x)||!Double.isFinite(y)||!Double.isFinite(width)||!Double.isFinite(depth)||width<40||width>300||depth<30||depth>200||x-halfX<0||y-halfY<0||x+halfX>1400||y+halfY>1060)throw new ResponseStatusException(BAD_REQUEST,"布局包含未知桌位或越界坐标");
             String actualKind=desk.path("kind").asText();
             String baselineKind=jdbc.queryForObject("SELECT layout_item->>'kind' FROM seat WHERE id=?",String.class,id);
             if(!baselineKind.equals(actualKind))throw new ResponseStatusException(BAD_REQUEST,"不能改变工位/设施类型");
         }
         if(!received.equals(expected))throw new ResponseStatusException(BAD_REQUEST,"不能删除或遗漏已确认布局中的桌位");
+    }
+    private void validateRoom(JsonNode r){
+        range(r,"left",30,300);range(r,"top",70,200);range(r,"right",r.path("left").asDouble()+700,1330);range(r,"bottom",r.path("top").asDouble()+650,990);
+        range(r,"notchWidth",50,350);range(r,"notchHeight",100,350);
+        String wall=r.path("doorWall").asText();
+        if(!Set.of("notch","left","top").contains(wall)||!Set.of("left","right").contains(r.path("doorSide").asText())||!r.path("doorUpperClosed").isBoolean())throw new ResponseStatusException(BAD_REQUEST,"门窗参数无效");
+        double span=wall.equals("notch")?r.path("notchHeight").asDouble():wall.equals("left")?r.path("bottom").asDouble()-r.path("top").asDouble()-r.path("notchHeight").asDouble():r.path("right").asDouble()-r.path("left").asDouble()-r.path("notchWidth").asDouble();
+        range(r,"doorWidth",50,Math.min(240,span-12));range(r,"doorOffset",6,span-r.path("doorWidth").asDouble()-6);
+        range(r,"windowLength",100,r.path("bottom").asDouble()-r.path("top").asDouble()-40);range(r,"windowOffset",20,r.path("bottom").asDouble()-r.path("top").asDouble()-r.path("windowLength").asDouble()-20);
+        range(r,"toolWidth",60,400);range(r,"toolHeight",40,300);range(r,"toolX",0,1400-r.path("toolWidth").asDouble());range(r,"toolY",0,1060-r.path("toolHeight").asDouble());
+    }
+    private void range(JsonNode object,String field,double min,double max){
+        JsonNode value=object.path(field);double number=value.asDouble(Double.NaN);
+        if(!value.isNumber()||!Double.isFinite(number)||number<min||number>max)throw new ResponseStatusException(BAD_REQUEST,"墙窗尺寸或位置超出范围");
     }
     public record LayoutResponse(long version,JsonNode layout){}
     public record SeatView(String id,String kind,JsonNode layoutItem,UUID memberId,String displayName,String direction,String className,List<String> directions,Integer cohort,boolean onLeaveNow){}

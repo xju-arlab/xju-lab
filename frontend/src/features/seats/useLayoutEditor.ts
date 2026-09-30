@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
 import { cloneLayout, defaultLayout, LAYOUT_STORAGE_KEY, makeLayoutDocument, validateLayoutDocument, type LayoutState, type LayoutTarget } from './layout'
 
-export function useLayoutEditor(toast: (message: string) => void) {
+export function useLayoutEditor(toast: (message: string) => void, options?: { persist: (layout: LayoutState) => Promise<void> }) {
   const [layout, setLayout] = useState<LayoutState>(() => {
+    if (options) return cloneLayout(defaultLayout)
     try { const saved = localStorage.getItem(LAYOUT_STORAGE_KEY); return saved ? validateLayoutDocument(JSON.parse(saved)) : cloneLayout(defaultLayout) }
     catch { return cloneLayout(defaultLayout) }
   })
   const current = useRef(layout)
   const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [target, setTarget] = useState<LayoutTarget>()
   const [past, setPast] = useState<LayoutState[]>([])
   const [future, setFuture] = useState<LayoutState[]>([])
@@ -29,14 +31,19 @@ export function useLayoutEditor(toast: (message: string) => void) {
     setPast(values => [...values, cloneLayout(current.current)]); setFuture(values => values.slice(0, -1)); preview(cloneLayout(next))
   }
   function start() { started.current = cloneLayout(current.current); setPast([]); setFuture([]); setTarget(undefined); setEditing(true) }
-  function save() {
+  async function save() {
+    if (saving) return
+    setSaving(true)
     try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(makeLayoutDocument(current.current)))
+      const next = validateLayoutDocument(makeLayoutDocument(current.current))
+      if (options) await options.persist(next)
+      else localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(makeLayoutDocument(next)))
       setEditing(false); setTarget(undefined); setPast([]); setFuture([])
-      toast('布局调整已保存在当前浏览器')
-    } catch { toast('保存失败，请先导出布局文件；当前调整仍保留') }
+      toast(options ? '工位布局已保存' : '布局调整已保存在当前浏览器')
+    } catch (error) { toast(error instanceof Error ? error.message : '保存失败，当前调整仍保留') }
+    finally { setSaving(false) }
   }
-  function cancel() { preview(cloneLayout(started.current)); setEditing(false); setTarget(undefined); setPast([]); setFuture([]) }
-  return { layout, current, editing, target, setTarget, preview, commit, undo, redo, canUndo: !!past.length, canRedo: !!future.length, start, save, cancel }
+  function cancel() { if (saving) return; preview(cloneLayout(started.current)); setEditing(false); setTarget(undefined); setPast([]); setFuture([]) }
+  return { layout, current, editing, saving, serverPersistence: !!options, target, setTarget, preview, commit, undo, redo, canUndo: !!past.length, canRedo: !!future.length, start, save, cancel }
 }
 export type LayoutEditor = ReturnType<typeof useLayoutEditor>

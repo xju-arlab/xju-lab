@@ -2,7 +2,7 @@ import { ServersPage } from './features/servers/ServersPage'
 import { PrinterStatusPanel, printerStatusLabels, type PrinterDevice } from './features/printers/PrinterStatusPanel'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type MouseEvent } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, LoaderCircle, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, Maximize, Minus, Plus, LoaderCircle, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
 import { ApiError, apiRequest, clearSessionData, sessionScope, toApiError, type Session } from './api/client'
 import { useQuery as useLoad } from './api/useQuery'
 import { checkSession, plainClick, SessionGate, type SessionCheck } from './api/SessionGate'
@@ -13,20 +13,24 @@ import './features/seats/seats.css'
 import type { Seat as DemoSeat } from './demo'
 import { ComboBox } from './components/common/ComboBox'
 import { DateInput } from './components/common/DateInput'
-import { dateText } from './lib/date'
+import { dateText, todayInLab } from './lib/date'
+import { LeaveAttachmentPicker, LeaveAttachmentLinks, type LeaveAttachment } from './features/leave/LeaveAttachments'
+import { ProjectCreateForm, ProjectResourceLinks } from './features/projects/ProjectCreateForm'
 import { AsyncSection } from './components/common/AsyncSection'
 import { ApiSeatPopover, type ApiSeat as Seat } from './features/seats/ApiSeatPopover'
 import { FloorPlan } from './features/seats/FloorPlan'
-import { defaultLayout, type DeskPosition, type LayoutState } from './features/seats/layout'
+import { makeLayoutDocument, validateLayoutDocument } from './features/seats/layout'
+import { useLayoutEditor } from './features/seats/useLayoutEditor'
+import { LayoutInspector, LayoutToolbar } from './features/seats/LayoutEditor'
 import { exportFloorPlan } from './features/seats/export'
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 type Problem = { message: string }
 type Overview = { activeProjects: number; openTasks: number; upcomingMeetings: number; pendingLeaves: number; assignedSeat: string | null }
-type Project = { id: string; title: string; description: string; status: string; leadId: string; version: number; updatedAt: string }
+type Project = { id: string; title: string; description: string; status: string; leadId: string; version: number; updatedAt: string; resourceMode?: string; resourceLinks?: Record<string, string> }
 type Task = { id: string; projectId: string | null; title: string; description: string; assigneeId: string | null; dueDate: string | null; status: string; version: number }
-type Meeting = { id: string; projectId: string | null; title: string; startsAt: string; version: number }
-type Leave = { id: string; memberName: string; approverName: string; startsAt: string; endsAt: string; reason: string; status: string; version: number }
+type Meeting = { id: string; projectId: string | null; title: string; startsAt: string; version: number; location?: string }
+type Leave = { id: string; memberName: string; approverName: string; startsAt: string; endsAt: string; reason: string; status: string; version: number; attachments?: LeaveAttachment[] }
 type Term = { id: string; name: string; startsOn: string; endsOn: string; active: boolean; version: number }
 type Exam = { id: string; termId: string; title: string; kind: string; startsAt: string; version: number }
 type Contest = { id: string; contestId: string; title: string; sourceVersion: string; complete: boolean }
@@ -57,7 +61,7 @@ function PublicPage({ entering, enterError, onEnter }: { entering: boolean; ente
   const labName = String(payload?.labName ?? '算法与科研实验室')
   const description = String(payload?.description ?? '新疆大学算法与科研实验室')
   const projects = Array.isArray(payload?.projects) ? payload?.projects as Array<Record<string, unknown>> : []
-  return <main className="api-public"><header className="api-public-top"><Link className="brand" to="/"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><Link className="button button-outline" to="/app/dashboard" onClick={onEnter} aria-disabled={entering} aria-busy={entering}>{entering ? <><LoaderCircle size={15} className="api-loading-spinner" />正在确认登录…</> : <>成员登录<ArrowRight size={15} /></>}</Link></header><section className="api-public-hero"><div className="eyebrow">新疆大学 · XJU Lab</div><h1>{labName}<span>。</span></h1><p>{description}</p><Link className="button button-primary" to="/app/dashboard" onClick={onEnter} aria-disabled={entering} aria-busy={entering}>{entering ? <><LoaderCircle size={16} className="api-loading-spinner" /><span role="status">正在确认登录状态…</span></> : <>进入实验室平台<ArrowRight size={16} /></>}</Link>{enterError && <p className="api-error-text" role="alert">{enterError}，请重试。</p>}</section><section className="api-public-section"><Heading title="公开项目" description="仅展示经管理员明确发布并脱敏的内容。" /><LoadingOrError loading={loading} error={error} retry={reload} />{!loading && !error && projects.length === 0 && <Panel><Empty text="目前还没有发布的项目内容。" /></Panel>}{projects.length > 0 && <div className="api-card-grid">{projects.map((item, index) => <Panel key={String(item.id ?? index)}><span className="eyebrow">研究项目</span><h2>{String(item.title ?? '项目')}</h2><p>{String(item.summary ?? '')}</p></Panel>)}</div>}</section><footer className="api-public-footer">{data?.isPublished ? `公开快照 v${data.version} · ${data.publishedAt ? dateText(data.publishedAt) : ''}` : '尚未发布公开内容 · 内部资料不会自动公开'}</footer></main>
+  return <main className="api-public"><header className="api-public-top"><Link className="brand" to="/"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><Link className="button button-outline" to="/app/dashboard" onClick={onEnter} aria-disabled={entering} aria-busy={entering}>{entering ? <><LoaderCircle size={15} className="api-loading-spinner" />正在确认登录…</> : <>成员登录<ArrowRight size={15} /></>}</Link></header><section className="api-public-hero"><div className="api-public-hero-copy"><div className="eyebrow">新疆大学 · XJU Lab</div><h1>{labName}<span>。</span></h1><p>{description}</p><Link className="button button-primary" to="/app/dashboard" onClick={onEnter} aria-disabled={entering} aria-busy={entering}>{entering ? <><LoaderCircle size={16} className="api-loading-spinner" /><span role="status">正在确认登录状态…</span></> : <>进入实验室平台<ArrowRight size={16} /></>}</Link>{enterError && <p className="api-error-text" role="alert">{enterError}，请重试。</p>}</div><img className="api-public-mark" src="/brand/lab-wide.png" alt="算法与科研实验室 · XJU Algorithm & Research Lab" /></section><section className="api-public-section"><Heading title="公开项目" description="仅展示经管理员明确发布并脱敏的内容。" /><LoadingOrError loading={loading} error={error} retry={reload} />{!loading && !error && projects.length === 0 && <Panel><Empty text="目前还没有发布的项目内容。" /></Panel>}{projects.length > 0 && <div className="api-card-grid">{projects.map((item, index) => <Panel key={String(item.id ?? index)}><span className="eyebrow">研究项目</span><h2>{String(item.title ?? '项目')}</h2><p>{String(item.summary ?? '')}</p></Panel>)}</div>}</section><footer className="api-public-footer">{data?.isPublished ? `公开快照 v${data.version} · ${data.publishedAt ? dateText(data.publishedAt) : ''}` : '尚未发布公开内容 · 内部资料不会自动公开'}</footer></main>
 }
 
 function DashboardPage() {
@@ -76,21 +80,35 @@ function SeatsPage({ session }: { session: Session }) {
   const [assignmentBusy, setAssignmentBusy] = useState(false)
   const [assignmentError, setAssignmentError] = useState('')
   const [notice, setNotice] = useState('')
-  const [editing, setEditing] = useState(false)
   const [query, setQuery] = useState('')
   const [exporting, setExporting] = useState(false)
-  const [draft, setDraft] = useState<{ canvas: { width: number; height: number }; desks: Array<Record<string, unknown>>; [key: string]: unknown } | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const mapScroller = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const layoutVersion = useRef<number | null>(null)
   const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
-  useEffect(() => { if (layout.data) setDraft(layout.data.layout) }, [layout.data])
-  const planLayout = useMemo<LayoutState>(() => ({
-    ...defaultLayout,
-    room: (draft?.room as LayoutState['room'] | undefined) ?? defaultLayout.room,
-    desks: defaultLayout.desks.map(base => {
-      const item = draft?.desks.find(value => value.id === base.id)
-      return item ? { ...base, ...item } as DeskPosition : base
-    }),
-  }), [draft])
+  const editor = useLayoutEditor(setNotice, { persist: async next => {
+    if (layoutVersion.current === null) throw new Error('请先载入布局')
+    await apiRequest('/seats/layout', { method: 'PUT', headers: { 'If-Match-Version': String(layoutVersion.current) }, body: makeLayoutDocument(next) })
+    layout.reload(); seats.reload()
+  } })
+  const editing = editor.editing
+  useEffect(() => {
+    if (layout.data && !editor.editing) {
+      try { editor.preview(validateLayoutDocument(layout.data.layout)) }
+      catch (error) { setNotice(messageOf(error)) }
+    }
+  }, [layout.data])
+  function toggleEditor() {
+    if (editor.saving) return
+    if (editing) { editor.cancel(); layout.reload(); return }
+    if (!layout.data) return
+    try {
+      editor.preview(validateLayoutDocument(layout.data.layout))
+      layoutVersion.current = layout.data.version
+      setSelectedId(null); setQuery(''); editor.start()
+    } catch (error) { setNotice(messageOf(error)) }
+  }
   const planSeats = useMemo<DemoSeat[]>(() => (seats.data?.items ?? []).map(seat => ({
     id: seat.id,
     name: seat.displayName ?? undefined,
@@ -107,15 +125,6 @@ function SeatsPage({ session }: { session: Session }) {
   ).map(seat => seat.id)), [query, seats.data])
   const seatCount = seats.data?.items.filter(seat => seat.kind === 'seat').length ?? 0
   const assignedCount = seats.data?.items.filter(seat => seat.kind === 'seat' && seat.memberId).length ?? 0
-  function adjustSelected(axis: 'x' | 'y' | 'width' | 'depth', delta: number) {
-    if (!selected || !draft) return
-    setDraft({ ...draft, desks: draft.desks.map(item => item.id === selected.id ? { ...item, [axis]: Math.max(0, Number(item[axis] ?? 0) + delta) } : item) })
-  }
-  async function saveLayout() {
-    if (!draft || !layout.data) return
-    try { await apiRequest('/seats/layout', { method: 'PUT', headers: { 'If-Match-Version': String(layout.data.version) }, body: draft }); setNotice('工位布局已保存'); setEditing(false); layout.reload(); seats.reload() }
-    catch (error) { setNotice(messageOf(error)); layout.reload() }
-  }
   function closeSeat() {
     setSelectedId(null); setAssignmentError('')
     if (selectedId) requestAnimationFrame(() => svgRef.current?.querySelector<SVGElement>(`[data-seat-id="${selectedId}"]`)?.focus({ preventScroll: true }))
@@ -141,7 +150,7 @@ function SeatsPage({ session }: { session: Session }) {
     catch (error) { console.error('工位平面图导出失败', error); setNotice('图片导出失败，请重试') }
     finally { setExporting(false) }
   }
-  return <><Heading title="工位一览" description="点击工位查看成员资料与请假状态。" actions={isAdmin && <Button variant="outline" onClick={() => setEditing(value => !value)}>{editing ? '退出标定' : '标定布局'}</Button>} /><LoadingOrError loading={seats.loading || layout.loading} error={seats.error || layout.error} retry={() => { seats.reload(); layout.reload() }} />{notice && <p className="api-feedback" role="status">{notice}</p>}<Panel className="api-seat-panel"><div className="api-seat-toolbar"><label className="field"><span>搜索工位或成员</span><input aria-label="搜索工位或成员" placeholder="工位编号、成员、方向…" value={query} onChange={event => setQuery(event.target.value)} /></label><div className="api-seat-legend"><span>人工工位 {seatCount}</span><span>已分配 {assignedCount}</span><span>空闲 {Math.max(0, seatCount - assignedCount)}</span><span>请假状态淡显</span></div><div className="api-actions"><button className="seat-export-button" disabled={exporting || seats.loading || layout.loading} onClick={() => void exportPlan('svg')}><ArrowDownToLine size={14} />SVG</button><button className="seat-export-button" disabled={exporting || seats.loading || layout.loading} onClick={() => void exportPlan('png')}><ArrowDownToLine size={14} />PNG</button></div></div><div className="api-seat-canvas"><FloorPlan ref={svgRef} seats={planSeats} selectedId={selected?.id} matches={query.trim() ? matchingSeatIds : undefined} showAssignments demoRoster={false} onSelect={id => { setSelectedId(current => current === id && !editing ? null : id); setAssignmentError('') }} layout={planLayout} /></div></Panel>{selected && !editing && <ApiSeatPopover key={selected.id} seat={selected} svg={svgRef} canManage={isAdmin} members={(members.data?.items ?? []).filter(member => !seats.data?.items.some(seat => seat.memberId === member.id)).map(member => ({ value: member.id, label: member.displayName }))} membersLoading={members.loading} membersError={members.error} busy={assignmentBusy} error={assignmentError} onClose={closeSeat} onAssign={assign} onRelease={release} />}{editing && isAdmin && selected?.kind === 'seat' && <Panel className="api-detail-panel"><h2>{selected.id} · 布局标定</h2><div className="api-layout-controls"><span>移动 / 调整（吸附 10）</span><div><Button variant="outline" onClick={() => adjustSelected('y', -10)}>上移</Button><Button variant="outline" onClick={() => adjustSelected('y', 10)}>下移</Button><Button variant="outline" onClick={() => adjustSelected('x', -10)}>左移</Button><Button variant="outline" onClick={() => adjustSelected('x', 10)}>右移</Button></div><div><Button variant="outline" onClick={() => adjustSelected('width', -10)}>缩窄</Button><Button variant="outline" onClick={() => adjustSelected('width', 10)}>加宽</Button><Button variant="outline" onClick={() => adjustSelected('depth', -10)}>缩短</Button><Button variant="outline" onClick={() => adjustSelected('depth', 10)}>加深</Button></div><div><Button onClick={saveLayout}>保存布局</Button><Button variant="outline" onClick={() => { if (layout.data) setDraft(layout.data.layout); setEditing(false) }}>取消</Button></div><small>当前布局版本 {layout.data?.version ?? '—'}；并发修改会返回冲突，需刷新后重试。</small></div></Panel>}</>
+  return <><Heading title="工位一览" description="点击工位查看成员资料与请假状态。" actions={isAdmin && <Button variant="outline" disabled={!layout.data || editor.saving} onClick={toggleEditor}>{editing ? '退出标定' : '标定布局'}</Button>} /><LoadingOrError loading={seats.loading || layout.loading} error={seats.error || layout.error} retry={() => { seats.reload(); layout.reload() }} />{notice && <p className="api-feedback" role="status">{notice}</p>}{editing && <fieldset className="api-layout-toolbar-wrap" disabled={editor.saving}><LayoutToolbar editor={editor} toast={setNotice} /></fieldset>}<div className={`api-seat-editor-grid${editing ? ' is-editing' : ''}`}><Panel className="api-seat-panel"><div className="api-seat-toolbar"><label className="field"><span>搜索工位或成员</span><input aria-label="搜索工位或成员" placeholder="工位编号、成员、方向…" value={query} onChange={event => setQuery(event.target.value)} /></label><div className="api-seat-legend"><span>工位数 {seatCount}</span><span>已分配 {assignedCount}</span><span>空闲 {Math.max(0, seatCount - assignedCount)}</span><span>请假状态淡显</span></div><div className="api-actions"><button className="seat-export-button" disabled={exporting || seats.loading || layout.loading} onClick={() => void exportPlan('svg')}><ArrowDownToLine size={14} />SVG</button><button className="seat-export-button" disabled={exporting || seats.loading || layout.loading} onClick={() => void exportPlan('png')}><ArrowDownToLine size={14} />PNG</button></div></div><div className="api-seat-viewport" ref={mapScroller}><div className="api-seat-canvas" style={{ width: `max(${zoom * 100}%, ${zoom * 650}px)` }}><FloorPlan ref={svgRef} seats={planSeats} selectedId={selected?.id} matches={query.trim() ? matchingSeatIds : undefined} showAssignments demoRoster={false} onSelect={id => { setSelectedId(current => current === id && !editing ? null : id); setAssignmentError('') }} layout={editor.layout} editor={editor.saving ? undefined : editor} /></div></div><footer className="space-map-footer"><span>{editing ? '拖动自动吸附 · 方向键微调' : '点击工位查看成员信息'}</span><div className="map-zoom-controls"><button aria-label="缩小平面图" disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .25))}><Minus size={15} /></button><output aria-live="polite">{Math.round(zoom * 100)}%</output><button aria-label="放大平面图" disabled={zoom >= 2} onClick={() => setZoom(value => Math.min(2, value + .25))}><Plus size={15} /></button><button aria-label="适应画布" onClick={() => { setZoom(1); mapScroller.current?.scrollTo({ left: 0, top: 0 }) }}><Maximize size={15} /></button></div></footer></Panel>{editing && <fieldset className="api-layout-inspector" disabled={editor.saving}><LayoutInspector editor={editor} toast={setNotice} /></fieldset>}</div>{selected && !editing && <ApiSeatPopover key={selected.id} seat={selected} svg={svgRef} canManage={isAdmin} members={(members.data?.items ?? []).filter(member => !seats.data?.items.some(seat => seat.memberId === member.id)).map(member => ({ value: member.id, label: member.displayName }))} membersLoading={members.loading} membersError={members.error} busy={assignmentBusy} error={assignmentError} onClose={closeSeat} onAssign={assign} onRelease={release} />}</>
 }
 
 function ProjectsPage({ session }: { session: Session }) {
@@ -154,11 +163,6 @@ function ProjectsPage({ session }: { session: Session }) {
   const [notice, setNotice] = useState('')
   const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
   const canManage = Boolean(selected && (isAdmin || selected.leadId === session.memberId))
-  async function createProject(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement)
-    try { await apiRequest<Project>('/projects', { method: 'POST', body: { title: form.get('title'), description: form.get('description') } }); setNotice('项目已创建'); projects.reload(); formElement.reset() }
-    catch (error) { setNotice(messageOf(error)) }
-  }
   async function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selected) return
     const formElement = event.currentTarget; const form = new FormData(formElement)
@@ -197,10 +201,11 @@ function ProjectsPage({ session }: { session: Session }) {
     catch (error) { setNotice(messageOf(error)); projects.reload() }
   }
   const projectPanelFallback = <Empty text="从左侧选择项目。" />
-  return <><Heading title="项目空间" description="项目、任务、成员和里程碑均由服务端保存，并按成员权限显示。" />{notice && <p className="api-feedback" role="status">{notice}</p>}<LoadingOrError loading={projects.loading} error={projects.error} retry={projects.reload} /><div className="api-two-col"><Panel><div className="section-heading"><h2>我的项目</h2><span>{projects.data?.total ?? 0}</span></div>{projects.data?.items.map(project => <button className={`api-select-row ${selected?.id === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelected(project)}><span><strong>{project.title}</strong><small>{project.description || '暂无项目简介'}</small></span><ChevronRight size={16} /></button>)}{projects.data?.items.length === 0 && <Empty text="你还没有可见项目。" />}<details className="api-create"><summary>新建项目</summary><form className="form-stack" onSubmit={createProject}><TextField name="title" label="项目名称" required maxLength={160} /><TextField name="description" label="项目简介" maxLength={2000} /><Button type="submit">创建项目</Button></form></details></Panel><div className="api-project-workspace">{selected ? <><Panel><div className="section-heading"><h2>{selected.title}</h2>{canManage && <Button variant="outline" onClick={archiveProject}>归档项目</Button>}</div><LoadingOrError loading={tasks.loading} error={tasks.error} retry={tasks.reload} />{tasks.data?.items.map(task => <label className="api-task-row" key={task.id}><input type="checkbox" checked={task.status === 'DONE'} onChange={event => updateTask(task, event.target.checked ? 'DONE' : 'OPEN')} /><span><strong>{task.title}</strong><small>{dateText(task.dueDate, '未设截止日期')}</small></span><Status>{task.status}</Status></label>)}{tasks.data?.items.length === 0 && <Empty text="这个项目还没有任务。" />}<form className="api-inline-form" onSubmit={createTask}><input className="text-input" name="title" placeholder="下一步任务" required maxLength={200} /><DateInput name="dueDate" aria-label="截止日期" /><Button type="submit">添加任务</Button></form></Panel><Panel><div className="section-heading"><h2>项目成员</h2><span>{projectMembers.data?.length ?? 0}</span></div>{projectMembers.data?.map(person => <div className="api-row" key={person.memberId}><span><strong>{person.displayName}</strong><small>{person.direction ?? '研究方向待填写'}{person.cohort ? ` · ${person.cohort} 级` : ''} · {person.role === 'LEAD' ? '负责人' : '成员'}</small></span>{canManage && person.role !== 'LEAD' && <Button variant="outline" onClick={() => removeProjectMember(person.memberId)}>移除</Button>}</div>)}{canManage && <form className="api-inline-form" onSubmit={addProjectMember}><label className="field"><span>添加成员</span><ComboBox name="memberId" required defaultValue="" placeholder="选择成员" options={(directory.data?.items ?? []).filter(person => !projectMembers.data?.some(row => row.memberId === person.id)).map(person => ({ value: person.id, label: person.displayName }))} /></label><Button type="submit">添加</Button></form>}</Panel><Panel><div className="section-heading"><h2>里程碑</h2><span>{milestones.data?.filter(item => item.completedAt).length ?? 0} / {milestones.data?.length ?? 0}</span></div>{milestones.data?.map(item => <label className="api-task-row" key={item.id}><input type="checkbox" checked={Boolean(item.completedAt)} disabled={!canManage} onChange={event => toggleMilestone(item, event.target.checked)} /><span><strong>{item.title}</strong><small>{dateText(item.dueDate, '未设置日期')}</small></span><Status>{item.completedAt ? '完成' : '进行中'}</Status></label>)}{canManage && <form className="api-inline-form" onSubmit={addMilestone}><input className="text-input" name="title" placeholder="新增里程碑" required maxLength={200} /><DateInput name="dueDate" aria-label="里程碑日期" /><Button type="submit">添加</Button></form>}</Panel></> : <Panel>{projectPanelFallback}</Panel>}</div></div></>
+  return <><Heading title="项目空间" description="项目、任务、成员和里程碑均由服务端保存，并按成员权限显示。" />{notice && <p className="api-feedback" role="status">{notice}</p>}<LoadingOrError loading={projects.loading} error={projects.error} retry={projects.reload} /><div className="api-two-col"><Panel><div className="section-heading"><h2>我的项目</h2><span>{projects.data?.total ?? 0}</span></div>{projects.data?.items.map(project => <button className={`api-select-row ${selected?.id === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelected(project)}><span><strong>{project.title}</strong><small>{project.description || '暂无项目简介'}</small></span><ChevronRight size={16} /></button>)}{projects.data?.items.length === 0 && <Empty text="你还没有可见项目。" />}<ProjectCreateForm onCreated={() => { setNotice('项目已创建'); projects.reload() }} /></Panel><div className="api-project-workspace">{selected ? <><Panel><div className="section-heading"><h2>{selected.title}</h2>{canManage && <Button variant="outline" onClick={archiveProject}>归档项目</Button>}</div><ProjectResourceLinks mode={selected.resourceMode} links={selected.resourceLinks} /><LoadingOrError loading={tasks.loading} error={tasks.error} retry={tasks.reload} />{tasks.data?.items.map(task => <label className="api-task-row" key={task.id}><input type="checkbox" checked={task.status === 'DONE'} onChange={event => updateTask(task, event.target.checked ? 'DONE' : 'OPEN')} /><span><strong>{task.title}</strong><small>{dateText(task.dueDate, '未设截止日期')}</small></span><Status>{task.status}</Status></label>)}{tasks.data?.items.length === 0 && <Empty text="这个项目还没有任务。" />}<form className="api-inline-form" onSubmit={createTask}><input className="text-input" name="title" placeholder="下一步任务" required maxLength={200} /><DateInput name="dueDate" aria-label="截止日期" /><Button type="submit">添加任务</Button></form></Panel><Panel><div className="section-heading"><h2>项目成员</h2><span>{projectMembers.data?.length ?? 0}</span></div>{projectMembers.data?.map(person => <div className="api-row" key={person.memberId}><span><strong>{person.displayName}</strong><small>{person.direction ?? '研究方向待填写'}{person.cohort ? ` · ${person.cohort} 级` : ''} · {person.role === 'LEAD' ? '负责人' : '成员'}</small></span>{canManage && person.role !== 'LEAD' && <Button variant="outline" onClick={() => removeProjectMember(person.memberId)}>移除</Button>}</div>)}{canManage && <form className="api-inline-form" onSubmit={addProjectMember}><label className="field"><span>添加成员</span><ComboBox name="memberId" required defaultValue="" placeholder="选择成员" options={(directory.data?.items ?? []).filter(person => !projectMembers.data?.some(row => row.memberId === person.id)).map(person => ({ value: person.id, label: person.displayName }))} /></label><Button type="submit">添加</Button></form>}</Panel><Panel><div className="section-heading"><h2>里程碑</h2><span>{milestones.data?.filter(item => item.completedAt).length ?? 0} / {milestones.data?.length ?? 0}</span></div>{milestones.data?.map(item => <label className="api-task-row" key={item.id}><input type="checkbox" checked={Boolean(item.completedAt)} disabled={!canManage} onChange={event => toggleMilestone(item, event.target.checked)} /><span><strong>{item.title}</strong><small>{dateText(item.dueDate, '未设置日期')}</small></span><Status>{item.completedAt ? '完成' : '进行中'}</Status></label>)}{canManage && <form className="api-inline-form" onSubmit={addMilestone}><input className="text-input" name="title" placeholder="新增里程碑" required maxLength={200} /><DateInput name="dueDate" aria-label="里程碑日期" /><Button type="submit">添加</Button></form>}</Panel></> : <Panel>{projectPanelFallback}</Panel>}</div></div></>
 }
 
 function MeetingsPage() {
+  const [today] = useState(todayInLab)
   const meetings = useLoad<Page<Meeting>>('/meetings?page=1&pageSize=50')
   const members = useLoad<Page<{ id: string; displayName: string }>>('/members?page=1&pageSize=100')
   const [selected, setSelected] = useState<Meeting | null>(null)
@@ -210,7 +215,7 @@ function MeetingsPage() {
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement)
     const participants = form.getAll('participants').map(String)
-    try { await apiRequest('/meetings', { method: 'POST', body: { title: form.get('title'), startsAt: `${form.get('startsAt')}:00+08:00`, participants } }); setNotice('会议已创建'); meetings.reload(); formElement.reset() }
+    try { await apiRequest('/meetings', { method: 'POST', body: { title: form.get('title'), location: form.get('location'), startsAt: `${form.get('startsAt')}:00+08:00`, participants } }); setNotice('会议已创建'); meetings.reload(); formElement.reset() }
     catch (error) { setNotice(messageOf(error)) }
   }
   async function saveMinutes(event: FormEvent<HTMLFormElement>) {
@@ -236,12 +241,12 @@ function MeetingsPage() {
       <Panel>
         <div className="section-heading"><h2>会议</h2><span>{meetings.data?.total ?? 0}</span></div>
         <LoadingOrError loading={meetings.loading} error={meetings.error} retry={meetings.reload} />
-        {meetings.data?.items.map(meeting => <button className={`api-select-row ${selected?.id === meeting.id ? 'selected' : ''}`} key={meeting.id} onClick={() => setSelected(meeting)}><span><strong>{meeting.title}</strong><small>{dateText(meeting.startsAt)}</small></span><ChevronRight size={16} /></button>)}
-        <details className="api-create"><summary>安排会议</summary><form className="form-stack" onSubmit={create}><TextField name="title" label="会议主题" required maxLength={160} /><TextField name="startsAt" label="开始时间（北京时间）" type="datetime-local" required /><label className="field"><span>参会成员（可多选）</span><ComboBox name="participants" multiple placeholder="选择参会成员" options={(members.data?.items ?? []).map(person => ({ value: person.id, label: person.displayName }))} /></label><Button type="submit">创建会议</Button></form></details>
+        {meetings.data?.items.map(meeting => <button className={`api-select-row ${selected?.id === meeting.id ? 'selected' : ''}`} key={meeting.id} onClick={() => setSelected(meeting)}><span><strong>{meeting.title}</strong><small>{dateText(meeting.startsAt)}</small>{meeting.location && <small>{meeting.location}</small>}</span><ChevronRight size={16} /></button>)}
+        <details className="api-create"><summary>安排会议</summary><form className="form-stack" onSubmit={create}><TextField name="title" label="会议主题" required maxLength={160} /><TextField name="location" label="会议地址" maxLength={500} /><TextField name="startsAt" label="开始时间（北京时间）" type="datetime-local" required defaultValue={`${today}T09:00`} /><label className="field"><span>参会成员（可多选）</span><ComboBox name="participants" multiple placeholder="选择参会成员" options={(members.data?.items ?? []).map(person => ({ value: person.id, label: person.displayName }))} /></label><Button type="submit">创建会议</Button></form></details>
       </Panel>
       <div className="api-project-workspace">
         <Panel>
-          <h2>{selected?.title ?? '会议纪要'}</h2>
+          <h2>{selected?.title ?? '会议纪要'}</h2>{selected?.location && <p className="api-note">会议地址 · {selected.location}</p>}
           {selected ? <><LoadingOrError loading={minutes.loading} error={minutes.error} retry={minutes.reload} />{minutes.data && <form className="form-stack" onSubmit={saveMinutes}><label className="field"><span>纪要内容</span><textarea name="body" defaultValue={minutes.data.body} key={`${minutes.data.meetingId}-${minutes.data.version}`} rows={12} maxLength={20000} /></label><span className="api-note">版本 {minutes.data.version} · 保存时使用版本校验</span><Button type="submit">保存纪要</Button></form>}</> : <Empty text="选择会议以查看或编辑纪要。" />}
         </Panel>
         {selected && <Panel>
@@ -249,7 +254,7 @@ function MeetingsPage() {
           <LoadingOrError loading={actions.loading} error={actions.error} retry={actions.reload} />
           {actions.data?.map(task => <label className="api-task-row" key={task.id}><input type="checkbox" checked={task.status === 'DONE'} onChange={event => updateAction(task, event.target.checked)} /><span><strong>{task.title}</strong><small>{task.assigneeId ? members.data?.items.find(person => person.id === task.assigneeId)?.displayName ?? '已分配成员' : '未分配'} · {dateText(task.dueDate, '未设截止日期')}</small></span><Status>{task.status}</Status></label>)}
           {actions.data?.length === 0 && <Empty text="会议还没有行动项。" />}
-          <form className="form-stack" onSubmit={createAction}><TextField name="title" label="行动项" required maxLength={200} /><TextField name="description" label="说明" maxLength={5000} /><label className="field"><span>负责人</span><ComboBox name="assigneeId" defaultValue="" options={[{ value: "", label: "未分配" }, ...(members.data?.items ?? []).map(person => ({ value: person.id, label: person.displayName }))]} /></label><TextField name="dueDate" label="截止日期" type="date" /><Button type="submit">创建行动项</Button></form>
+          <form className="form-stack" onSubmit={createAction}><TextField name="title" label="行动项" required maxLength={200} /><TextField name="description" label="说明" maxLength={5000} /><label className="field"><span>负责人</span><ComboBox name="assigneeId" defaultValue="" options={[{ value: "", label: "未分配" }, ...(members.data?.items ?? []).map(person => ({ value: person.id, label: person.displayName }))]} /></label><TextField name="dueDate" label="截止日期" type="date" defaultValue={today} /><Button type="submit">创建行动项</Button></form>
         </Panel>}
       </div>
     </div>
@@ -257,14 +262,23 @@ function MeetingsPage() {
 }
 
 function LeavePage() {
+  const [today] = useState(todayInLab)
+  const [files, setFiles] = useState<File[]>([])
+  const [submitting, setSubmitting] = useState(false)
   const mine = useLoad<Page<Leave>>('/leaves/mine?page=1&pageSize=50')
   const inbox = useLoad<Page<Leave>>('/leaves/inbox?page=1&pageSize=50')
   const members = useLoad<Page<{ id: string; displayName: string }>>('/members?page=1&pageSize=100')
   const [notice, setNotice] = useState('')
   async function apply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement)
-    try { await apiRequest('/leaves', { method: 'POST', body: { startsAt: `${form.get('startsAt')}:00+08:00`, endsAt: `${form.get('endsAt')}:00+08:00`, approverId: form.get('approverId'), reason: form.get('reason') } }); setNotice('申请已提交'); mine.reload(); inbox.reload(); formElement.reset() }
+    event.preventDefault(); if (submitting) return; const formElement = event.currentTarget; const form = new FormData(formElement)
+    const application = { startsAt: `${form.get('startsAt')}:00+08:00`, endsAt: `${form.get('endsAt')}:00+08:00`, approverId: form.get('approverId'), reason: form.get('reason') }
+    const upload = new FormData()
+    upload.append('application', new Blob([JSON.stringify(application)], { type: 'application/json' }))
+    files.forEach(file => upload.append('files', file, file.name))
+    setSubmitting(true)
+    try { await apiRequest('/leaves', { method: 'POST', body: files.length ? upload : application }); setNotice('申请已提交'); mine.reload(); inbox.reload(); formElement.reset(); setFiles([]) }
     catch (error) { setNotice(messageOf(error)) }
+    finally { setSubmitting(false) }
   }
   async function decide(leave: Leave, decision: 'APPROVED' | 'REJECTED') {
     try { await apiRequest(`/leaves/${leave.id}/decision`, { method: 'POST', body: { decision, version: leave.version } }); inbox.reload(); mine.reload() }
@@ -274,7 +288,7 @@ function LeavePage() {
     try { await apiRequest(`/leaves/${leave.id}/withdraw`, { method: 'POST', body: { version: leave.version } }); mine.reload(); inbox.reload() }
     catch (error) { setNotice(messageOf(error)) }
   }
-  return <><Heading title="请假申请" description="申请原因仅对申请人、指定审批人和授权管理员开放。" />{notice && <p className="api-feedback" role="status">{notice}</p>}<Panel className="api-form-panel"><h2>提交申请</h2><form className="api-leave-form" onSubmit={apply}><TextField name="startsAt" label="开始时间（北京时间）" type="datetime-local" required /><TextField name="endsAt" label="结束时间（北京时间）" type="datetime-local" required /><label className="field"><span>审批人</span><ComboBox name="approverId" required defaultValue="" placeholder="选择审批人" options={(members.data?.items ?? []).map(person => ({ value: person.id, label: person.displayName }))} /></label><label className="field"><span>请假原因</span><textarea name="reason" required maxLength={1000} rows={3} /></label><Button type="submit">提交申请</Button></form></Panel><div className="api-two-col"><Panel><div className="section-heading"><h2>我的申请</h2></div><LoadingOrError loading={mine.loading} error={mine.error} retry={mine.reload} />{mine.data?.items.map(leave => <div className="api-leave-card" key={leave.id}><div><strong>{dateText(leave.startsAt)} — {dateText(leave.endsAt)}</strong><Status tone={leave.status === 'APPROVED' ? 'teal' : 'orange'}>{leave.status}</Status></div><p>{leave.reason}</p><small>审批人：{leave.approverName}</small>{leave.status === 'PENDING' && <div className="api-actions"><Button variant="outline" onClick={() => withdraw(leave)}>撤回</Button></div>}</div>)}{mine.data?.items.length === 0 && <Empty text="暂无申请记录。" />}</Panel><Panel><div className="section-heading"><h2>待我审批</h2></div><LoadingOrError loading={inbox.loading} error={inbox.error} retry={inbox.reload} />{inbox.data?.items.map(leave => <div className="api-leave-card" key={leave.id}><div><strong>{leave.memberName}</strong><Status>{leave.status}</Status></div><p>{dateText(leave.startsAt)} — {dateText(leave.endsAt)}</p><p>{leave.reason}</p>{leave.status === 'PENDING' && <div className="api-actions"><Button onClick={() => decide(leave, 'APPROVED')}>批准</Button><Button variant="outline" onClick={() => decide(leave, 'REJECTED')}>驳回</Button></div>}</div>)}{inbox.data?.items.length === 0 && !inbox.error && <Empty text="没有待处理申请。" />}</Panel></div></>
+  return <><Heading title="请假申请" description="申请原因仅对申请人、指定审批人和授权管理员开放。" />{notice && <p className="api-feedback" role="status">{notice}</p>}<Panel className="api-form-panel"><h2>提交申请</h2><form className="api-leave-form" onSubmit={apply}><TextField name="startsAt" label="开始时间（北京时间）" type="datetime-local" required defaultValue={`${today}T09:00`} /><TextField name="endsAt" label="结束时间（北京时间）" type="datetime-local" required defaultValue={`${today}T18:00`} /><label className="field"><span>审批人</span><ComboBox name="approverId" required defaultValue="" placeholder="选择审批人" options={(members.data?.items ?? []).map(person => ({ value: person.id, label: person.displayName }))} /></label><label className="field"><span>请假原因</span><textarea name="reason" required maxLength={1000} rows={3} /></label><LeaveAttachmentPicker files={files} onChange={setFiles} disabled={submitting} /><Button type="submit" disabled={submitting}>{submitting ? '正在提交…' : '提交申请'}</Button></form></Panel><div className="api-two-col"><Panel><div className="section-heading"><h2>我的申请</h2></div><LoadingOrError loading={mine.loading} error={mine.error} retry={mine.reload} />{mine.data?.items.map(leave => <div className="api-leave-card" key={leave.id}><div><strong>{dateText(leave.startsAt)} — {dateText(leave.endsAt)}</strong><Status tone={leave.status === 'APPROVED' ? 'teal' : 'orange'}>{leave.status}</Status></div><p>{leave.reason}</p><LeaveAttachmentLinks leaveId={leave.id} attachments={leave.attachments} /><small>审批人：{leave.approverName}</small>{leave.status === 'PENDING' && <div className="api-actions"><Button variant="outline" onClick={() => withdraw(leave)}>撤回</Button></div>}</div>)}{mine.data?.items.length === 0 && <Empty text="暂无申请记录。" />}</Panel><Panel><div className="section-heading"><h2>待我审批</h2></div><LoadingOrError loading={inbox.loading} error={inbox.error} retry={inbox.reload} />{inbox.data?.items.map(leave => <div className="api-leave-card" key={leave.id}><div><strong>{leave.memberName}</strong><Status>{leave.status}</Status></div><p>{dateText(leave.startsAt)} — {dateText(leave.endsAt)}</p><p>{leave.reason}</p><LeaveAttachmentLinks leaveId={leave.id} attachments={leave.attachments} />{leave.status === 'PENDING' && <div className="api-actions"><Button onClick={() => decide(leave, 'APPROVED')}>批准</Button><Button variant="outline" onClick={() => decide(leave, 'REJECTED')}>驳回</Button></div>}</div>)}{inbox.data?.items.length === 0 && !inbox.error && <Empty text="没有待处理申请。" />}</Panel></div></>
 }
 
 

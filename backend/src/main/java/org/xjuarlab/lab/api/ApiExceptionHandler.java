@@ -21,6 +21,14 @@ import org.slf4j.LoggerFactory;
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiError> uploadSize(HttpServletRequest request) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE,"UPLOAD_TOO_LARGE","单个附件最多 10 MB，合计最多 25 MB",Map.of(),request);
+    }
+    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,org.springframework.web.multipart.support.MissingServletRequestPartException.class,org.springframework.web.multipart.MultipartException.class})
+    ResponseEntity<ApiError> malformedInput(HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST,"INVALID_PAYLOAD","请求内容无效，请检查表单或重新选择附件",Map.of(),request);
+    }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> validation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         var fields = ex.getBindingResult().getFieldErrors().stream().collect(java.util.stream.Collectors.toMap(

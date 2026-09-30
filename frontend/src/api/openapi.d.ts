@@ -742,10 +742,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        title: string;
-                        description?: string;
-                    };
+                    "application/json": components["schemas"]["CreateProject"];
                 };
             };
             responses: {
@@ -1216,6 +1213,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         title: string;
+                        location?: string;
                         /** Format: uuid */
                         projectId?: string | null;
                         /** Format: date-time */
@@ -1406,19 +1404,16 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        /** Format: date-time */
-                        startsAt: string;
-                        /** Format: date-time */
-                        endsAt: string;
-                        /** Format: uuid */
-                        approverId: string;
-                        reason: string;
+                    "application/json": components["schemas"]["CreateLeave"];
+                    "multipart/form-data": {
+                        application: components["schemas"]["CreateLeave"];
+                        /** @description Images, PDF, Office documents, text or archives. Each file 1 byte to 10 MiB; combined maximum 25 MiB. Always authenticated attachment downloads, never inline execution. */
+                        files?: string[];
                     };
                 };
             };
             responses: {
-                /** @description Submitted application */
+                /** @description Submitted application and attachments atomically */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -1429,8 +1424,50 @@ export interface paths {
                 };
                 400: components["responses"]["ApiError"];
                 409: components["responses"]["ApiError"];
+                413: components["responses"]["ApiError"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leaves/{id}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Applicant, current approver or lab administrator only; permission changes take effect immediately. Private no-store, attachment disposition and nosniff. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Private attachment */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/octet-stream": string;
+                    };
+                };
+                401: components["responses"]["ApiError"];
+                404: components["responses"]["ApiError"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3662,6 +3699,25 @@ export interface components {
             /** Format: date-time */
             ojConfirmedAt?: string | null;
         };
+        CreateProject: {
+            title: string;
+            description?: string;
+            /**
+             * @default GITHUB
+             * @enum {string}
+             */
+            resourceMode: "GITHUB" | "BAIDU";
+            resourceLinks?: components["schemas"]["ProjectResourceLinks"];
+        };
+        /** @description GITHUB accepts github and huggingFace only; BAIDU accepts the other four keys only. Links must use the corresponding platform HTTPS host; empty values are omitted. The server never fetches these URLs. */
+        ProjectResourceLinks: {
+            github?: string;
+            huggingFace?: string;
+            deliverables?: string;
+            sources?: string;
+            documents?: string;
+            video?: string;
+        };
         Project: {
             /** Format: uuid */
             id: string;
@@ -3673,6 +3729,9 @@ export interface components {
             version: number;
             /** Format: date-time */
             updatedAt?: string;
+            /** @enum {string} */
+            resourceMode: "GITHUB" | "BAIDU";
+            resourceLinks: components["schemas"]["ProjectResourceLinks"];
         };
         Task: {
             /** Format: uuid */
@@ -3697,11 +3756,27 @@ export interface components {
             /** Format: uuid */
             projectId?: string | null;
             title: string;
+            location: string;
             /** Format: date-time */
             startsAt: string;
             /** Format: uuid */
             createdBy: string;
             version: number;
+        };
+        CreateLeave: {
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            /** Format: uuid */
+            approverId: string;
+            reason: string;
+        };
+        LeaveAttachment: {
+            /** Format: uuid */
+            id: string;
+            filename: string;
+            byteSize: number;
         };
         Leave: {
             /** Format: uuid */
@@ -3722,6 +3797,7 @@ export interface components {
             version: number;
             /** Format: date-time */
             createdAt?: string;
+            attachments: components["schemas"]["LeaveAttachment"][];
         };
         EmailApprovalPreview: {
             /** Format: uuid */

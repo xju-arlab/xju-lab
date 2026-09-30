@@ -149,7 +149,7 @@ paths:
       responses: { '200': { description: Projects visible to the current member, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectPage' } } } } }
     post:
       tags: [projects]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, minLength: 1, maxLength: 160 }, description: { type: string, maxLength: 5000 } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateProject' } } } }
       responses: { '201': { description: Created project, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }, '400': { $ref: '#/components/responses/ApiError' } }
   /projects/{projectId}/tasks:
     get:
@@ -216,7 +216,7 @@ paths:
       tags: [meetings]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [title, startsAt], properties: { title: { type: string }, projectId: { type: string, format: uuid, nullable: true }, startsAt: { type: string, format: date-time }, participants: { type: array, items: { type: string, format: uuid } } } } } }
+        content: { application/json: { schema: { type: object, required: [title, startsAt], properties: { title: { type: string }, location: { type: string, maxLength: 500 }, projectId: { type: string, format: uuid, nullable: true }, startsAt: { type: string, format: date-time }, participants: { type: array, items: { type: string, format: uuid } } } } } }
       responses: { '201': { description: Created meeting, content: { application/json: { schema: { $ref: '#/components/schemas/Meeting' } } } } }
   /meetings/{meetingId}/minutes:
     get:
@@ -243,8 +243,36 @@ paths:
       tags: [leaves]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [startsAt, endsAt, approverId, reason], properties: { startsAt: { type: string, format: date-time }, endsAt: { type: string, format: date-time }, approverId: { type: string, format: uuid }, reason: { type: string, minLength: 1, maxLength: 1000 } } } } }
-      responses: { '201': { description: Submitted application, content: { application/json: { schema: { $ref: '#/components/schemas/Leave' } } } }, '400': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateLeave' }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [application]
+              properties:
+                application: { $ref: '#/components/schemas/CreateLeave' }
+                files:
+                  type: array
+                  maxItems: 5
+                  description: Images, PDF, Office documents, text or archives. Each file 1 byte to 10 MiB; combined maximum 25 MiB. Always authenticated attachment downloads, never inline execution.
+                  items: { type: string, format: binary }
+            encoding:
+              application: { contentType: application/json }
+      responses: { '201': { description: Submitted application and attachments atomically, content: { application/json: { schema: { $ref: '#/components/schemas/Leave' } } } }, '400': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' }, '413': { $ref: '#/components/responses/ApiError' } }
+  /leaves/{id}/attachments/{attachmentId}:
+    get:
+      tags: [leaves]
+      description: Applicant, current approver or lab administrator only; permission changes take effect immediately. Private no-store, attachment disposition and nosniff.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private attachment
+          content: { application/octet-stream: { schema: { type: string, format: binary } } }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '404': { $ref: '#/components/responses/ApiError' }
   /leaves/mine:
     get:
       tags: [leaves]
@@ -741,9 +769,28 @@ components:
         ojSyncStatus: { type: string, nullable: true }
         ojLastError: { type: string, nullable: true }
         ojConfirmedAt: { type: string, format: date-time, nullable: true }
+    CreateProject:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 5000 }
+        resourceMode: { type: string, enum: [GITHUB, BAIDU], default: GITHUB }
+        resourceLinks: { $ref: '#/components/schemas/ProjectResourceLinks' }
+    ProjectResourceLinks:
+      type: object
+      additionalProperties: false
+      description: GITHUB accepts github and huggingFace only; BAIDU accepts the other four keys only. Links must use the corresponding platform HTTPS host; empty values are omitted. The server never fetches these URLs.
+      properties:
+        github: { type: string, maxLength: 2048 }
+        huggingFace: { type: string, maxLength: 2048 }
+        deliverables: { type: string, maxLength: 2048 }
+        sources: { type: string, maxLength: 2048 }
+        documents: { type: string, maxLength: 2048 }
+        video: { type: string, maxLength: 2048 }
     Project:
       type: object
-      required: [id, title, description, status, leadId, version]
+      required: [id, title, description, status, leadId, version, resourceMode, resourceLinks]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -752,6 +799,8 @@ components:
         leadId: { type: string, format: uuid }
         version: { type: integer }
         updatedAt: { type: string, format: date-time }
+        resourceMode: { type: string, enum: [GITHUB, BAIDU] }
+        resourceLinks: { $ref: '#/components/schemas/ProjectResourceLinks' }
     Task:
       type: object
       required: [id, title, status, version]
@@ -767,17 +816,33 @@ components:
         version: { type: integer }
     Meeting:
       type: object
-      required: [id, title, startsAt, createdBy, version]
+      required: [id, title, startsAt, createdBy, version, location]
       properties:
         id: { type: string, format: uuid }
         projectId: { type: string, format: uuid, nullable: true }
         title: { type: string }
+        location: { type: string, maxLength: 500 }
         startsAt: { type: string, format: date-time }
         createdBy: { type: string, format: uuid }
         version: { type: integer }
+    CreateLeave:
+      type: object
+      required: [startsAt, endsAt, approverId, reason]
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        approverId: { type: string, format: uuid }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    LeaveAttachment:
+      type: object
+      required: [id, filename, byteSize]
+      properties:
+        id: { type: string, format: uuid }
+        filename: { type: string, maxLength: 200 }
+        byteSize: { type: integer, minimum: 1, maximum: 10485760 }
     Leave:
       type: object
-      required: [id, memberId, memberName, approverId, approverName, startsAt, endsAt, reason, status, version]
+      required: [id, memberId, memberName, approverId, approverName, startsAt, endsAt, reason, status, version, attachments]
       properties:
         id: { type: string, format: uuid }
         memberId: { type: string, format: uuid }
@@ -790,6 +855,7 @@ components:
         status: { type: string, enum: [PENDING, APPROVED, REJECTED, WITHDRAWN, REVOKED] }
         version: { type: integer }
         createdAt: { type: string, format: date-time }
+        attachments: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/LeaveAttachment' } }
     EmailApprovalPreview:
       type: object
       required: [applicationId, memberId, memberName, startsAt, endsAt, reason, status, version]

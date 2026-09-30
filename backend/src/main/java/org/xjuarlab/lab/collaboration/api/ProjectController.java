@@ -35,15 +35,15 @@ public class ProjectController {
     @GetMapping("/projects") public PageEnvelope<ProjectView> projects(Authentication auth,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int pageSize){
         UUID actor=current.id(auth);
         long offset=PageEnvelope.offset(page,pageSize);
-        List<ProjectView> items=jdbc.query("SELECT p.id,p.title,p.description,p.status,p.lead_id,p.version,p.updated_at FROM project p JOIN project_member pm ON pm.project_id=p.id WHERE pm.member_id=? AND p.status='ACTIVE' ORDER BY p.updated_at DESC,p.id LIMIT ? OFFSET ?",(rs,row)->new ProjectView((UUID)rs.getObject("id"),rs.getString("title"),rs.getString("description"),rs.getString("status"),(UUID)rs.getObject("lead_id"),rs.getLong("version"),rs.getObject("updated_at",java.time.OffsetDateTime.class)),actor,pageSize,offset);
+        List<ProjectView> items=jdbc.query("SELECT p.id,p.title,p.description,p.status,p.lead_id,p.version,p.updated_at,p.resource_mode,p.resource_links FROM project p JOIN project_member pm ON pm.project_id=p.id WHERE pm.member_id=? AND p.status='ACTIVE' ORDER BY p.updated_at DESC,p.id LIMIT ? OFFSET ?",(rs,row)->new ProjectView((UUID)rs.getObject("id"),rs.getString("title"),rs.getString("description"),rs.getString("status"),(UUID)rs.getObject("lead_id"),rs.getLong("version"),rs.getObject("updated_at",java.time.OffsetDateTime.class),rs.getString("resource_mode"),ProjectResources.read(rs.getString("resource_links"))),actor,pageSize,offset);
         Long total=jdbc.queryForObject("SELECT count(*) FROM project p JOIN project_member pm ON pm.project_id=p.id WHERE pm.member_id=? AND p.status='ACTIVE'",Long.class,actor);
         return new PageEnvelope<>(items,total==null?0:total,page,pageSize);
     }
     @PostMapping("/projects") @ResponseStatus(org.springframework.http.HttpStatus.CREATED) @Transactional public ProjectView createProject(Authentication auth,@Valid @RequestBody CreateProject input){
-        UUID actor=current.id(auth);UUID id=jdbc.queryForObject("INSERT INTO project(title,description,lead_id) VALUES (?,?,?) RETURNING id",UUID.class,input.title().trim(),safe(input.description()),actor);
+        UUID actor=current.id(auth);String mode=ProjectResources.mode(input.resourceMode());String links=ProjectResources.validate(mode,input.resourceLinks());UUID id=jdbc.queryForObject("INSERT INTO project(title,description,lead_id,resource_mode,resource_links) VALUES (?,?,?,?,?::jsonb) RETURNING id",UUID.class,input.title().trim(),safe(input.description()),actor,mode,links);
         jdbc.update("INSERT INTO project_member(project_id,member_id,role) VALUES (?,?,'LEAD')",id,actor);
         jdbc.update("INSERT INTO audit_event(actor_id,action,target_type,target_id) VALUES (?,'CREATE_PROJECT','project',?)",actor,id.toString());
-        return jdbc.queryForObject("SELECT id,title,description,status,lead_id,version,updated_at FROM project WHERE id=?",ProjectController::projectRow,id);
+        return jdbc.queryForObject("SELECT id,title,description,status,lead_id,version,updated_at,resource_mode,resource_links FROM project WHERE id=?",ProjectController::projectRow,id);
     }
     @GetMapping("/projects/{projectId}/tasks") public PageEnvelope<TaskView> tasks(Authentication auth,@PathVariable UUID projectId,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int pageSize){
         UUID actor=current.id(auth);requireProjectMember(projectId,actor);
@@ -80,11 +80,11 @@ public class ProjectController {
     private void requireProjectMember(UUID projectId,UUID actor){if(jdbc.query("SELECT 1 FROM project_member pm JOIN project p ON p.id=pm.project_id WHERE pm.project_id=? AND pm.member_id=? AND p.status='ACTIVE'",(rs,row)->rs.getInt(1),projectId,actor).isEmpty())throw new ResponseStatusException(NOT_FOUND,"项目不存在或无权访问");}
     private void validateAssignee(UUID projectId,UUID assignee){if(assignee!=null&&jdbc.query("SELECT 1 FROM project_member pm JOIN member m ON m.id=pm.member_id WHERE pm.project_id=? AND pm.member_id=? AND m.active=true",(rs,row)->rs.getInt(1),projectId,assignee).isEmpty())throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"负责人必须是有效项目成员");}
     private static String safe(String value){return value==null?"":value.trim();}
-    private static ProjectView projectRow(java.sql.ResultSet rs,int row)throws java.sql.SQLException{return new ProjectView((UUID)rs.getObject("id"),rs.getString("title"),rs.getString("description"),rs.getString("status"),(UUID)rs.getObject("lead_id"),rs.getLong("version"),rs.getObject("updated_at",java.time.OffsetDateTime.class));}
+    private static ProjectView projectRow(java.sql.ResultSet rs,int row)throws java.sql.SQLException{return new ProjectView((UUID)rs.getObject("id"),rs.getString("title"),rs.getString("description"),rs.getString("status"),(UUID)rs.getObject("lead_id"),rs.getLong("version"),rs.getObject("updated_at",java.time.OffsetDateTime.class),rs.getString("resource_mode"),ProjectResources.read(rs.getString("resource_links")));}
     private static TaskView taskRow(java.sql.ResultSet rs)throws java.sql.SQLException{return new TaskView((UUID)rs.getObject("id"),(UUID)rs.getObject("project_id"),rs.getString("title"),rs.getString("description"),(UUID)rs.getObject("assignee_id"),(UUID)rs.getObject("created_by"),rs.getObject("due_date",LocalDate.class),rs.getString("status"),rs.getLong("version"));}
-    public record ProjectView(UUID id,String title,String description,String status,UUID leadId,long version,java.time.OffsetDateTime updatedAt){}
+    public record ProjectView(UUID id,String title,String description,String status,UUID leadId,long version,java.time.OffsetDateTime updatedAt,String resourceMode,com.fasterxml.jackson.databind.JsonNode resourceLinks){}
     public record TaskView(UUID id,UUID projectId,String title,String description,UUID assigneeId,UUID createdBy,LocalDate dueDate,String status,long version){}
-    public record CreateProject(@NotBlank @Size(max=160) String title,@Size(max=5000) String description){}
+    public record CreateProject(@NotBlank @Size(max=160) String title,@Size(max=5000) String description,String resourceMode,java.util.Map<String,String> resourceLinks){}
     public record CreateTask(@NotBlank @Size(max=200) String title,@Size(max=5000) String description,UUID assigneeId,LocalDate dueDate){}
     public record TaskUpdate(@Size(max=200) String title,String status){}
 }

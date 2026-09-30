@@ -36,7 +36,7 @@ export function LayoutToolbar({ editor, toast }: { editor: LayoutEditor; toast: 
     <button onClick={exportJson}>导出布局</button><button onClick={() => fileInput.current?.click()}>导入布局</button>
     <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={event => void importFile(event.target.files?.[0])} />
     <button onClick={() => { editor.commit(cloneLayout(defaultLayout)); toast('已恢复项目标定布局，可撤销') }}>恢复标定</button>
-    <div className="layout-edit-save"><button onClick={editor.cancel}>取消</button><button className="save-layout" onClick={editor.save}>保存调整</button></div>
+    <div className="layout-edit-save"><button disabled={editor.saving} onClick={editor.cancel}>取消</button><button className="save-layout" disabled={editor.saving} onClick={editor.save}>{editor.saving ? '正在保存…' : '保存调整'}</button></div>
   </div>
 }
 export function LayoutInspector({ editor, toast }: { editor: LayoutEditor; toast: (message: string) => void }) {
@@ -70,6 +70,6 @@ export function LayoutInspector({ editor, toast }: { editor: LayoutEditor; toast
       <label className="layout-checkbox"><input type="checkbox" checked={room.doorUpperClosed} onChange={event => setRoom('doorUpperClosed', event.target.checked)} />上方门扇关闭</label>
       <h3>右侧窗户</h3><div className="layout-fields">{field('windowOffset', '窗上端偏移')}{field('windowLength', '窗长', 100, 900)}{field('right', '右侧墙 X', 730, 1330)}</div>
     </>}
-    <p className="layout-local-note">保存后在当前浏览器保留。换设备可导出、导入布局文件。</p>
+    <p className="layout-local-note">{editor.serverPersistence ? '保存后所有成员可见；修改冲突时会保留当前调整。' : '保存后在当前浏览器保留。换设备可导出、导入布局文件。'}</p>
   </section>
 }

@@ -65,6 +65,14 @@ cd /home/winbeau/projects/xju-lab && ./deploy.sh
 
 ## 备份
 
+### 请假附件（V11）
+
+请假附件使用私有 `leave_attachment` 表的 `bytea` 列，与申请在同一事务提交，随 PostgreSQL dump 一起备份/恢复；首版无需配置生产 S3。每申请最多 5 个附件，单个 10 MiB、合计 25 MiB；Nginx 请求上限 26 MiB，Spring 单文件上限 10 MiB、请求上限 26 MiB。列表只取元信息。下载必须通过当前会话和申请对象权限检查，固定 `application/octet-stream`、附件下载与 `private, no-store`，不提供公开 URL 或内联预览。文件类型按扩展名白名单限制，未提供病毒扫描或内容真实性识别。生产容量与保留策略仍由实验室运维确定；备份需包含附件表，不单独清理其中行或数据库卷。
+
+本次迁移同时增加会议地址、项目资源模式和链接；原数据默认空地址及 GitHub 模式，不改工位布局。GitHub/HuggingFace/百度网盘只保存对应平台 HTTPS 分享链接，不抓取外部内容。
+
+### 备份脚本
+
 设置受限文件系统上的 `BACKUP_ROOT`（必须在仓库外）、`DATABASE_URL`、`S3_BUCKET`，并通过 AWS CLI 的标准环境或凭据配置提供只读对象列表/读取及备份目录写入权限，然后运行 `scripts/backup.sh`。可设置 `AWS_ENDPOINT_URL` 用于兼容 S3 的测试端点。脚本创建权限为当前用户私有的目录，保存 PostgreSQL custom dump、指定 bucket 的对象副本和 SHA-256 清单。
 
 为获得同一时间点的一致快照，生产演练应先进入维护窗口，暂停 API/Agent 写入并等待活动 outbox 作业收敛；确认数据库和对象存储快照均完成后再恢复服务。仓库没有声称已验证生产备份的保留周期、不可变副本或跨区域恢复。

@@ -1,6 +1,10 @@
 spring:
   application:
     name: xju-lab
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 26MB
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/xju_lab}
     username: ${DATABASE_USER:xju_lab}

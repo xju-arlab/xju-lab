@@ -673,6 +673,94 @@ class BaselineIntegrationTest {
             .andExpect(jsonPath("$[?(@.source == 'HP_STATUS')].status").value(org.hamcrest.Matchers.contains("ONLINE")));
     }
 
+    @Test void leaveAttachmentsAreAtomicPrivateAndFollowTheCurrentApprover() throws Exception {
+        member("attachment-owner","MEMBER");UUID reviewer=member("attachment-reviewer","MEMBER");
+        UUID nextReviewer=member("attachment-next","MEMBER");member("attachment-stranger","MEMBER");member("attachment-admin","LAB_ADMIN");
+        var application=new MockMultipartFile("application","application.json","application/json",("{\"startsAt\":\"2031-01-01T01:00:00Z\",\"endsAt\":\"2031-01-01T09:00:00Z\",\"reason\":\"附件隔离验收\",\"approverId\":\""+reviewer+"\"}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] bytes="%PDF-1.7\nprivate-fixture".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var file=new MockMultipartFile("files","证明.pdf","application/pdf",bytes);
+        mvc.perform(multipart("/api/v1/leaves").file(application).file(file).with(login("attachment-owner"))).andExpect(status().isForbidden());
+        var created=mvc.perform(multipart("/api/v1/leaves").file(application).file(file)
+            .file(new MockMultipartFile("files","说明.docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document",new byte[]{80,75,3,4}))
+            .with(login("attachment-owner")).with(csrf())).andExpect(status().isCreated())
+            .andExpect(jsonPath("$.attachments.length()").value(2)).andExpect(jsonPath("$.attachments[0].content").doesNotExist()).andReturn();
+        var result=new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        String id=result.path("id").asText();String fileId="";
+        for(var attachment:result.path("attachments"))if(attachment.path("filename").asText().equals("证明.pdf"))fileId=attachment.path("id").asText();
+        assertThat(fileId).isNotBlank();String path="/api/v1/leaves/"+id+"/attachments/"+fileId;
+        for(String actor:List.of("attachment-owner","attachment-reviewer","attachment-admin"))
+            mvc.perform(get(path).with(login(actor))).andExpect(status().isOk()).andExpect(content().bytes(bytes))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control","private, no-store"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition",org.hamcrest.Matchers.startsWith("attachment;")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options","nosniff"));
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).with(login("attachment-stranger"))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/leaves/"+UUID.randomUUID()+"/attachments/"+fileId).with(login("attachment-owner"))).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/leaves/"+id+"/transfer").with(login("attachment-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"approverId\":\""+nextReviewer+"\",\"version\":1,\"reason\":\"转交验收\"}")).andExpect(status().isOk());
+        mvc.perform(get(path).with(login("attachment-reviewer"))).andExpect(status().isNotFound());
+        mvc.perform(get(path).with(login("attachment-next"))).andExpect(status().isOk()).andExpect(content().bytes(bytes));
+        mvc.perform(get("/api/v1/leaves/mine").with(login("attachment-owner"))).andExpect(jsonPath("$.items[0].attachments.length()").value(2));
+        int count=jdbc.queryForObject("SELECT count(*) FROM leave_application",Integer.class);
+        for(var invalid:List.of(new MockMultipartFile("files","empty.pdf","application/pdf",new byte[0]),new MockMultipartFile("files","run.exe","application/octet-stream",bytes)))
+            mvc.perform(multipart("/api/v1/leaves").file(application).file(invalid).with(login("attachment-owner")).with(csrf())).andExpect(status().isBadRequest());
+        mvc.perform(multipart("/api/v1/leaves").file(application).file(new MockMultipartFile("files","large.pdf","application/pdf",new byte[10*1024*1024+1])).with(login("attachment-owner")).with(csrf())).andExpect(status().isPayloadTooLarge());
+        var tooMany=multipart("/api/v1/leaves").file(application);
+        for(int i=0;i<6;i++)tooMany.file(new MockMultipartFile("files",i+".txt","text/plain",bytes));
+        mvc.perform(tooMany.with(login("attachment-owner")).with(csrf())).andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM leave_application",Integer.class)).isEqualTo(count);
+        assertThat(jdbc.queryForObject("SELECT content FROM leave_attachment WHERE id=?",byte[].class,UUID.fromString(fileId))).isEqualTo(bytes);
+        jdbc.update("UPDATE member SET active=false WHERE id=?",nextReviewer);
+        mvc.perform(get(path).with(login("attachment-next"))).andExpect(status().isForbidden());
+    }
+
+    @Test void projectResourcesAndMeetingAddressPersistWithinExistingVisibility() throws Exception {
+        member("resource-owner","MEMBER");member("resource-stranger","MEMBER");
+        var created=mvc.perform(post("/api/v1/projects").with(login("resource-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {"title":"资源项目","resourceMode":"GITHUB","resourceLinks":{"github":"https://github.com/example/project","huggingFace":"https://huggingface.co/example/model"}}
+                """)).andExpect(status().isCreated()).andExpect(jsonPath("$.resourceMode").value("GITHUB"))
+            .andExpect(jsonPath("$.resourceLinks.huggingFace").value("https://huggingface.co/example/model")).andReturn();
+        String id=new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString()).path("id").asText();
+        mvc.perform(get("/api/v1/projects").with(login("resource-owner"))).andExpect(jsonPath("$.items[0].resourceLinks.github").value("https://github.com/example/project"));
+        mvc.perform(get("/api/v1/projects").with(login("resource-stranger"))).andExpect(jsonPath("$.items").isEmpty());
+        mvc.perform(post("/api/v1/projects").with(login("resource-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {"title":"网盘项目","resourceMode":"BAIDU","resourceLinks":{"deliverables":"https://pan.baidu.com/s/demo?pwd=demo","sources":"https://pan.baidu.com/s/src","documents":"https://pan.baidu.com/s/doc","video":"https://pan.baidu.com/s/video"}}
+                """)).andExpect(status().isCreated()).andExpect(jsonPath("$.resourceLinks.documents").value("https://pan.baidu.com/s/doc"));
+        for(String url:List.of("javascript:alert(1)","https://github.com.evil.invalid/x","https://user:pass@github.com/x","http://github.com/x"))
+            mvc.perform(post("/api/v1/projects").with(login("resource-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"无效链接\",\"resourceLinks\":{\"github\":\""+url+"\"}}")).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/projects").with(login("resource-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"title\":\"字段隔离\",\"resourceMode\":\"BAIDU\",\"resourceLinks\":{\"github\":\"https://github.com/x\"}}")).andExpect(status().isBadRequest());
+        var meeting=mvc.perform(post("/api/v1/meetings").with(login("resource-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"title\":\"会议地址验收\",\"projectId\":\""+id+"\",\"startsAt\":\"2031-01-01T01:00:00Z\",\"location\":\" 信息楼 A411 \"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.location").value("信息楼 A411")).andReturn();
+        String meetingId=new com.fasterxml.jackson.databind.ObjectMapper().readTree(meeting.getResponse().getContentAsString()).path("id").asText();
+        mvc.perform(get("/api/v1/meetings").with(login("resource-owner"))).andExpect(jsonPath("$.items[0].location").value("信息楼 A411"));
+        mvc.perform(get("/api/v1/meetings/"+meetingId+"/minutes").with(login("resource-stranger"))).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/meetings").with(login("resource-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"title\":\"无效地址\",\"startsAt\":\"2031-01-01T01:00:00Z\",\"location\":\""+"x".repeat(501)+"\"}")).andExpect(status().isBadRequest());
+    }
+
+    @Test void calibratedRoomAndDeskChangesAreVersionedAndValidated() throws Exception {
+        member("calibration-admin","LAB_ADMIN");member("calibration-reader","MEMBER");
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        var layout=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(new org.springframework.core.io.ClassPathResource("seat-layout.confirmed.json").getInputStream());
+        ((com.fasterxml.jackson.databind.node.ObjectNode)layout.path("room")).put("toolX",190);
+        ((com.fasterxml.jackson.databind.node.ObjectNode)layout.path("desks").get(0)).put("facing","right");
+        mvc.perform(put("/api/v1/seats/layout").with(login("calibration-reader")).with(csrf()).header("If-Match-Version",1).contentType(MediaType.APPLICATION_JSON).content(layout.toString())).andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/seats/layout").with(login("calibration-admin")).with(csrf()).header("If-Match-Version",1).contentType(MediaType.APPLICATION_JSON).content(layout.toString())).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+        mvc.perform(get("/api/v1/seats/layout").with(login("calibration-reader"))).andExpect(jsonPath("$.layout.room.toolX").value(190)).andExpect(jsonPath("$.layout.desks[0].facing").value("right"));
+        mvc.perform(put("/api/v1/seats/layout").with(login("calibration-admin")).with(csrf()).header("If-Match-Version",1).contentType(MediaType.APPLICATION_JSON).content(layout.toString())).andExpect(status().isConflict());
+        ((com.fasterxml.jackson.databind.node.ObjectNode)layout.path("room")).put("doorWall","invalid");
+        mvc.perform(put("/api/v1/seats/layout").with(login("calibration-admin")).with(csrf()).header("If-Match-Version",2).contentType(MediaType.APPLICATION_JSON).content(layout.toString())).andExpect(status().isBadRequest());
+        ((com.fasterxml.jackson.databind.node.ObjectNode)layout.path("room")).put("doorWall","notch");
+        ((com.fasterxml.jackson.databind.node.ObjectNode)layout.path("desks").get(0)).put("x",1);
+        mvc.perform(put("/api/v1/seats/layout").with(login("calibration-admin")).with(csrf()).header("If-Match-Version",2).contentType(MediaType.APPLICATION_JSON).content(layout.toString())).andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM seat WHERE kind='seat'",Integer.class)).isEqualTo(31);
+    }
+
     @Test void printerAgentReportsOnlyAuthenticatedDeviceStatus() throws Exception {
         member("printer-status-admin", "LAB_ADMIN");
         member("printer-status-viewer", "MEMBER");

@@ -31,14 +31,16 @@ public class LeaveController {
     private final JdbcTemplate jdbc;
     private final CurrentMember current;
     private final ApprovalTokenCryptography tokenCrypto;
+    private final LeaveAttachments attachments;
 
-    public LeaveController(JdbcTemplate jdbc, CurrentMember current, ApprovalTokenCryptography tokenCrypto) {
+    public LeaveController(JdbcTemplate jdbc, CurrentMember current, ApprovalTokenCryptography tokenCrypto, LeaveAttachments attachments) {
         this.jdbc = jdbc;
         this.current = current;
         this.tokenCrypto = tokenCrypto;
+        this.attachments = attachments;
     }
 
-    @PostMapping
+    @PostMapping(consumes="application/json")
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Transactional
     public LeaveView create(Authentication auth, @Valid @RequestBody CreateLeave input) {
@@ -53,6 +55,30 @@ public class LeaveController {
         ApprovalTokenCryptography.Issued token = issueApprovalToken(id, input.approverId());
         notify(input.approverId(), id, "LEAVE_PENDING", "PENDING", token.encrypted());
         return load(id);
+    }
+
+    @PostMapping(consumes="multipart/form-data")
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @Transactional
+    public LeaveView createWithAttachments(Authentication auth,
+            @Valid @org.springframework.web.bind.annotation.RequestPart("application") CreateLeave input,
+            @org.springframework.web.bind.annotation.RequestPart(value="files",required=false) List<org.springframework.web.multipart.MultipartFile> files) {
+        current.id(auth);
+        var uploads=attachments.validate(files);
+        LeaveView leave=create(auth,input);
+        attachments.save(leave.id(),uploads);
+        return load(leave.id());
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}")
+    public org.springframework.http.ResponseEntity<byte[]> download(Authentication auth,@PathVariable UUID id,@PathVariable UUID attachmentId) {
+        get(auth,id);
+        var file=attachments.read(id,attachmentId);
+        return org.springframework.http.ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+            .header("Content-Disposition",org.springframework.http.ContentDisposition.attachment().filename(file.filename(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
+            .header("Cache-Control","private, no-store").header("X-Content-Type-Options","nosniff")
+            .contentLength(file.content().length).body(file.content());
     }
 
     @GetMapping("/mine")
@@ -154,9 +180,9 @@ public class LeaveController {
             (rs, row) -> row(rs), id).stream().findFirst().orElseThrow(LeaveController::hidden);
     }
 
-    private static LeaveView row(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private LeaveView row(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new LeaveView((UUID) rs.getObject("id"), (UUID) rs.getObject("member_id"), rs.getString("display_name"), (UUID) rs.getObject("approver_id"), rs.getString("approver_name"),
-            rs.getObject("starts_at", OffsetDateTime.class), rs.getObject("ends_at", OffsetDateTime.class), rs.getString("reason"), rs.getString("status"), rs.getLong("version"), rs.getObject("created_at", OffsetDateTime.class));
+            rs.getObject("starts_at", OffsetDateTime.class), rs.getObject("ends_at", OffsetDateTime.class), rs.getString("reason"), rs.getString("status"), rs.getLong("version"), rs.getObject("created_at", OffsetDateTime.class), attachments.list(rs.getObject("id",UUID.class)));
     }
 
     private void transition(LeaveView leave, UUID actor, String status, String reason) {
@@ -194,7 +220,7 @@ public class LeaveController {
     private boolean isAdmin(UUID id) { return current.roles(id).stream().anyMatch(r -> r.equals("LAB_ADMIN") || r.equals("SUPER_ADMIN")); }
     private static ResponseStatusException hidden() { return new ResponseStatusException(NOT_FOUND, "申请不存在或无权访问"); }
 
-    public record LeaveView(UUID id, UUID memberId, String memberName, UUID approverId, String approverName, OffsetDateTime startsAt, OffsetDateTime endsAt, String reason, String status, long version, OffsetDateTime createdAt) {}
+    public record LeaveView(UUID id, UUID memberId, String memberName, UUID approverId, String approverName, OffsetDateTime startsAt, OffsetDateTime endsAt, String reason, String status, long version, OffsetDateTime createdAt,List<LeaveAttachments.AttachmentView> attachments) {}
     public record CreateLeave(@NotNull OffsetDateTime startsAt, @NotNull OffsetDateTime endsAt, @NotNull UUID approverId, @NotBlank @Size(max=1000) String reason) {}
     public record Decision(@NotBlank String decision, @Size(max=1000) String reason, @NotNull Long version) {}
     public record VersionInput(@NotNull Long version) {}

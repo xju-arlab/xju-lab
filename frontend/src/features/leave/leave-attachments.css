@@ -1,0 +1,17 @@
+.leave-attachments-field { grid-column: 1 / -1; min-width: 0; }
+.leave-attachments-label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 600; }
+.leave-dropzone { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 22px 12px; border: 1px dashed #c8cec5; border-radius: 9px; background: #fafaf7; color: var(--color-text-muted); cursor: pointer; transition: border-color 180ms, background 180ms; }
+.leave-dropzone strong { color: var(--color-text); font-size: 13px; font-weight: 500; }
+.leave-dropzone span { font-size: 12px; }
+.leave-dropzone small { font-size: 11px; }
+.leave-dropzone:hover, .leave-dropzone.is-dragging { background: #edf4ee; border-color: #608674; }
+.leave-dropzone:focus-visible { outline: 2px solid #608674; outline-offset: 3px; }
+.leave-dropzone:disabled { opacity: .65; cursor: wait; }
+.leave-attachment-list, .leave-saved-attachments { margin: 10px 0 0; padding: 0; list-style: none; }
+.leave-attachment-list li, .leave-saved-attachments a { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; min-width: 0; }
+.leave-attachment-list li > span, .leave-saved-attachments a > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.leave-attachment-list small { display: block; color: var(--color-text-muted); margin-top: 3px; }
+.leave-attachment-list button { border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.leave-saved-attachments a { color: #3e685d; text-decoration: none; }
+.leave-saved-attachments a:hover { text-decoration: underline; }
+.leave-saved-attachments small { color: var(--color-text-muted); flex-shrink: 0; }
