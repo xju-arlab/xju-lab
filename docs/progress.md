@@ -15,6 +15,7 @@
 - 按用户六点调整：移除邮箱/实名说明和身份 issuer 展示；姓名、学号、班级添加红色必填星号；班级示例仅保留 `计算机24-3`；研究方向改为 6px 小圆角选项；登记页移除自定义方向输入和添加按钮，保留多选与至少一项校验。
 - TypeScript 与 Vite production build 通过（1653 模块）。隔离 Chromium 使用本地合成会话核对文案删除、三个 required 字段/红星、无自定义输入、两个方向选项，以及 375/768/1440 px 无横向溢出；截图为 `C:\Users\genev\AppData\Local\Temp\xju-lab-registration-{375,768,1440}.png`，不含真实个人资料。
 - 现有 OIDC 浏览器登记流程同步移除自定义方向填写步骤，并检查该输入不存在。该调整限于登记页呈现，不修改实名保护、班级派生年级和数据库接口。
+- 代码 `0c5f4dc` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36706451397)，包括真实隔离 OIDC 登记/保存与后续业务流程。huawei2 `./deploy.sh` 成功；公网已提供新 JS/CSS（`index-B-xlyerS.js` / `index-ylC81aP2.css`），核对旧说明不再出现在登记代码、新红星和小圆角样式存在。服务器构建日志：`~/.local/state/xju-lab-tools/deploy-registration.log`。
 
 ### 2026-09-30：生产身份配置与飞跃风格修订
 
