@@ -120,6 +120,15 @@ class BaselineIntegrationTest {
         assertThat(http.getForEntity("/actuator/health", String.class).getBody()).doesNotContain("jdbcUrl", "redis", "password");
     }
 
+    @Test void oidcAuthorizationRequestsIncludePkceForTheConfidentialClient() throws Exception {
+        var response = mvc.perform(get("/oauth2/authorization/lab"))
+            .andExpect(status().is3xxRedirection())
+            .andReturn();
+        assertThat(response.getResponse().getRedirectedUrl())
+            .contains("code_challenge=")
+            .contains("code_challenge_method=S256");
+    }
+
     @Test void postgresConstraintsPreventASecondActiveSeatForOneMember() {
         var member = jdbc.queryForObject("insert into member(display_name) values ('constraint-test') returning id", java.util.UUID.class);
         jdbc.update("insert into seat_assignment(seat_id,member_id) values ('A01',?)", member);
