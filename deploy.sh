@@ -99,7 +99,8 @@ echo "Building and starting XJU Lab..."
 
 for attempt in $(seq 1 60); do
   if curl --fail --silent --max-time 5 http://127.0.0.1:18080/ >/dev/null \
-      && curl --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/public/lab-profile >/dev/null; then
+      && curl --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/health >/dev/null \
+      && curl --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/ready >/dev/null; then
     echo "Deployment is responding."
     echo "Local upstream: http://127.0.0.1:18080"
     echo "Public URL: https://lab.icthub.top"
