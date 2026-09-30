@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `614e8f2` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36712495895)。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V8/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
+> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `9c199ff` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36719040292)。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V9/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
@@ -16,7 +16,7 @@
 
 - 本次新增登录检查/跳转过渡与统一查询缓存（会话内 30 秒、指标 5 秒，保存/退出/身份权限变化失效，不持久化私有 API）。共享请求去重，旧请求不得覆盖新条件；失败显示重试。SSH 服务器补上固定只读自动采样和 PostgreSQL V9 历史曲线。实际验证/发布状态见 progress.md 最新条目。
 
-- 成长与考核页已移除“培养期、成员与场次管理”卡片，方向切换放到标题同一行右侧。数据更新使用占位、轻微淡入/高度缓动并取消过时请求；加载时不显示错误查询的旧排行，禁用发布/导出，失败可重试。具体证据见 `progress.md`。
+- 成长与考核页已移除“培养期、成员与场次管理”卡片，方向切换放到标题同一行右侧。数据更新使用占位、轻微淡入/高度缓动并阻止过时请求覆盖新结果；加载时不显示错误查询的旧排行，禁用发布/导出，失败可重试。具体证据见 `progress.md`。
 
 - 真实 API 页面已统一使用原有 ComboBox；会议参会成员支持多选，表单保留必填与重置。工位点击直接显示三角指向的小圆角气泡，展示编号、姓名、班级、方向和当前请假状态；普通浏览不再使用地图下方详情面板。API 图形与气泡不再从同名演示成员补资料。测试、发布证据见 `progress.md` 最新记录。
 
@@ -39,7 +39,7 @@
 - ACM / 深度学习两个 Tab、各有本次/历史排行；老成员过滤先作用于各场再重算；同培养期理论笔试/机试混合历史、单场形式互斥；历史 25% + 当次 75%。细则见 [09 专项](design/09-assessment-and-showcase.md)。
 - OJ 导入只有比赛链接一个必填输入；SUPER_ADMIN 同步为同一人 OJ Admin 的独立来源授权，撤销/停用也需同步。现有 OJ 登录覆盖角色的问题须按 [11 专项](design/11-oj-import-and-admin-sync.md)处理。
 - Lab 普通成员自助注册只允许邮箱已验证且域名精确为 `icthub.top`；已获用户授权的确切管理员引导身份可使用已验证外域邮箱。实名、学号、班级和至少一个方向完成前，服务端拒绝其他业务 API。班级由服务端按 `专业简称YY-班号` 解析年级；普通成员不可修改姓名/学号，仅 SUPER_ADMIN 可审计更正。
-- GPU 数据目前为演示；CPU 部署服务器型号、核心数、内存、磁盘及利用率待录入，不能编造。
+- 演示模式的 GPU 数据仅用于原型；正式计算资源读取真实 SSH / Prometheus 数据。未识别硬件与未采集指标继续明确标记，不编造。
 - 公开主页只允许显式发布的脱敏快照；内部数据不自动公开。
 
 ## 环境与最终复验

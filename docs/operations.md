@@ -73,3 +73,9 @@ cd /home/winbeau/projects/xju-lab && ./deploy.sh
 - Printer Agent 仅发送设备和耗材状态心跳；此版本不提供文件提交、打印队列或执行接口。
 - `.env`、OIDC/S3/SMTP token、备份、成员及成绩导出不放入 Git。
 - `deploy/prometheus/prometheus.yml` 不含虚构 exporter target；生产环境应显式登记并核实目标身份和访问控制。
+
+## SSH 采样与镜像权限
+
+已保存 SSH 资产无需配置 Prometheus 即可后台采样；表 `server_metric_sample` 保存 25 小时历史。SSH 密钥和已确认指纹继续保存在原 `ssh-state` 卷。采样没有密码认证或自动确认新指纹，失败记录与有效读数分开；监控曲线从实际采样开始积累。
+
+镜像显式赋予 `/app/ssh-helper` 代码读取和目录遍历权限，并以普通 `app` 账户加载 worker 验证；私钥目录权限不变。CI 会用目录 700/脚本 600 模拟受限宿主机，避免 Git 拉取时的 umask 导致上线后不可读。构建工具独立分层、Maven 依赖使用 BuildKit 缓存，SSH 代码改动不再使 Java 源码编译层失效。

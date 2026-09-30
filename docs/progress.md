@@ -6,11 +6,16 @@
 
 ## 当前状态
 
-本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `614e8f2` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36712495895)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `9c199ff` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36719040292)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
 
 ### 2026-09-30：登录过渡、会话缓存与 SSH 运行指标
+
+- 最终代码 `9c199ff` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36719040292)，含目录 700 / 脚本 600 的镜像权限复现和普通 app 账户加载 worker 检查。此前 `9b35f57` 七项 CI 也全部通过；本次浏览器套件为 5 项，包含真实 OIDC/业务/三视口，以及慢会话、登录跳转、缓存命中与保存后失效、错误重试和 reduced-motion。
+- huawei2 已通过 `./deploy.sh` 部署最终代码，数据库迁移到 V9；公网首页、assessment/dashboard 和 ready 均 200，匿名监控 API 返回 401。JS/CSS 为 `index-DZ7A6Jxw.js` / `index-WUYudAnT.css`。公网匿名浏览器实际走通首页进入 → 登录页 → 统一身份待跳转状态 → auth.icthub.top，未填写生产凭据。
+- 正式后台连续两次现场核验：三台资产均 CONNECTED；有效采样数从各 1 条增加到 3/5/3 条，GPU 资产 5 项 AVAILABLE、其余两台各 4 项，最新采样年龄 29–59 秒。曲线从本次上线的真实样本开始积累，未补造历史；运行按 30 秒调度、两台并发，多个目标可能分批更新。
+- 生产发现宿主机受限 umask 使脚本/目录复制后普通服务账户不可读；固定代码读取与目录遍历权限，并以普通账户执行构建检查后恢复采集。一次 Docker Hub TLS 握手超时已重试成功；构建工具和 Maven 依赖现已缓存，避免后续 SSH 代码改动重复下载/编译。部署日志 `~/.local/state/xju-lab-tools/deploy-query-ssh-permissions-retry.log`；连续采样证据 `monitor-deployed-check.log` / `monitor-deployed-repeat.log` 位于同目录，不进入 Git。
 
 - 首页进入平台先验证会话，身份检查和统一登录跳转均显示轻量动画，避免登录页闪现。统一页面占位、顶部更新提示、淡入与减少动画支持；服务器和曲线查询复用同一加载机制。
 - 内存查询缓存按已验证身份/角色隔离，常规 30 秒、指标 5 秒，120 条/5 分钟保留上限；合并同路径请求，保存后使缓存失效，退出/401/403/身份变更清理私有数据。重新打开新条件不混入旧数据；旧请求不能覆盖保存后的结果。无私有 localStorage/Service Worker 缓存。
@@ -18,7 +23,7 @@
 - 本地 TypeScript/Vite（1661 模块）、17 项计分、工位回归、7 项缓存测试和 3 项慢登录/缓存/失败重试浏览器测试通过。浏览器测试使用隔离合成数据；首次登录跳转测试的 HTML fixture 缺 UTF-8 导致中文断言失败，补齐编码后重跑通过。
 - 本地 375/768/1440 px 验证监控卡片、三条配置说明、简化指纹文案、无横向溢出和无页面错误；截图 `C:/Users/genev/AppData/Local/Temp/xju-lab-monitor-{375,768,1440}.png` 与 `xju-lab-ssh-fingerprint-{375,768,1440}.png`，已查看手机和桌面。
 - `2ee6048` 的前端、真实跳板、浏览器业务等检查通过；新增 PostgreSQL 用例在重置 Mockito answer 时触发空输入，`1c7b7ac` 修正测试后 backend / verify-script 均通过。前端另补查询超时与长期停留后的缓存过期恢复，并重跑 7 项缓存/3 项浏览器测试通过。
-- huawei2 上通过现有密钥/已固定主机指纹，对三台已有资产执行新的只读采样：三台 CPU/内存/磁盘/负载均 AVAILABLE，GPU 资产的 NVIDIA 利用率 AVAILABLE，另两台为 UNSUPPORTED。证据日志 `~/.local/state/xju-lab-tools/monitor-readonly-check.log` 不进入仓库。此次为采集器现场验证，正式后台调度/持久化与本轮生产发布仍待部署后复查。
+- huawei2 上通过现有密钥/已固定主机指纹，对三台已有资产执行新的只读采样：三台 CPU/内存/磁盘/负载均 AVAILABLE，GPU 资产的 NVIDIA 利用率 AVAILABLE，另两台为 UNSUPPORTED。证据日志 `~/.local/state/xju-lab-tools/monitor-readonly-check.log` 不进入仓库。此条记录部署前的采集器现场验证；正式后台调度/持久化与最终发布结果见本节顶部。
 
 ### 2026-09-30：精简考核页并平滑状态切换
 
