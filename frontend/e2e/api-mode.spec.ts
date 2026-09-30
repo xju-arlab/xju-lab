@@ -60,6 +60,12 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const adminPage = await adminContext.newPage()
   adminPage.on('pageerror', error => pageErrors.push(error.message))
+  const meetingResponses: string[] = []
+  adminPage.on('response', response => {
+    if (response.url().includes('/api/v1/meetings')) {
+      void response.text().then(body => meetingResponses.push(`${response.status()} ${response.url()} ${body.slice(0, 300)}`)).catch(() => {})
+    }
+  })
 
   await signIn(adminPage, admin)
   adminPage.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()) })
@@ -115,16 +121,22 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await taskForm.getByRole('button', { name: '添加任务' }).click()
   await expect(adminPage.getByText(taskTitle)).toBeVisible()
 
-  const concurrentProjectReads = await adminPage.evaluate(async () => Promise.all(
+  const memberDataset = await adminPage.evaluate(async () => {
+    const response = await fetch('/api/v1/members?page=1&pageSize=100')
+    const page = await response.json()
+    return { status: response.status, total: page.total, loaded: page.items.length }
+  })
+  expect(memberDataset).toEqual({ status: 200, total: 100, loaded: 100 })
+  const concurrentMemberReads = await adminPage.evaluate(async () => Promise.all(
     Array.from({ length: 50 }, async () => {
       const startedAt = performance.now()
-      const response = await fetch('/api/v1/projects?page=1&pageSize=100')
+      const response = await fetch('/api/v1/members?page=1&pageSize=100')
       await response.arrayBuffer()
       return { durationMs: performance.now() - startedAt, status: response.status }
     }),
   ))
-  expect(concurrentProjectReads.map(result => result.status)).toEqual(Array(50).fill(200))
-  const projectReadP95 = percentile(concurrentProjectReads.map(result => result.durationMs), 0.95)
+  expect(concurrentMemberReads.map(result => result.status)).toEqual(Array(50).fill(200))
+  const memberReadP95 = percentile(concurrentMemberReads.map(result => result.durationMs), 0.95)
 
   const dashboardLoads: number[] = []
   for (let sample = 0; sample < 10; sample += 1) {
@@ -137,11 +149,11 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const dashboardP95 = percentile(dashboardLoads, 0.95)
   console.log(`PERFORMANCE_BASELINE ${JSON.stringify({
     environment: 'GitHub-hosted Ubuntu 24.04, local Compose stack, Chromium',
-    dataset: '3 local identities, 1 project, 1 task',
-    api: { route: 'GET /api/v1/projects?page=1&pageSize=100', concurrentRequests: 50, authenticatedSessions: 1, p95Ms: Math.round(projectReadP95) },
+    dataset: '100 synthetic member rows, 1 project, 1 task; 1 authenticated session',
+    api: { route: 'GET /api/v1/members?page=1&pageSize=100', concurrentRequests: 50, authenticatedSessions: 1, p95Ms: Math.round(memberReadP95) },
     dashboard: { samples: dashboardLoads.length, p95Ms: Math.round(dashboardP95) },
   })}`)
-  expect(projectReadP95).toBeLessThan(500)
+  expect(memberReadP95).toBeLessThan(500)
   expect(dashboardP95).toBeLessThan(1000)
 
   await adminPage.goto('/app/seats')
@@ -178,7 +190,11 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await adminPage.getByRole('button', { name: '创建会议' }).click()
   await expect(adminPage.getByRole('status')).toHaveText('会议已创建')
   await adminPage.getByRole('button', { name: new RegExp(meetingTitle) }).click()
-  await adminPage.getByLabel('纪要内容').fill('浏览器验收会议纪要，行动项写入共享任务。')
+  await expect(adminPage.getByRole('heading', { name: meetingTitle })).toBeVisible()
+  const meetingMain = adminPage.locator('main#main-content')
+  const meetingPageText = await meetingMain.innerText().catch(() => '')
+  await expect(meetingMain.locator('textarea[name="body"]'), `Meeting detail did not load; page=${meetingPageText}; requests=${meetingResponses.join(' | ')}`).toBeVisible()
+  await meetingMain.locator('textarea[name="body"]').fill('浏览器验收会议纪要，行动项写入共享任务。')
   await adminPage.getByRole('button', { name: '保存纪要' }).click()
   await expect(adminPage.getByRole('status')).toHaveText('会议纪要已保存')
   const meetingActionForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '创建行动项' }) })

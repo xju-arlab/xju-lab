@@ -110,7 +110,9 @@ jobs:
             docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 app web keycloak postgres redis object-store
             exit 1
           fi
-      - name: Run OIDC, project isolation and responsive browser checks
+      - name: Seed isolated 100-member capacity smoke-test data
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp exec -T postgres psql -v ON_ERROR_STOP=1 -U xju_lab -d xju_lab < scripts/e2e/seed-capacity-members.sql
+      - name: Run OIDC, business workflow, and responsive browser checks
         run: pnpm test:e2e
         working-directory: frontend
       - name: Collect stack logs on failure
