@@ -26,7 +26,12 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
 fi
 
 echo "Updating main from origin..."
+deployment_script_before="$(git hash-object deploy.sh)"
 git pull --ff-only origin main
+if [[ "$(git hash-object deploy.sh)" != "$deployment_script_before" ]]; then
+  echo "Deployment script updated; restarting with current main..."
+  exec bash "$repo_root/deploy.sh"
+fi
 
 command -v docker >/dev/null || { echo "Docker is required." >&2; exit 2; }
 docker compose version >/dev/null
@@ -98,9 +103,9 @@ echo "Building and starting XJU Lab..."
 "${compose[@]}" up -d --build app web
 
 for attempt in $(seq 1 60); do
-  if curl --fail --silent --max-time 5 http://127.0.0.1:18080/ >/dev/null \
-      && curl --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/health >/dev/null \
-      && curl --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/ready >/dev/null; then
+  if curl --noproxy 127.0.0.1 --fail --silent --max-time 5 http://127.0.0.1:18080/ >/dev/null \
+      && curl --noproxy 127.0.0.1 --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/health >/dev/null \
+      && curl --noproxy 127.0.0.1 --fail --silent --max-time 5 http://127.0.0.1:18080/api/v1/ready >/dev/null; then
     echo "Deployment is responding."
     echo "Local upstream: http://127.0.0.1:18080"
     echo "Public URL: https://lab.icthub.top"
