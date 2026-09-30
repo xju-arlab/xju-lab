@@ -29,6 +29,21 @@ jobs:
       - run: ./mvnw -B verify
         working-directory: backend
       - run: docker compose --env-file .env.example -f deploy/compose.yaml config --quiet
+  verify-script:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.17.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24.16.0, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: bash scripts/verify.sh
   printer-agent:
     runs-on: ubuntu-24.04
     steps:
