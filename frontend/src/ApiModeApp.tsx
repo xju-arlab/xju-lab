@@ -440,18 +440,28 @@ function DirectionPicker({ value, onChange }: { value: string[]; onChange: (valu
 function RegistrationPage({ session }: { session: Session }) {
   const profile = useLoad<Profile>('/members/me')
   const [directions, setDirections] = useState<string[]>(['算法'])
+  const [realName, setRealName] = useState('')
+  const [studentNumber, setStudentNumber] = useState('')
+  const [className, setClassName] = useState('')
   const [notice, setNotice] = useState('')
-  useEffect(() => { if (profile.data?.directions.length) setDirections(profile.data.directions) }, [profile.data])
+  const initialized = useRef(false)
+  useEffect(() => {
+    if (!profile.data || initialized.current) return
+    setRealName(profile.data.realName ?? '')
+    setStudentNumber(profile.data.studentNumber ?? '')
+    setClassName(profile.data.className ?? '')
+    if (profile.data.directions.length) setDirections(profile.data.directions)
+    initialized.current = true
+  }, [profile.data])
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!profile.data) return
-    const form = new FormData(event.currentTarget)
     try {
-      await apiRequest('/members/me/registration', { method: 'PUT', headers: { 'If-Match-Version': String(profile.data.version) }, body: { realName: form.get('realName'), studentNumber: form.get('studentNumber'), className: form.get('className'), directions } })
+      await apiRequest('/members/me/registration', { method: 'PUT', headers: { 'If-Match-Version': String(profile.data.version) }, body: { realName, studentNumber, className, directions } })
       window.location.assign('/app/dashboard')
     } catch (error) { setNotice(messageOf(error)); profile.reload() }
   }
   async function logout() { try { await apiRequest('/logout', { method: 'POST' }) } finally { window.location.assign('/') } }
-  return <main className="api-auth-screen"><section className="api-auth-card api-registration-card"><div className="eyebrow">XJU Lab · LabOS</div><h1>完成成员实名登记</h1><p>使用已验证的 icthub.top 邮箱登录后，请填写实验室成员资料。真实姓名和学号登记后不可自行修改。</p><LoadingOrError loading={profile.loading} error={profile.error} retry={profile.reload} />{notice && <p className="api-feedback" role="alert">{notice}</p>}{profile.data && <form className="form-stack" onSubmit={save}><label className="field"><span>真实姓名</span><input name="realName" required maxLength={80} defaultValue={profile.data.realName ?? ''} readOnly={Boolean(profile.data.realName)} /></label><label className="field"><span>学号</span><input name="studentNumber" required maxLength={32} defaultValue={profile.data.studentNumber ?? ''} readOnly={Boolean(profile.data.studentNumber)} /></label><TextField name="className" label="班级" required defaultValue={profile.data.className ?? ''} maxLength={32} /><p className="api-note">格式：专业简称 + 两位入学年份 - 班号，例如 计算机24-3、信安25-1、电信26-2。年级会根据班级自动生成。</p><DirectionPicker value={directions} onChange={setDirections} /><Button type="submit" disabled={!profile.data || directions.length === 0}>保存并进入实验室</Button></form>}<p className="api-note">当前登录身份：{session.issuer}</p><button className="api-auth-public" onClick={() => void logout()}>退出登录</button></section></main>
+  return <main className="api-auth-screen"><section className="api-auth-card api-registration-card"><div className="eyebrow">XJU Lab · LabOS</div><h1>完成成员实名登记</h1><p>使用已验证的 icthub.top 邮箱登录后，请填写实验室成员资料。真实姓名和学号登记后不可自行修改。</p><LoadingOrError loading={profile.loading} error={profile.error} retry={profile.reload} />{notice && <p className="api-feedback" role="alert">{notice}</p>}{profile.data && <form className="form-stack" onSubmit={save}><label className="field"><span>真实姓名</span><input name="realName" required maxLength={80} value={realName} onChange={event => setRealName(event.target.value)} readOnly={Boolean(profile.data.realName)} /></label><label className="field"><span>学号</span><input name="studentNumber" required maxLength={32} value={studentNumber} onChange={event => setStudentNumber(event.target.value)} readOnly={Boolean(profile.data.studentNumber)} /></label><label className="field"><span>班级</span><input name="className" required maxLength={32} value={className} onChange={event => setClassName(event.target.value)} /></label><p className="api-note">格式：专业简称 + 两位入学年份 - 班号，例如 计算机24-3、信安25-1、电信26-2。年级会根据班级自动生成。</p><DirectionPicker value={directions} onChange={setDirections} /><Button type="submit" disabled={!profile.data || directions.length === 0}>保存并进入实验室</Button></form>}<p className="api-note">当前登录身份：{session.issuer}</p><button className="api-auth-public" onClick={() => void logout()}>退出登录</button></section></main>
 }
 
 function ProfilePage({ session }: { session: Session }) {
