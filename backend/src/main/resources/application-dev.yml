@@ -4,6 +4,8 @@ spring:
       on-profile: dev
   flyway:
     locations: classpath:db/migration,classpath:db/dev
+    placeholders:
+      oidcissuer: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xju-lab}
   security:
     oauth2:
       client:
