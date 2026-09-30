@@ -16,7 +16,12 @@ RUN apt-get update \
 
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
-RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
+    && apt-get update && apt-get install -y --no-install-recommends python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/* && python3 -m venv /opt/ssh \
+    && mkdir -p /app/ssh-state /app/ssh-config && chown app:app /app/ssh-state
+COPY ssh-helper /app/ssh-helper
+RUN /opt/ssh/bin/pip install --no-cache-dir -r /app/ssh-helper/requirements.txt
 COPY --from=build /workspace/target/xju-lab-backend-0.1.0-SNAPSHOT.jar /app/app.jar
 USER app
 EXPOSE 8080

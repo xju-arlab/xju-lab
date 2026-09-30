@@ -444,7 +444,7 @@ paths:
   /monitor/assets:
     get:
       tags: [monitoring]
-      responses: { '200': { description: Registered monitoring targets } }
+      responses: { '200': { description: Registered targets and last SSH hardware snapshot (no credentials or connection config), content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ServerAsset' } } } } } }
   /monitor/assets/{assetId}/metrics:
     get:
       tags: [monitoring]
@@ -465,11 +465,51 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 120 }, prometheusJob: { type: string, nullable: true }, targetLabel: { type: string, nullable: true }, gpuSupported: { type: boolean } } } } } }
       responses: { '200': { description: Server asset registered with fixed Prometheus target labels } }
   /monitor/admin/assets/{assetId}:
+    delete:
+      tags: [monitoring]
+      description: Administrators only. Preserve remote data, installed keys and detached alert history.
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
+      responses: { '204': { description: Deleted }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
     patch:
       tags: [monitoring]
       parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }, { name: If-Match-Version, in: header, required: true, schema: { type: integer, minimum: 1 } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, gpuSupported, enabled], properties: { name: { type: string, maxLength: 120 }, prometheusJob: { type: string, nullable: true }, targetLabel: { type: string, nullable: true }, gpuSupported: { type: boolean }, enabled: { type: boolean } } } } } }
       responses: { '200': { description: Server asset updated }, '409': { $ref: '#/components/responses/ApiError' } }
+  /monitor/admin/ssh/config:
+    get:
+      tags: [monitoring]
+      description: Administrators only. Read mounted service-side SSH config; never read browser filesystem or private keys.
+      responses: { '200': { description: Sanitized config and aliases, content: { application/json: { schema: { $ref: '#/components/schemas/SshCatalog' } } } }, '403': { $ref: '#/components/responses/ApiError' }, '503': { $ref: '#/components/responses/ApiError' } }
+  /monitor/admin/ssh/config/parse:
+    post:
+      tags: [monitoring]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [config], properties: { config: { type: string, minLength: 1, maxLength: 32768 } } } } } }
+      responses: { '200': { description: Explicit host aliases, content: { application/json: { schema: { $ref: '#/components/schemas/SshCatalog' } } } }, '400': { $ref: '#/components/responses/ApiError' }, '403': { $ref: '#/components/responses/ApiError' } }
+  /monitor/admin/ssh/connections:
+    post:
+      tags: [monitoring]
+      description: Create an owner-scoped 15-minute draft. Supports at most three ProxyJump hosts, no command directives.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, config, alias], properties: { name: { type: string, minLength: 1, maxLength: 120 }, config: { type: string, minLength: 1, maxLength: 32768 }, alias: { type: string, minLength: 1, maxLength: 120 } } } } } }
+      responses: { '200': { description: Draft created, content: { application/json: { schema: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [READY] } } } } } }, '400': { $ref: '#/components/responses/ApiError' }, '403': { $ref: '#/components/responses/ApiError' }, '429': { $ref: '#/components/responses/ApiError' } }
+  /monitor/admin/ssh/connections/{id}/connect:
+    post:
+      tags: [monitoring]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      description: Bounded connection attempt. Password only answers the current hop challenge, never persisted. trustHost confirms only the previously returned fingerprint. Restart recovery after two minutes. Changed known fingerprints are blocked.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { password: { type: string, maxLength: 1024, writeOnly: true }, trustHost: { type: boolean, default: false } } } } } }
+      responses: { '200': { description: Connection state, content: { application/json: { schema: { $ref: '#/components/schemas/SshConnectionResult' } } } }, '403': { $ref: '#/components/responses/ApiError' }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' }, '429': { $ref: '#/components/responses/ApiError' }, '503': { $ref: '#/components/responses/ApiError' }, '504': { $ref: '#/components/responses/ApiError' } }
+  /monitor/admin/ssh/connections/{id}/save:
+    post:
+      tags: [monitoring]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      description: Owner/admin only, successful key verification required. Idempotent for the same draft; duplicate target identity returns 409.
+      responses: { '200': { description: Saved server, content: { application/json: { schema: { type: object, required: [assetId], properties: { assetId: { type: string, format: uuid } } } } } }, '403': { $ref: '#/components/responses/ApiError' }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /monitor/admin/ssh/connections/{id}:
+    delete:
+      tags: [monitoring]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      description: Cancel an owned draft. Installed keys are retained; an in-flight bounded probe may finish but cannot save.
+      responses: { '204': { description: Cancelled }, '403': { $ref: '#/components/responses/ApiError' } }
   /public/snapshot:
     get:
       tags: [publication]
@@ -518,6 +558,48 @@ components:
       required: true
       schema: { type: integer, minimum: 1 }
   schemas:
+    ServerHardware:
+      type: object
+      required: [kind, cpuModel, cpuCores, memoryBytes, diskBytes, os, gpus, gpuDetection]
+      properties:
+        kind: { type: string, enum: [CPU, GPU, UNKNOWN] }
+        cpuModel: { type: string, nullable: true }
+        cpuCores: { type: integer, nullable: true }
+        memoryBytes: { type: integer, format: int64, nullable: true }
+        diskBytes: { type: integer, format: int64, nullable: true }
+        os: { type: string, nullable: true }
+        gpus: { type: array, items: { type: string } }
+        gpuDetection: { type: string, enum: [NVIDIA_SMI, PCI, NONE, UNKNOWN] }
+    ServerAsset:
+      type: object
+      required: [id, name, version, enabled, gpuSupported, prometheusJob, targetLabel, hardware, discoveredAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        version: { type: integer }
+        enabled: { type: boolean }
+        gpuSupported: { type: boolean }
+        prometheusJob: { type: string, nullable: true }
+        targetLabel: { type: string, nullable: true }
+        hardware: { allOf: [{ $ref: '#/components/schemas/ServerHardware' }], nullable: true }
+        discoveredAt: { type: string, format: date-time, nullable: true }
+    SshCatalog:
+      type: object
+      required: [aliases, ignoredOptions]
+      properties:
+        config: { type: string }
+        aliases: { type: array, items: { type: string } }
+        ignoredOptions: { type: array, items: { type: string } }
+    SshConnectionResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [CONNECTED, FAILED, PASSWORD_REQUIRED, HOST_KEY_REQUIRED] }
+        message: { type: string }
+        host: { type: string }
+        fingerprint: { type: string }
+        keyVerified: { type: boolean }
+        hardware: { $ref: '#/components/schemas/ServerHardware' }
     Printer:
       type: object
       required: [id, name, location, status, lastSeenAt, lastReport]

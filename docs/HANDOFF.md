@@ -14,6 +14,8 @@
 
 ## 当前实现与待复验
 
+- 新增管理员 SSH 服务器接入，见 [连接与部署说明](ssh-server-onboarding.md)。增量正在验收，以 `progress.md` 最新证据为准。SSH 别名来自服务端挂载目录，专用密钥保存在 Compose `ssh-state` 卷，不能删除或提交该卷。
+
 - 前端保留原设计与显式 demo 模式，并新增 OpenAPI 生成类型的 API 模式；各主要业务页面已接真实 API。正式 API 失败不会退回假数据。
 - `backend/` 是 Java 21 / Spring Boot 模块化单体；PostgreSQL/Flyway、Redis 会话、OIDC、权限、审计/outbox、各业务模块和 OpenAPI 契约均已创建。
 - `printer-agent/` 保留独立 Python 状态 Agent、只读 CUPS 状态采集和 systemd 服务文件；不含 SQLite 打印 journal 或打印任务执行代码。

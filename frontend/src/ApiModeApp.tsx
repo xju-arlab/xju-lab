@@ -1,3 +1,4 @@
+import { ServersPage } from './features/servers/ServersPage'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, Printer, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
@@ -24,8 +25,6 @@ type Contest = { id: string; contestId: string; title: string; sourceVersion: st
 type PrinterDevice = { id: string; name: string; location: string; status: 'ONLINE' | 'OFFLINE' | 'DISABLED'; lastSeenAt: string | null; lastReport: { agentVersion?: string; deviceState?: string; tonerSupported?: boolean; tonerPercent?: number | null } | null }
 type Profile = { id: string; displayName: string; realName: string | null; studentNumber: string | null; className: string | null; grade: number | null; directions: string[]; direction: string | null; introduction: string | null; version: number; registrationComplete: boolean }
 type Settings = { name: string; location: string; timezone: string; description: string; mailEnabled: boolean; tonerAlertEnabled: boolean; version: number }
-type ApiAsset = { id: string; name: string; prometheusJob: string | null; targetLabel: string | null; gpuSupported: boolean | null; enabled: boolean; version: number }
-type Metric = { metric: string; unit: string; value: number | null; status: string; sampledAt: string | null; expiresAt: string | null }
 type AdminMember = { id: string; accountId: string | null; displayName: string; realName: string | null; studentNumber: string | null; className: string | null; contact: string | null; cohort: number | null; active: boolean; version: number; roles: string[]; ojAdminDesired: boolean | null; ojSyncVersion: number | null; ojConfirmedVersion: number | null; ojSyncStatus: string | null; ojLastError: string | null }
 
 function useLoad<T>(path: string | null): Loaded<T> {
@@ -392,37 +391,6 @@ function AssessmentPage({ session }: { session: Session }) {
     <LoadingOrError loading={exams.loading || contests.loading || ranking.loading} error={exams.error || contests.error || ranking.error} retry={() => { exams.reload(); contests.reload(); ranking.reload() }} />
     {rankingPath && ranking.data?.items && <Panel className="api-table-panel"><div className="section-heading"><h2>{subject === 'acm' ? 'ACM 算法' : '深度学习理论基础'}</h2><Status>{ranking.data.algorithmVersion ?? '服务端计分'}</Status></div><div className="api-table-wrap"><table><thead><tr><th>名次</th><th>成员</th><th>{rankingView === 'current' ? subject === 'theory' ? '本次成绩' : '本场 AC' : '综合分'}</th><th>历史均分</th><th>有效场次</th></tr></thead><tbody>{ranking.data.items.map((row, index) => { const student = row.student as { id?: string; name?: string; number?: string } | undefined; const grade = row.grade as { status?: string; score?: number | null; comment?: string | null } | undefined; return <tr key={student?.id ?? index}><td>{rankingView === 'current' ? String(row.currentRank ?? '—') : String(row.overallRank ?? '—')}</td><td><strong>{student?.name ?? '成员'}</strong><small>{student?.number ?? ''}</small>{canGrade && subject === 'theory' && selectedExam && student?.id && <details className="api-grade-editor"><summary>录入 / 修订</summary><form className="form-stack" onSubmit={event => saveGrade(event, row)}><label className="field"><span>状态</span><select name="status" defaultValue={grade?.status ?? 'GRADED'}><option value="GRADED">已评分</option><option value="PENDING">待评分</option><option value="ABSENT">缺考</option><option value="EXEMPT">免考</option></select></label><TextField label="百分制成绩" name="score" type="number" defaultValue={grade?.score == null ? '' : String(grade.score)} /><TextField label="评语" name="comment" defaultValue={grade?.comment ?? ''} maxLength={2000} /><TextField label="修订原因" name="reason" required maxLength={1000} /><Button type="submit">保存修订</Button></form></details>}</td><td>{rankingView === 'current' ? String(subject === 'theory' ? row.currentScore ?? '—' : row.currentCount ?? '—') : String(row.composite ?? '—')}</td><td>{String(row.historyAverage ?? '—')}</td><td>{String(row.historyCount ?? 0)} / {String(row.historyTotal ?? 0)}</td></tr> })}</tbody></table></div>{ranking.data.items.length === 0 && <Empty text="当前没有可展示的成绩。" />}</Panel>}
   </>
-}
-
-function ServersPage({ session }: { session: Session }) {
-  const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
-  const assets = useLoad<ApiAsset[]>('/monitor/assets')
-  const [metrics, setMetrics] = useState<Record<string, Metric[]>>({})
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [notice, setNotice] = useState('')
-  const [series, setSeries] = useState<{ assetId: string; points: Array<{ timestamp: string; value: number }> } | null>(null)
-  async function addAsset(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement)
-    try { await apiRequest('/monitor/admin/assets', { method: 'POST', body: { name: form.get('name'), prometheusJob: form.get('prometheusJob') || null, targetLabel: form.get('targetLabel') || null, gpuSupported: form.get('gpuSupported') === 'on' } }); setNotice('服务器资产已登记'); assets.reload(); formElement.reset() }
-    catch (error) { setNotice(messageOf(error)) }
-  }
-  async function setAssetEnabled(asset: ApiAsset) {
-    try { await apiRequest(`/monitor/admin/assets/${asset.id}`, { method: 'PATCH', headers: { 'If-Match-Version': String(asset.version) }, body: { name: asset.name, prometheusJob: asset.prometheusJob, targetLabel: asset.targetLabel, gpuSupported: Boolean(asset.gpuSupported), enabled: !asset.enabled } }); setNotice('服务器资产状态已更新'); assets.reload() }
-    catch (error) { setNotice(messageOf(error)); assets.reload() }
-  }
-  async function loadCpuSeries(assetId: string) {
-    try { const result = await apiRequest<{ points: Array<{ timestamp: string; value: number }> }>(`/monitor/assets/${assetId}/series?metric=CPU&range=1h`); setSeries({ assetId, points: result.points }) }
-    catch (error) { setNotice(messageOf(error)) }
-  }
-  useEffect(() => {
-    let alive = true
-    Promise.all((assets.data ?? []).filter(asset => asset.enabled).map(async asset => {
-      try { const response = await apiRequest<{ metrics: Metric[] }>(`/monitor/assets/${asset.id}/metrics`); if (alive) setMetrics(current => ({ ...current, [asset.id]: response.metrics })) }
-      catch (error) { if (alive) setErrors(current => ({ ...current, [asset.id]: messageOf(error) })) }
-    }))
-    return () => { alive = false }
-  }, [assets.data])
-  return <><Heading title="计算资源" description="缺失指标显示待接入或无数据，不以演示值代替实测。" />{notice && <p className="api-feedback" role="status">{notice}</p>}<LoadingOrError loading={assets.loading} error={assets.error} retry={assets.reload} />{isAdmin && <Panel className="api-form-panel"><h2>登记服务器资产</h2><form className="api-inline-form" onSubmit={addAsset}><TextField label="名称" name="name" required maxLength={120} /><TextField label="Prometheus Job" name="prometheusJob" maxLength={80} /><TextField label="Instance 标签" name="targetLabel" maxLength={160} /><label className="api-check"><input type="checkbox" name="gpuSupported" />该资产有 GPU</label><Button type="submit">登记</Button></form></Panel>}<div className="api-card-grid">{assets.data?.map(asset => <Panel key={asset.id}><div className="section-heading"><h2>{asset.name}</h2><Status tone={asset.enabled ? 'teal' : 'gray'}>{asset.enabled ? '已登记' : '已停用'}</Status></div><p className="api-note">Prometheus 标签 {asset.prometheusJob ?? '待配置'} · {asset.targetLabel ?? '待配置'}</p>{errors[asset.id] && <p className="api-error-text">{errors[asset.id]}</p>}{(metrics[asset.id] ?? []).map(metric => <div className="api-metric" key={metric.metric}><span>{metric.metric}<small>{metric.sampledAt ? dateText(metric.sampledAt) : metric.status}</small></span><strong>{metric.value === null ? '—' : `${metric.value.toFixed(1)} ${metric.unit}`}<Status tone={metric.status === 'AVAILABLE' ? 'teal' : 'orange'}>{metric.status}</Status></strong></div>)}{asset.enabled && <Button variant="outline" onClick={() => loadCpuSeries(asset.id)}>读取 1 小时 CPU 曲线</Button>}{series?.assetId === asset.id && (series.points.length ? <svg className="api-series" viewBox="0 0 300 90" role="img" aria-label="过去一小时 CPU 使用率"><polyline fill="none" stroke="currentColor" strokeWidth="2" points={series.points.map((point, index) => `${series.points.length < 2 ? 150 : index * 300 / (series.points.length - 1)},${82 - Math.max(0, Math.min(100, point.value)) * 0.72}`).join(' ')} /></svg> : <p className="api-note">所选时段没有采样点。</p>)}{isAdmin && <Button variant="outline" onClick={() => setAssetEnabled(asset)}>{asset.enabled ? '停用资产' : '重新启用'}</Button>}</Panel>)}{assets.data?.length === 0 && <Panel><Empty text="服务器资产尚未登记。" /></Panel>}</div></>
 }
 
 function DirectionPicker({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {

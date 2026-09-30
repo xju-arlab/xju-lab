@@ -1,0 +1,8 @@
+# Disposable local test fixtures only. Never expose these password accounts publicly.
+services:
+  ssh-jump:
+    build: .
+    ports: ["127.0.0.1:22221:22"]
+  ssh-target:
+    build: .
+    ports: ["127.0.0.1:22222:22"]

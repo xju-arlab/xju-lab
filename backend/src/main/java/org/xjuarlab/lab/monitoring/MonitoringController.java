@@ -19,6 +19,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,7 +41,18 @@ public class MonitoringController {
     private final JdbcTemplate jdbc;private final CurrentMember current;private final PrometheusClient prometheus;private final ObjectMapper mapper;private final int staleSeconds;
     public MonitoringController(JdbcTemplate jdbc,CurrentMember current,PrometheusClient prometheus,ObjectMapper mapper,@Value("${lab.monitor.stale-after-seconds:90}") int staleSeconds){this.jdbc=jdbc;this.current=current;this.prometheus=prometheus;this.mapper=mapper;this.staleSeconds=Math.max(15,staleSeconds);}
 
-    @GetMapping("/assets") public List<AssetView> assets(Authentication auth){current.id(auth);return jdbc.query("SELECT id,name,prometheus_job,target_label,gpu_supported,enabled,version FROM server_asset ORDER BY name,id",(rs,row)->asset(rs));}
+    @GetMapping("/assets") public List<AssetView> assets(Authentication auth){current.id(auth);return jdbc.query("SELECT * FROM server_asset ORDER BY name,id",(rs,row)->asset(rs));}
+
+    @DeleteMapping("/admin/assets/{assetId}") @Transactional @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void delete(Authentication auth,@PathVariable UUID assetId,@RequestHeader("If-Match-Version") long version){
+        UUID actor=current.id(auth);requireAdmin(actor);
+        var versions=jdbc.query("SELECT version FROM server_asset WHERE id=? FOR UPDATE",(rs,row)->rs.getLong(1),assetId);
+        if(versions.isEmpty())throw new ResponseStatusException(NOT_FOUND,"服务器不存在");
+        if(versions.getFirst()!=version)throw new ResponseStatusException(CONFLICT,"服务器已变化，请刷新后重试");
+        jdbc.update("UPDATE alert_event SET asset_id=NULL WHERE asset_id=?",assetId);
+        jdbc.update("DELETE FROM server_asset WHERE id=?",assetId);
+        audit(actor,"DELETE_SERVER_ASSET",assetId,Map.of("version",version));
+    }
 
     @GetMapping("/assets/{assetId}/metrics") public AssetMetrics metrics(Authentication auth,@PathVariable UUID assetId){current.id(auth);AssetView asset=find(assetId);if(!asset.enabled())return new AssetMetrics(assetId,"DISABLED",List.of());if(!prometheus.configured())return new AssetMetrics(assetId,"PLATFORM_NOT_CONFIGURED",unavailableMetrics("NOT_CONFIGURED",asset.gpuSupported()));if(asset.prometheusJob()==null||asset.targetLabel()==null)return new AssetMetrics(assetId,"ASSET_NOT_CONFIGURED",unavailableMetrics("NOT_CONFIGURED",asset.gpuSupported()));
         String selector="job=\""+escape(asset.prometheusJob())+"\",instance=\""+escape(asset.targetLabel())+"\"";
@@ -66,8 +79,8 @@ public class MonitoringController {
     static boolean targetUnreachable(PrometheusClient.QueryResult up){return !up.series().isEmpty()&&!up.series().getFirst().samples().isEmpty()&&up.series().getFirst().samples().getFirst().value()==0d;}
     private List<MetricView> unavailableMetrics(String state,boolean gpu){List<MetricView> result=new ArrayList<>(List.of(new MetricView("CPU","%",null,state,null,null),new MetricView("MEMORY","%",null,state,null,null),new MetricView("DISK","%",null,state,null,null),new MetricView("LOAD","load",null,state,null,null)));result.add(new MetricView("GPU","%",null,gpu?state:"UNSUPPORTED",null,null));return List.copyOf(result);}
     private MetricSpec metricSpec(String name,boolean gpu){return switch(name){case "CPU"->new MetricSpec("100 * (1 - avg(rate(node_cpu_seconds_total{job=\"%s\",instance=\"%s\",mode=\"idle\"}[5m])))");case "MEMORY"->new MetricSpec("100 * (1 - (node_memory_MemAvailable_bytes{job=\"%s\",instance=\"%s\"} / node_memory_MemTotal_bytes{job=\"%s\",instance=\"%s\"}))");case "DISK"->new MetricSpec("100 * (1 - (node_filesystem_avail_bytes{job=\"%s\",instance=\"%s\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{job=\"%s\",instance=\"%s\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"}))");case "LOAD"->new MetricSpec("node_load1{job=\"%s\",instance=\"%s\"}");case "GPU"->{if(!gpu)throw new ResponseStatusException(BAD_REQUEST,"该资产未声明 GPU 支持");yield new MetricSpec("avg(DCGM_FI_DEV_GPU_UTIL{job=\"%s\",instance=\"%s\"})");}default->throw new ResponseStatusException(BAD_REQUEST,"指标类型无效");};}
-    private AssetView find(UUID id){return jdbc.query("SELECT id,name,prometheus_job,target_label,gpu_supported,enabled,version FROM server_asset WHERE id=?",(rs,row)->asset(rs),id).stream().findFirst().orElseThrow(()->new ResponseStatusException(NOT_FOUND,"服务器资产不存在"));}
-    private AssetView asset(java.sql.ResultSet rs)throws java.sql.SQLException{return new AssetView((UUID)rs.getObject("id"),rs.getString("name"),rs.getString("prometheus_job"),rs.getString("target_label"),Boolean.TRUE.equals(rs.getObject("gpu_supported")),rs.getBoolean("enabled"),rs.getLong("version"));}
+    private AssetView find(UUID id){return jdbc.query("SELECT * FROM server_asset WHERE id=?",(rs,row)->asset(rs),id).stream().findFirst().orElseThrow(()->new ResponseStatusException(NOT_FOUND,"服务器资产不存在"));}
+    private AssetView asset(java.sql.ResultSet rs)throws java.sql.SQLException{return new AssetView((UUID)rs.getObject("id"),rs.getString("name"),rs.getString("prometheus_job"),rs.getString("target_label"),Boolean.TRUE.equals(rs.getObject("gpu_supported")),rs.getBoolean("enabled"),rs.getLong("version"),parse(rs.getString("hardware")),rs.getObject("discovered_at",OffsetDateTime.class));}
     private void validateTarget(String job,String target){if(job!=null&&!job.matches("[A-Za-z0-9_.:-]{1,80}"))throw new ResponseStatusException(BAD_REQUEST,"Prometheus job 标签无效");if(target!=null&&!target.matches("[A-Za-z0-9_.:/-]{1,160}"))throw new ResponseStatusException(BAD_REQUEST,"目标标签无效");}
     private static String escape(String value){return value.replace("\\","\\\\").replace("\"","\\\"");}
     private void audit(UUID actor,String action,UUID id,Object value){try{jdbc.update("INSERT INTO audit_event(actor_id,action,target_type,target_id,after_summary) VALUES (?,?,'server_asset',?,?::jsonb)",actor,action,id.toString(),mapper.writeValueAsString(value));}catch(Exception ex){throw new IllegalStateException(ex);}}
@@ -75,7 +88,7 @@ public class MonitoringController {
     private JsonNode parse(String value){try{return mapper.readTree(value);}catch(Exception ex){return mapper.nullNode();}}
     private static String escapeDetail(String value){return value==null?"":value.substring(0,Math.min(value.length(),300));}
 
-    public record AssetView(UUID id,String name,String prometheusJob,String targetLabel,Boolean gpuSupported,boolean enabled,long version){}
+    public record AssetView(UUID id,String name,String prometheusJob,String targetLabel,Boolean gpuSupported,boolean enabled,long version,JsonNode hardware,OffsetDateTime discoveredAt){}
     public record MetricView(String metric,String unit,Double value,String status,OffsetDateTime sampledAt,OffsetDateTime expiresAt){}
     public record AssetMetrics(UUID assetId,String state,List<MetricView> metrics){}
     public record MetricSeries(UUID assetId,String metric,String range,String state,List<SeriesPoint> points){}

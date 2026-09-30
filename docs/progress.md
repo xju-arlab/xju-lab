@@ -10,6 +10,12 @@
 
 ## 后端与全栈工作包状态
 
+### SSH 服务器管理增量（验收中）
+
+- 已实现管理员连接弹窗、服务端 SSH config 自动解析、ProxyJump、按主机请求密码、专用公钥安装与重新认证、硬件快照、鲜绿色成功动画、保存和版本化删除。服务器页拆至 `features/servers`，复用 ComboBox 与 Radix Dialog。
+- Windows 隔离依赖目录中的 OpenAPI 生成、TypeScript 检查和 Vite 构建通过，Python 语法检查通过。真实 SSH / PostgreSQL / 浏览器等待本次提交 CI，不计为已通过。
+- 部署配置、密钥持久化/撤销与生产缺项见 [SSH 接入说明](ssh-server-onboarding.md)。
+
 | 包 | 目标 | 状态 |
 |---|---|---|
 | B00 | 工程、契约、数据库和 CI 基座 | 本地实现；契约漂移、配置、CI 通过 |

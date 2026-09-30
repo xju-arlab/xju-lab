@@ -6,6 +6,25 @@ on:
 permissions:
   contents: read
 jobs:
+  ssh-onboarding:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r backend/ssh-helper/requirements.txt
+      - run: docker compose -f deploy/ssh-test/compose.yaml up --build -d
+      - name: Wait for isolated SSH services
+        run: |
+          for attempt in $(seq 1 30); do
+            if ssh-keyscan -p 22221 127.0.0.1 >/dev/null 2>&1 && ssh-keyscan -p 22222 127.0.0.1 >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - run: python -m unittest discover -s backend/ssh-helper -v
+        env: { RUN_SSH_INTEGRATION: '1' }
+      - if: always()
+        run: docker compose -f deploy/ssh-test/compose.yaml down --volumes
   frontend:
     runs-on: ubuntu-24.04
     steps:
@@ -118,6 +137,13 @@ jobs:
       - name: Collect stack logs on failure
         if: failure()
         run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev logs --tail=200 app web keycloak postgres redis object-store
+      - name: Keep browser screenshots and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-evidence
+          path: frontend/test-results
+          retention-days: 7
       - name: Stop the isolated stack
         if: always()
         run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev down --volumes --remove-orphans

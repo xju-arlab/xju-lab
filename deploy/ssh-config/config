@@ -1,0 +1,8 @@
+# Optional aliases for the Lab SSH selector. This sample contains no real hosts.
+# Host gpu-lab
+#   HostName 192.0.2.10
+#   User lab
+#   ProxyJump gateway
+# Host gateway
+#   HostName 192.0.2.20
+#   User lab

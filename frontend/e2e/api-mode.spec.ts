@@ -83,6 +83,62 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   await expect(page.getByText('API 实时数据')).toBeVisible()
 }
 
+test('administrator SSH onboarding uses a jump host and survives password-free reconnection', async ({ page }, testInfo) => {
+  test.setTimeout(180_000)
+  await signIn(page, admin)
+  await page.goto('/app/servers')
+  await expect(page.getByRole('heading', { name: '计算资源' })).toBeVisible()
+  for (let cycle = 0; cycle < 2; cycle++) {
+    await page.getByRole('button', { name: '添加服务器', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '添加服务器', exact: true })
+    await dialog.getByLabel('中文名称').fill('隔离验收服务器')
+    await dialog.getByLabel('SSH 配置', { exact: true }).fill('Host target\n  HostName ssh-target\n  User lab\n  ProxyJump jump\nHost jump\n  HostName ssh-jump\n  User lab')
+    await expect(dialog.getByRole('button', { name: '连接', exact: true })).toBeEnabled()
+    // Shared ComboBox must remain usable inside the modal's focus boundary.
+    await dialog.locator('.combobox-trigger').click()
+    await dialog.getByRole('option', { name: 'target', exact: true }).click()
+    await dialog.getByRole('button', { name: '连接', exact: true }).click()
+    let passwords = 0
+    let fingerprints = 0
+    const success = dialog.getByText('连接成功', { exact: true })
+    for (let step = 0; step < 8; step++) {
+      const trust = page.getByRole('dialog', { name: '确认服务器身份', exact: true })
+      const credentials = page.getByRole('dialog', { name: '输入 SSH 密码', exact: true })
+      await expect(trust.or(credentials).or(success)).toBeVisible({ timeout: 60_000 })
+      if (await success.isVisible()) break
+      if (await trust.isVisible()) {
+        await expect(trust.locator('code')).toHaveText(/^SHA256:[A-Za-z0-9+/]+$/)
+        await trust.getByRole('button', { name: '确认', exact: true }).click()
+        fingerprints++
+        await expect(trust).toBeHidden()
+      } else {
+        await credentials.getByLabel('密码', { exact: true }).fill('lab-test-only')
+        await credentials.getByRole('button', { name: '确认', exact: true }).click()
+        passwords++
+        await expect(credentials).toBeHidden()
+      }
+    }
+    await expect(success).toBeVisible()
+    expect(passwords).toBe(cycle === 0 ? 2 : 0)
+    expect(fingerprints).toBe(cycle === 0 ? 2 : 0)
+    await expect(dialog.getByRole('button', { name: '保存', exact: true })).toBeEnabled()
+    for (const width of [375, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(dialog).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      if (cycle === 0) await page.screenshot({ path: testInfo.outputPath(`ssh-success-${width}.png`) })
+    }
+    await dialog.getByRole('button', { name: '保存', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('heading', { name: '隔离验收服务器', exact: true })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('heading', { name: '隔离验收服务器', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '删除隔离验收服务器', exact: true }).click()
+    await page.getByRole('button', { name: '确认删除', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '隔离验收服务器', exact: true })).toBeHidden()
+  }
+})
+
 test('OIDC API mode keeps project data scoped across users and viewports', async ({ browser }) => {
   test.setTimeout(120_000)
   const pageErrors: string[] = []

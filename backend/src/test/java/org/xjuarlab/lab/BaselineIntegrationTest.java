@@ -87,6 +87,8 @@ class BaselineIntegrationTest {
     @Autowired OidcMemberProvisioningSuccessHandler oidcMemberProvisioningSuccessHandler;
     @Autowired JavaMailSender mailSender;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    org.xjuarlab.lab.servers.infrastructure.SshWorker sshWorker;
 
     @BeforeEach void isolateMutableFixtures(){
         jdbc.update("DELETE FROM approval_token");
@@ -96,6 +98,7 @@ class BaselineIntegrationTest {
         jdbc.update("DELETE FROM notification");
         jdbc.update("UPDATE lab_setting SET mail_enabled=false WHERE singleton=true");
         reset(mailSender);
+        reset(sshWorker);
         jdbc.update("DELETE FROM seat_assignment");
         jdbc.update("DELETE FROM layout_revision WHERE version>1");
         jdbc.update("UPDATE seat s SET layout_item=d.value FROM layout_revision r CROSS JOIN LATERAL jsonb_array_elements(r.payload->'desks') d(value) WHERE r.version=1 AND d.value->>'id'=s.id");
@@ -690,6 +693,49 @@ class BaselineIntegrationTest {
         mvc.perform(put("/api/v1/assessment/exams/"+exam+"/grades/"+member).with(login("assessment-teacher")).with(csrf()).header("If-Match-Version",version)
             .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\""+statusValue+"\",\"score\":"+score+",\"reason\":\"integration fixture\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.examVersion").value(version+1));
+    }
+
+    @Test void sshDraftsEnforceAdminOwnershipConnectionSaveExpiryAndDeleteVersion() throws Exception {
+        UUID owner=member("ssh-admin","LAB_ADMIN");member("ssh-other-admin","SUPER_ADMIN");member("ssh-member",null);
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        org.mockito.Mockito.when(sshWorker.run(any())).thenAnswer(call->{
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return mapper.readTree("{\"nodes\":[{\"host\":\"fixture.internal\",\"port\":22,\"user\":\"lab\",\"alias\":\"test\"}]}");
+        });
+        String root="/api/v1/monitor/admin/ssh";
+        mvc.perform(get(root+"/config").with(login("ssh-member"))).andExpect(status().isForbidden());
+        mvc.perform(post(root+"/connections").with(login("ssh-member")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"测试服务器\",\"config\":\"Host test\",\"alias\":\"test\"}")).andExpect(status().isForbidden());
+        String body=mvc.perform(post(root+"/connections").with(login("ssh-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"测试服务器\",\"config\":\"Host test\",\"alias\":\"test\"}")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String id=mapper.readTree(body).path("id").asText();
+        mvc.perform(post(root+"/connections/"+id+"/save").with(login("ssh-admin")).with(csrf())).andExpect(status().isConflict());
+        mvc.perform(post(root+"/connections/"+id+"/connect").with(login("ssh-other-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isNotFound());
+        org.mockito.Mockito.when(sshWorker.run(any())).thenAnswer(call->{
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return mapper.readTree("{\"status\":\"CONNECTED\",\"keyVerified\":true,\"hardware\":{\"kind\":\"GPU\",\"gpus\":[\"fixture\"]}}");
+        });
+        mvc.perform(post(root+"/connections/"+id+"/connect").with(login("ssh-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk()).andExpect(jsonPath("$.keyVerified").value(true));
+        String saved=mvc.perform(post(root+"/connections/"+id+"/save").with(login("ssh-admin")).with(csrf())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String asset=mapper.readTree(saved).path("assetId").asText();
+        mvc.perform(post(root+"/connections/"+id+"/save").with(login("ssh-admin")).with(csrf())).andExpect(status().isOk()).andExpect(jsonPath("$.assetId").value(asset));
+        assertThat(jdbc.queryForObject("SELECT gpu_supported FROM server_asset WHERE id=?",Boolean.class,UUID.fromString(asset))).isTrue();
+        mvc.perform(delete("/api/v1/monitor/admin/assets/"+asset).with(login("ssh-member")).with(csrf()).header("If-Match-Version",1)).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/monitor/admin/assets/"+asset).with(login("ssh-admin")).with(csrf()).header("If-Match-Version",2)).andExpect(status().isConflict());
+        mvc.perform(delete("/api/v1/monitor/admin/assets/"+asset).with(login("ssh-admin")).with(csrf()).header("If-Match-Version",1)).andExpect(status().isNoContent());
+        jdbc.update("UPDATE server_connection_draft SET expires_at=now()-interval '1 second' WHERE id=?",UUID.fromString(id));
+        mvc.perform(post(root+"/connections/"+id+"/save").with(login("ssh-admin")).with(csrf())).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_event WHERE actor_id=? AND action='CONNECT_SERVER'",Integer.class,owner)).isEqualTo(1);
+    }
+
+    @Test void cancelledSshProbeCannotBeSavedAndConcurrentSaveIsIdempotent() throws Exception {
+        UUID owner=member("ssh-cancel-admin","LAB_ADMIN");
+        UUID id=jdbc.queryForObject("INSERT INTO server_connection_draft(owner_id,name,nodes,status,result) VALUES (?,'并发测试','[{\"host\":\"race.invalid\",\"user\":\"lab\",\"port\":22}]','CONNECTED','{\"keyVerified\":true,\"hardware\":{\"kind\":\"CPU\"}}') RETURNING id",UUID.class,owner);
+        var service=new org.xjuarlab.lab.servers.application.ServerConnections(jdbc,new com.fasterxml.jackson.databind.ObjectMapper(),sshWorker,transactionManager);
+        var saves=runConcurrently(()->service.save(owner,id),()->service.save(owner,id));
+        assertThat(saves.get(0)).isEqualTo(saves.get(1));
+        UUID cancelled=jdbc.queryForObject("INSERT INTO server_connection_draft(owner_id,name,nodes) VALUES (?,'取消测试','[]') RETURNING id",UUID.class,owner);
+        service.cancel(owner,cancelled);
+        mvc.perform(post("/api/v1/monitor/admin/ssh/connections/"+cancelled+"/connect").with(login("ssh-cancel-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/monitor/admin/ssh/connections/"+cancelled+"/save").with(login("ssh-cancel-admin")).with(csrf())).andExpect(status().isConflict());
     }
 
     private UUID member(String subject,String role){

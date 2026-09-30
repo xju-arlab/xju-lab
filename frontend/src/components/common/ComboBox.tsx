@@ -11,9 +11,10 @@ type ComboBoxProps = {
   onValueChange?: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  inlineMenu?: boolean
 }
 
-export function ComboBox({ options, name, value, defaultValue, onValueChange, placeholder = '请选择', disabled = false }: ComboBoxProps) {
+export function ComboBox({ options, name, value, defaultValue, onValueChange, placeholder = '请选择', disabled = false, inlineMenu = false }: ComboBoxProps) {
   const id = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -79,13 +80,14 @@ export function ComboBox({ options, name, value, defaultValue, onValueChange, pl
     }
   }
 
-  return <div className="combobox" ref={rootRef}>
+  const menu = <div ref={menuRef} id={id + '-listbox'} className="combobox-menu" role="listbox" style={inlineMenu ? { position: 'absolute', top: '100%', left: 0, width: '100%', maxHeight: 200 } : position ? { top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight } : { visibility: 'hidden' }}>
+    {options.map((option, index) => <div key={option.value} id={id + '-option-' + index} role="option" aria-selected={selectedValue === option.value} className={'combobox-option' + (index === activeIndex ? ' active' : '') + (selectedValue === option.value ? ' selected' : '')} onMouseMove={() => setActiveIndex(index)} onMouseDown={event => event.preventDefault()} onClick={() => choose(option)}>{option.label}{selectedValue === option.value && <Check size={14} />}</div>)}
+  </div>
+  return <div className="combobox" ref={rootRef} style={inlineMenu ? { position: 'relative' } : undefined}>
     {name && <input type="hidden" name={name} value={selectedValue} readOnly />}
     <button ref={triggerRef} type="button" className="combobox-trigger" aria-haspopup="listbox" aria-expanded={open} aria-controls={id + '-listbox'} aria-activedescendant={open ? id + '-option-' + activeIndex : undefined} disabled={disabled} onClick={() => { if (open) setOpen(false); else { setActiveIndex(Math.max(0, options.findIndex(option => option.value === selectedValue))); setOpen(true) } }} onKeyDown={handleKeyDown}>
       <span className={!selectedOption ? 'combobox-placeholder' : ''}>{selectedOption?.label ?? placeholder}</span><ChevronDown size={15} aria-hidden="true" />
     </button>
-    {open && createPortal(<div ref={menuRef} id={id + '-listbox'} className="combobox-menu" role="listbox" style={position ? { top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight } : { visibility: 'hidden' }}>
-      {options.map((option, index) => <div key={option.value} id={id + '-option-' + index} role="option" aria-selected={selectedValue === option.value} className={'combobox-option' + (index === activeIndex ? ' active' : '') + (selectedValue === option.value ? ' selected' : '')} onMouseMove={() => setActiveIndex(index)} onMouseDown={event => event.preventDefault()} onClick={() => choose(option)}>{option.label}{selectedValue === option.value && <Check size={14} />}</div>)}
-    </div>, document.body)}
+    {open && (inlineMenu ? menu : createPortal(menu, document.body))}
   </div>
 }

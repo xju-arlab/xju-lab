@@ -2775,12 +2775,14 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Registered monitoring targets */
+                /** @description Registered targets and last SSH hardware snapshot (no credentials or connection config) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ServerAsset"][];
+                    };
                 };
             };
         };
@@ -2951,7 +2953,31 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** @description Administrators only. Preserve remote data, installed keys and detached alert history. */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    "If-Match-Version": components["parameters"]["IfMatchVersion"];
+                };
+                path: {
+                    assetId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+            };
+        };
         options?: never;
         head?: never;
         patch: {
@@ -2987,6 +3013,272 @@ export interface paths {
                 409: components["responses"]["ApiError"];
             };
         };
+        trace?: never;
+    };
+    "/monitor/admin/ssh/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrators only. Read mounted service-side SSH config; never read browser filesystem or private keys. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sanitized config and aliases */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SshCatalog"];
+                    };
+                };
+                403: components["responses"]["ApiError"];
+                503: components["responses"]["ApiError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/monitor/admin/ssh/config/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        config: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Explicit host aliases */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SshCatalog"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/monitor/admin/ssh/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Create an owner-scoped 15-minute draft. Supports at most three ProxyJump hosts, no command directives. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        config: string;
+                        alias: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Draft created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "READY";
+                        };
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+                429: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/monitor/admin/ssh/connections/{id}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Bounded connection attempt. Password only answers the current hop challenge, never persisted. trustHost confirms only the previously returned fingerprint. Restart recovery after two minutes. Changed known fingerprints are blocked. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        password?: string;
+                        /** @default false */
+                        trustHost?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Connection state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SshConnectionResult"];
+                    };
+                };
+                403: components["responses"]["ApiError"];
+                404: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+                429: components["responses"]["ApiError"];
+                503: components["responses"]["ApiError"];
+                504: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/monitor/admin/ssh/connections/{id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Owner/admin only, successful key verification required. Idempotent for the same draft; duplicate target identity returns 409. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saved server */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            assetId: string;
+                        };
+                    };
+                };
+                403: components["responses"]["ApiError"];
+                404: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/monitor/admin/ssh/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Cancel an owned draft. Installed keys are retained; an in-flight bounded probe may finish but cannot save. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cancelled */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["ApiError"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/public/snapshot": {
@@ -3199,6 +3491,47 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ServerHardware: {
+            /** @enum {string} */
+            kind: "CPU" | "GPU" | "UNKNOWN";
+            cpuModel: string | null;
+            cpuCores: number | null;
+            /** Format: int64 */
+            memoryBytes: number | null;
+            /** Format: int64 */
+            diskBytes: number | null;
+            os: string | null;
+            gpus: string[];
+            /** @enum {string} */
+            gpuDetection: "NVIDIA_SMI" | "PCI" | "NONE" | "UNKNOWN";
+        };
+        ServerAsset: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            version: number;
+            enabled: boolean;
+            gpuSupported: boolean;
+            prometheusJob: string | null;
+            targetLabel: string | null;
+            hardware: components["schemas"]["ServerHardware"] | null;
+            /** Format: date-time */
+            discoveredAt: string | null;
+        };
+        SshCatalog: {
+            config?: string;
+            aliases: string[];
+            ignoredOptions: string[];
+        };
+        SshConnectionResult: {
+            /** @enum {string} */
+            status: "CONNECTED" | "FAILED" | "PASSWORD_REQUIRED" | "HOST_KEY_REQUIRED";
+            message?: string;
+            host?: string;
+            fingerprint?: string;
+            keyVerified?: boolean;
+            hardware?: components["schemas"]["ServerHardware"];
+        };
         Printer: {
             /** Format: uuid */
             id: string;

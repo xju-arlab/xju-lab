@@ -111,6 +111,9 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     expose: ["8080"]
+    volumes:
+      - ssh-state:/app/ssh-state
+      - ${LAB_SSH_CONFIG_DIR:-./ssh-config}:/app/ssh-config:ro
     read_only: true
     tmpfs: ["/tmp:size=64m,noexec,nosuid"]
     security_opt: ["no-new-privileges:true"]
@@ -132,5 +135,6 @@ volumes:
   redis-data: {}
   object-data: {}
   prometheus-data: {}
+  ssh-state: {}
 networks:
   private: {}
