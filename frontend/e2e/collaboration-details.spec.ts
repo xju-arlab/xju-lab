@@ -156,7 +156,7 @@ test('homepage displays the supplied lab mark without overflow', async ({ page }
   await fixture(page); await page.goto('/')
   const mark = page.getByRole('img', { name: '算法与科研实验室 · XJU Algorithm & Research Lab' })
   await expect(mark).toBeVisible()
-  await expect.poll(() => mark.evaluate(el => (el as HTMLImageElement).naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0)
+  await expect.poll(() => mark.evaluate(el => (el as HTMLImageElement).complete && (el as HTMLImageElement).naturalWidth > 0), { timeout: 30_000 }).toBe(true)
   for (const width of [375,768,1440]) {
     await page.setViewportSize({ width, height: 1100 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `4e510c3` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36743193834)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
+> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `2d9fe00` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36744319059)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
@@ -14,7 +14,7 @@
 
 ## 当前实现与待复验
 
-- 最新增量：请假私有附件、会议地址与当天默认时间、项目 GitHub/百度网盘资料切换、正式工位完整标定与服务端保存、公开主页完整标志。数据库新增 V11；无需新增生产环境变量，附件限量存于 PostgreSQL 并随数据库备份。huawei2 已部署 `4e510c3`，七项 CI 全部通过；检查与发布证据见 `progress.md` 首条。
+- 最新增量：请假私有附件、会议地址与当天默认时间、项目 GitHub/百度网盘资料切换、正式工位完整标定与服务端保存、公开主页完整标志。数据库新增 V11；无需新增生产环境变量，附件限量存于 PostgreSQL 并随数据库备份。huawei2 已部署 `2d9fe00`，七项 CI 全部通过；检查与发布证据见 `progress.md` 首条。
 
 - 打印机卡片按最新反馈调整为左侧型号/状态、右侧并排墨盒；读取时间与在线标签在右上角同排，运行状态/纸张为小圆角胶囊。验证与上线记录见 `progress.md` 最新条目。
 
