@@ -37,7 +37,7 @@ jobs:
         working-directory: frontend
       - run: pnpm api:types && git diff --exit-code -- src/api/openapi.d.ts
         working-directory: frontend
-      - run: pnpm build && pnpm test:assessment && pnpm test:seats
+      - run: pnpm build && pnpm test:assessment && pnpm test:seats && pnpm test:cache
         working-directory: frontend
   backend:
     runs-on: ubuntu-24.04

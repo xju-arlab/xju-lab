@@ -1,8 +1,12 @@
 import { ServersPage } from './features/servers/ServersPage'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, Printer, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
-import { ApiError, apiRequest, getSession, loginUrl, toApiError, type Session } from './api/client'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type MouseEvent } from 'react'
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, LoaderCircle, Printer, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
+import { ApiError, apiRequest, clearSessionData, sessionScope, toApiError, type Session } from './api/client'
+import { useQuery as useLoad } from './api/useQuery'
+import { checkSession, plainClick, SessionGate, type SessionCheck } from './api/SessionGate'
+import { QueryFeedback as LoadingOrError } from './components/common/QueryFeedback'
+import { QueryProgress } from './components/common/QueryProgress'
 import './api-mode.css'
 import './features/seats/seats.css'
 import type { Seat as DemoSeat } from './demo'
@@ -15,7 +19,6 @@ import { exportFloorPlan } from './features/seats/export'
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 type Problem = { message: string }
-type Loaded<T> = { data: T | null; loading: boolean; error: string; reload: () => void }
 type Overview = { activeProjects: number; openTasks: number; upcomingMeetings: number; pendingLeaves: number; assignedSeat: string | null }
 type Project = { id: string; title: string; description: string; status: string; leadId: string; version: number; updatedAt: string }
 type Task = { id: string; projectId: string | null; title: string; description: string; assigneeId: string | null; dueDate: string | null; status: string; version: number }
@@ -28,26 +31,6 @@ type PrinterDevice = { id: string; name: string; location: string; status: 'ONLI
 type Profile = { id: string; displayName: string; realName: string | null; studentNumber: string | null; className: string | null; grade: number | null; directions: string[]; direction: string | null; introduction: string | null; version: number; registrationComplete: boolean }
 type Settings = { name: string; location: string; timezone: string; description: string; mailEnabled: boolean; tonerAlertEnabled: boolean; version: number }
 type AdminMember = { id: string; accountId: string | null; displayName: string; realName: string | null; studentNumber: string | null; className: string | null; contact: string | null; cohort: number | null; active: boolean; version: number; roles: string[]; ojAdminDesired: boolean | null; ojSyncVersion: number | null; ojConfirmedVersion: number | null; ojSyncStatus: string | null; ojLastError: string | null }
-
-function useLoad<T>(path: string | null): Loaded<T> {
-  const [state, setState] = useState<{ path: string | null; data: T | null; loading: boolean; error: string }>({ path: null, data: null, loading: false, error: '' })
-  const [version, setVersion] = useState(0)
-  const reload = useCallback(() => setVersion(value => value + 1), [])
-  useEffect(() => {
-    let active = true
-    const controller = new AbortController()
-    if (!path) {
-      setState({ path: null, data: null, loading: false, error: '' })
-      return () => { active = false }
-    }
-    setState(previous => ({ path, data: previous.path === path ? previous.data : null, loading: true, error: '' }))
-    apiRequest<T>(path, { signal: controller.signal })
-      .then(data => { if (active) setState({ path, data, loading: false, error: '' }) })
-      .catch(reason => { if (active) setState({ path, data: null, loading: false, error: messageOf(reason) }) })
-    return () => { active = false; controller.abort() }
-  }, [path, version])
-  return { ...(state.path === path ? state : { data: null, loading: Boolean(path), error: '' }), reload }
-}
 
 function messageOf(error: unknown) {
   return error instanceof ApiError ? error.problem.message : error instanceof Error ? error.message : '服务暂时不可用，请稍后重试。'
@@ -63,11 +46,6 @@ function Heading({ title, description, actions, titleActions }: { title: string;
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) { return <section className={`panel api-panel ${className}`}>{children}</section> }
 function Status({ children, tone = 'gray' }: { children: ReactNode; tone?: string }) { return <span className={`tag tag-${tone}`}>{children}</span> }
 function Empty({ text }: { text: string }) { return <div className="empty-state"><Search size={22} /><p>{text}</p></div> }
-function LoadingOrError({ loading, error, retry }: { loading: boolean; error: string; retry: () => void }) {
-  if (loading) return <p className="api-feedback" role="status">正在读取服务端数据…</p>
-  if (error) return <div className="api-error" role="alert"><span>{error}</span><button className="button button-outline" onClick={retry}>重试</button></div>
-  return null
-}
 function Button({ children, type = 'button', disabled = false, onClick, variant = 'primary', value }: { children: ReactNode; type?: 'button' | 'submit'; disabled?: boolean; onClick?: () => void; variant?: 'primary' | 'outline' | 'danger'; value?: string }) {
   return <button className={`button button-${variant}`} type={type} disabled={disabled} onClick={onClick} value={value}>{children}</button>
 }
@@ -75,13 +53,13 @@ function TextField({ label, name, type = 'text', required = false, defaultValue,
   return <label className="field"><span>{label}</span><input name={name} type={type} defaultValue={defaultValue} required={required} maxLength={maxLength} /></label>
 }
 
-function PublicPage() {
+function PublicPage({ entering, enterError, onEnter }: { entering: boolean; enterError: string; onEnter: (event: MouseEvent<HTMLAnchorElement>) => void }) {
   const { data, loading, error, reload } = useLoad<{ version: number; payload: Record<string, unknown>; publishedAt: string | null; isPublished: boolean }>('/public/snapshot')
   const payload = data?.payload
   const labName = String(payload?.labName ?? '算法与科研实验室')
   const description = String(payload?.description ?? '新疆大学算法与科研实验室')
   const projects = Array.isArray(payload?.projects) ? payload?.projects as Array<Record<string, unknown>> : []
-  return <main className="api-public"><header className="api-public-top"><Link className="brand" to="/"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><Link className="button button-outline" to="/app/dashboard">成员登录<ArrowRight size={15} /></Link></header><section className="api-public-hero"><div className="eyebrow">新疆大学 · XJU Lab</div><h1>{labName}<span>。</span></h1><p>{description}</p><Link className="button button-primary" to="/app/dashboard">进入实验室平台<ArrowRight size={16} /></Link></section><section className="api-public-section"><Heading title="公开项目" description="仅展示经管理员明确发布并脱敏的内容。" /><LoadingOrError loading={loading} error={error} retry={reload} />{!loading && !error && projects.length === 0 && <Panel><Empty text="目前还没有发布的项目内容。" /></Panel>}{projects.length > 0 && <div className="api-card-grid">{projects.map((item, index) => <Panel key={String(item.id ?? index)}><span className="eyebrow">研究项目</span><h2>{String(item.title ?? '项目')}</h2><p>{String(item.summary ?? '')}</p></Panel>)}</div>}</section><footer className="api-public-footer">{data?.isPublished ? `公开快照 v${data.version} · ${data.publishedAt ? dateText(data.publishedAt) : ''}` : '尚未发布公开内容 · 内部资料不会自动公开'}</footer></main>
+  return <main className="api-public"><header className="api-public-top"><Link className="brand" to="/"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><Link className="button button-outline" to="/app/dashboard" onClick={onEnter} aria-disabled={entering} aria-busy={entering}>{entering ? <><LoaderCircle size={15} className="api-loading-spinner" />正在确认登录…</> : <>成员登录<ArrowRight size={15} /></>}</Link></header><section className="api-public-hero"><div className="eyebrow">新疆大学 · XJU Lab</div><h1>{labName}<span>。</span></h1><p>{description}</p><Link className="button button-primary" to="/app/dashboard" onClick={onEnter} aria-disabled={entering} aria-busy={entering}>{entering ? <><LoaderCircle size={16} className="api-loading-spinner" /><span role="status">正在确认登录状态…</span></> : <>进入实验室平台<ArrowRight size={16} /></>}</Link>{enterError && <p className="api-error-text" role="alert">{enterError}，请重试。</p>}</section><section className="api-public-section"><Heading title="公开项目" description="仅展示经管理员明确发布并脱敏的内容。" /><LoadingOrError loading={loading} error={error} retry={reload} />{!loading && !error && projects.length === 0 && <Panel><Empty text="目前还没有发布的项目内容。" /></Panel>}{projects.length > 0 && <div className="api-card-grid">{projects.map((item, index) => <Panel key={String(item.id ?? index)}><span className="eyebrow">研究项目</span><h2>{String(item.title ?? '项目')}</h2><p>{String(item.summary ?? '')}</p></Panel>)}</div>}</section><footer className="api-public-footer">{data?.isPublished ? `公开快照 v${data.version} · ${data.publishedAt ? dateText(data.publishedAt) : ''}` : '尚未发布公开内容 · 内部资料不会自动公开'}</footer></main>
 }
 
 function DashboardPage() {
@@ -179,8 +157,8 @@ function ProjectsPage({ session }: { session: Session }) {
   const projects = useLoad<Page<Project>>('/projects?page=1&pageSize=50')
   const [selected, setSelected] = useState<Project | null>(null)
   const tasks = useLoad<Page<Task>>(selected ? `/projects/${selected.id}/tasks?page=1&pageSize=100` : '/tasks/mine?page=1&pageSize=1')
-  const projectMembers = useLoad<Array<{ memberId: string; displayName: string; direction: string | null; cohort: number | null; role: string }>>(selected ? `/projects/${selected.id}/members` : '/projects')
-  const milestones = useLoad<Array<{ id: string; title: string; dueDate: string | null; completedAt: string | null; version: number }>>(selected ? `/projects/${selected.id}/milestones` : '/projects')
+  const projectMembers = useLoad<Array<{ memberId: string; displayName: string; direction: string | null; cohort: number | null; role: string }>>(selected ? `/projects/${selected.id}/members` : null)
+  const milestones = useLoad<Array<{ id: string; title: string; dueDate: string | null; completedAt: string | null; version: number }>>(selected ? `/projects/${selected.id}/milestones` : null)
   const directory = useLoad<Page<{ id: string; displayName: string }>>('/members?page=1&pageSize=100')
   const [notice, setNotice] = useState('')
   const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
@@ -368,7 +346,7 @@ function AssessmentPage({ session }: { session: Session }) {
 
   const activeImport = importStatus.data
   const catalog = subject === 'theory' ? exams : contests
-  const loading = terms.loading || catalog.loading || ranking.loading
+  const loading = terms.loading || terms.refreshing || catalog.loading || catalog.refreshing || ranking.loading || ranking.refreshing
   const error = terms.error || catalog.error || ranking.error
   const retry = () => { terms.reload(); catalog.reload(); ranking.reload() }
   const emptyText = !selectedTerm ? '暂无培养期。' : subject === 'theory' ? '暂无理论考试。' : !selectedContest ? '暂无 ACM 比赛，可导入 OJ 比赛后查看。' : '比赛尚未完成，完成后可查看排行。'
@@ -418,7 +396,7 @@ function RegistrationPage() {
       window.location.assign('/app/dashboard')
     } catch (error) { setNotice(messageOf(error)); profile.reload() }
   }
-  async function logout() { try { await apiRequest('/logout', { method: 'POST' }) } finally { window.location.assign('/') } }
+  async function logout() { try { await apiRequest('/logout', { method: 'POST' }) } finally { clearSessionData(); window.location.assign('/') } }
   return <main className="api-auth-screen"><section className="api-auth-card api-registration-card">
     <div className="eyebrow">XJU Lab · LabOS</div><h1>完成成员实名登记</h1>
     <LoadingOrError loading={profile.loading} error={profile.error} retry={profile.reload} />
@@ -557,25 +535,41 @@ const navigation = [
 function SignedInApp({ session }: { session: Session }) {
   const location = useLocation()
   const [mobileNav, setMobileNav] = useState(false)
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const { data: currentProfile } = useLoad<Profile>('/members/me')
   const title = navigation.find(item => location.pathname.includes(item.path))?.label ?? (location.pathname.includes('profile') ? '个人资料' : location.pathname.includes('publish') ? '公开发布' : '管理与设置')
-  useEffect(() => { let active = true; apiRequest<Profile>('/members/me').then(value => { if (active) setCurrentProfile(value) }).catch(() => {}); return () => { active = false } }, [])
   useEffect(() => setMobileNav(false), [location.pathname])
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileNav(false) }; window.addEventListener('keydown', escape); return () => window.removeEventListener('keydown', escape) }, [])
-  async function logout() { try { await apiRequest('/logout', { method: 'POST' }); window.location.assign('/') } catch { window.location.assign('/') } }
+  async function logout() { if (leaving) return; setLeaving(true); try { await apiRequest('/logout', { method: 'POST' }) } catch { /* Leave the private screen even if the server is unreachable. */ } finally { clearSessionData(); window.location.assign('/') } }
   const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
+  if (leaving) return <main className="api-auth-screen"><section className="api-auth-card"><LoadingOrError loading error="" retry={() => {}} /></section></main>
   if (!session.registrationComplete) return <RegistrationPage />
-  return <div className="app-shell api-app-shell">{mobileNav && <button className="nav-backdrop" aria-label="关闭导航" onClick={() => setMobileNav(false)} />}<aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`} id="primary-navigation"><Link className="brand" to="/app/dashboard"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><div className="workspace-picker"><span className="workspace-icon">算</span><span><strong>算法与科研实验室</strong><small>信息楼A411</small></span></div><div className="nav-caption">工作空间</div><nav aria-label="主导航">{navigation.map(({ path, label, icon: Icon }) => <NavLink key={path} to={`/app/${path}`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Icon size={17} strokeWidth={1.65} /><span>{label}</span></NavLink>)}</nav><div className="nav-caption nav-caption-second">实验室</div><NavLink to="/" className="nav-item"><BookOpen size={17} /><span>公开主页</span></NavLink>{isAdmin && <><NavLink to="/app/members" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Users size={17} /><span>成员管理</span></NavLink><NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Settings2 size={17} /><span>管理与设置</span></NavLink><NavLink to="/app/publish" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><ShieldCheck size={17} /><span>公开发布</span></NavLink></>}<div className="sidebar-bottom"><NavLink className="profile-button" to="/app/profile"><span className="avatar">{(currentProfile?.displayName ?? session.displayName ?? '成').slice(0, 1)}</span><span><strong>{currentProfile?.displayName ?? session.displayName}</strong></span><ShieldCheck size={15} /></NavLink></div></aside><div className="main-shell"><header className="topbar"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={mobileNav} onClick={() => setMobileNav(true)}><Menu size={19} /></button><div className="breadcrumbs"><span>工作空间</span><ChevronRight size={13} /><strong>{title}</strong></div><div className="topbar-actions"><Status tone="teal"><span className="status-dot" />API 实时数据</Status><Link className="icon-button" to="/app/notifications" aria-label="查看通知"><Bell size={18} /></Link><button className="icon-button" aria-label="退出登录" onClick={logout}><X size={17} /></button><div className="topbar-divider" /><span className="avatar avatar-sm">{(currentProfile?.displayName ?? session.displayName ?? '成').slice(0, 1)}</span></div></header><main id="main-content" className="page-content" key={location.pathname}><Routes><Route path="/" element={<Navigate to="/app/dashboard" replace />} /><Route path="/app/dashboard" element={<DashboardPage />} /><Route path="/app/seats" element={<SeatsPage session={session} />} /><Route path="/app/projects" element={<ProjectsPage session={session} />} /><Route path="/app/meetings" element={<MeetingsPage />} /><Route path="/app/leave" element={<LeavePage />} /><Route path="/app/print" element={<Navigate to="/app/dashboard" replace />} /><Route path="/app/assessment" element={<AssessmentPage session={session} />} /><Route path="/app/servers" element={<ServersPage session={session} />} /><Route path="/app/profile" element={<ProfilePage session={session} />} /><Route path="/app/members" element={isAdmin ? <MembersAdminPage session={session} /> : <div className="api-error" role="alert">当前账户无权访问成员管理。</div>} /><Route path="/app/settings" element={isAdmin ? <SettingsPage /> : <div className="api-error" role="alert">当前账户无权访问实验室设置。</div>} /><Route path="/app/publish" element={isAdmin ? <PublicationPage /> : <div className="api-error" role="alert">当前账户无权发布公开内容。</div>} /><Route path="/app/notifications" element={<NotificationsPage />} /></Routes></main></div></div>
+  return <div className="app-shell api-app-shell">{mobileNav && <button className="nav-backdrop" aria-label="关闭导航" onClick={() => setMobileNav(false)} />}<aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`} id="primary-navigation"><Link className="brand" to="/app/dashboard"><img className="brand-logo" src="/brand/lab-seal.png" alt="" /><span>LabOS<span className="brand-dot">.</span></span></Link><div className="workspace-picker"><span className="workspace-icon">算</span><span><strong>算法与科研实验室</strong><small>信息楼A411</small></span></div><div className="nav-caption">工作空间</div><nav aria-label="主导航">{navigation.map(({ path, label, icon: Icon }) => <NavLink key={path} to={`/app/${path}`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Icon size={17} strokeWidth={1.65} /><span>{label}</span></NavLink>)}</nav><div className="nav-caption nav-caption-second">实验室</div><NavLink to="/" className="nav-item"><BookOpen size={17} /><span>公开主页</span></NavLink>{isAdmin && <><NavLink to="/app/members" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Users size={17} /><span>成员管理</span></NavLink><NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Settings2 size={17} /><span>管理与设置</span></NavLink><NavLink to="/app/publish" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><ShieldCheck size={17} /><span>公开发布</span></NavLink></>}<div className="sidebar-bottom"><NavLink className="profile-button" to="/app/profile"><span className="avatar">{(currentProfile?.displayName ?? session.displayName ?? '成').slice(0, 1)}</span><span><strong>{currentProfile?.displayName ?? session.displayName}</strong></span><ShieldCheck size={15} /></NavLink></div></aside><div className="main-shell"><QueryProgress /><header className="topbar"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={mobileNav} onClick={() => setMobileNav(true)}><Menu size={19} /></button><div className="breadcrumbs"><span>工作空间</span><ChevronRight size={13} /><strong>{title}</strong></div><div className="topbar-actions"><Status tone="teal"><span className="status-dot" />API 实时数据</Status><Link className="icon-button" to="/app/notifications" aria-label="查看通知"><Bell size={18} /></Link><button className="icon-button" aria-label="退出登录" onClick={logout}><X size={17} /></button><div className="topbar-divider" /><span className="avatar avatar-sm">{(currentProfile?.displayName ?? session.displayName ?? '成').slice(0, 1)}</span></div></header><main id="main-content" className="page-content api-page-enter" key={location.pathname}><Routes><Route path="/" element={<Navigate to="/app/dashboard" replace />} /><Route path="/app/dashboard" element={<DashboardPage />} /><Route path="/app/seats" element={<SeatsPage session={session} />} /><Route path="/app/projects" element={<ProjectsPage session={session} />} /><Route path="/app/meetings" element={<MeetingsPage />} /><Route path="/app/leave" element={<LeavePage />} /><Route path="/app/print" element={<Navigate to="/app/dashboard" replace />} /><Route path="/app/assessment" element={<AssessmentPage session={session} />} /><Route path="/app/servers" element={<ServersPage session={session} />} /><Route path="/app/profile" element={<ProfilePage session={session} />} /><Route path="/app/members" element={isAdmin ? <MembersAdminPage session={session} /> : <div className="api-error" role="alert">当前账户无权访问成员管理。</div>} /><Route path="/app/settings" element={isAdmin ? <SettingsPage /> : <div className="api-error" role="alert">当前账户无权访问实验室设置。</div>} /><Route path="/app/publish" element={isAdmin ? <PublicationPage /> : <div className="api-error" role="alert">当前账户无权发布公开内容。</div>} /><Route path="/app/notifications" element={<NotificationsPage />} /></Routes></main></div></div>
 }
 
 export function ApiModeApp() {
-  const [session, setSession] = useState<Session | null>(null)
-  const [checking, setChecking] = useState(true)
-  const [error, setError] = useState('')
   const location = useLocation()
-  useEffect(() => { let active = true; if (location.pathname === '/') { setChecking(false); return () => { active = false } }; getSession().then(value => { if (active) { setSession(value); setError('') } }).catch(reason => { if (active) { setSession(null); setError(messageOf(reason)) } }).finally(() => { if (active) setChecking(false) }); return () => { active = false } }, [location.pathname])
-  if (location.pathname === '/') return <PublicPage />
-  if (checking) return <main className="api-auth-screen"><section className="api-auth-card"><div className="eyebrow">XJU Lab · LabOS</div><h1>算法与科研实验室</h1><p>正在验证实验室登录状态…</p></section></main>
-  if (!session) return <main className="api-auth-screen"><section className="api-auth-card"><div className="eyebrow">XJU Lab · LabOS</div><h1>算法与科研实验室</h1><p>{error.includes('401') || error.includes('HTTP_ERROR') ? '请使用实验室统一身份登录。' : error || '登录状态已过期，请重新登录。'}</p><a className="button button-primary" href={loginUrl()}>统一身份登录<ArrowRight size={16} /></a><Link className="api-auth-public" to="/">浏览公开主页</Link></section></main>
-  return <SignedInApp session={session} />
+  const navigate = useNavigate()
+  const initial = useRef<SessionCheck | null>(null)
+  const [entering, setEntering] = useState(false)
+  const [enterError, setEnterError] = useState('')
+  const enteringRef = useRef(false)
+  const currentPath = useRef(location.pathname)
+  currentPath.current = location.pathname
+  const takeInitial = useCallback(() => { const result = initial.current; initial.current = null; return result }, [])
+  async function enter(event: MouseEvent<HTMLAnchorElement>) {
+    if (!plainClick(event)) return
+    event.preventDefault()
+    if (enteringRef.current) return
+    enteringRef.current = true; setEntering(true); setEnterError('')
+    try {
+      const result = await checkSession()
+      if (currentPath.current !== '/') return
+      initial.current = result
+      navigate('/app/dashboard')
+    } catch (reason) { setEnterError(messageOf(reason)) }
+    finally { enteringRef.current = false; setEntering(false) }
+  }
+  if (location.pathname === '/') return <PublicPage entering={entering} enterError={enterError} onEnter={event => void enter(event)} />
+  return <SessionGate takeInitial={takeInitial}>{session => <SignedInApp key={sessionScope(session)} session={session} />}</SessionGate>
 }

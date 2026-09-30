@@ -449,7 +449,7 @@ paths:
     get:
       tags: [monitoring]
       parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '200': { description: Fixed-query metrics with explicit unavailable, stale, unsupported and exporter states } }
+      responses: { '200': { description: 'Fixed-query metrics from saved SSH connections or Prometheus, with explicit collecting, unavailable, stale and unsupported states' } }
   /monitor/assets/{assetId}/series:
     get:
       tags: [monitoring]
@@ -572,7 +572,7 @@ components:
         gpuDetection: { type: string, enum: [NVIDIA_SMI, PCI, NONE, UNKNOWN] }
     ServerAsset:
       type: object
-      required: [id, name, version, enabled, gpuSupported, prometheusJob, targetLabel, hardware, discoveredAt]
+      required: [id, name, version, enabled, gpuSupported, prometheusJob, targetLabel, hardware, discoveredAt, monitoringSource]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -583,6 +583,7 @@ components:
         targetLabel: { type: string, nullable: true }
         hardware: { allOf: [{ $ref: '#/components/schemas/ServerHardware' }], nullable: true }
         discoveredAt: { type: string, format: date-time, nullable: true }
+        monitoringSource: { type: string, enum: [SSH, PROMETHEUS, NONE] }
     SshCatalog:
       type: object
       required: [aliases, ignoredOptions]

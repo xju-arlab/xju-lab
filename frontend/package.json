@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test:assessment": "node --experimental-strip-types --test tests/assessment.test.ts",
     "test:seats": "node tests/seats.test.mjs",
+    "test:cache": "node --experimental-strip-types --test tests/query-cache.test.ts",
     "test:e2e": "playwright test",
     "export:floor-plan": "node scripts/export-floor-plan.mjs",
     "preview": "vite preview --host 0.0.0.0"

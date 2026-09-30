@@ -61,7 +61,7 @@ import java.util.UUID;
 import org.springframework.http.MediaType;
 
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test", "lab.monitor.ssh-enabled=false"})
 @Import(BaselineIntegrationTest.TestOidcConfiguration.class)
 @AutoConfigureMockMvc
 class BaselineIntegrationTest {
@@ -87,6 +87,7 @@ class BaselineIntegrationTest {
     @Autowired OidcMemberProvisioningSuccessHandler oidcMemberProvisioningSuccessHandler;
     @Autowired JavaMailSender mailSender;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired org.xjuarlab.lab.monitoring.SshMonitoring sshMonitoring;
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     org.xjuarlab.lab.servers.infrastructure.SshWorker sshWorker;
 
@@ -723,6 +724,37 @@ class BaselineIntegrationTest {
         mvc.perform(put("/api/v1/assessment/exams/"+exam+"/grades/"+member).with(login("assessment-teacher")).with(csrf()).header("If-Match-Version",version)
             .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\""+statusValue+"\",\"score\":"+score+",\"reason\":\"integration fixture\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.examVersion").value(version+1));
+    }
+
+    @Test void sshMonitoringPersistsRealSamplesAndSeparatesFailureDisabledAndStale() throws Exception {
+        member("metrics-member",null);
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        UUID id=jdbc.queryForObject("INSERT INTO server_asset(name,gpu_supported,ssh_connection) VALUES ('采集测试',true,'{\"nodes\":[{\"host\":\"fixture\",\"user\":\"lab\",\"port\":22}]}') RETURNING id",UUID.class);
+        String path="/api/v1/monitor/assets/"+id;
+        mvc.perform(get(path+"/metrics")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("COLLECTING"));
+        org.mockito.Mockito.when(sshWorker.run(any())).thenAnswer(call->{
+            var input=(com.fasterxml.jackson.databind.JsonNode)call.getArgument(0);
+            assertThat(input.path("action").asText()).isEqualTo("metrics");
+            assertThat(input.has("password")).isFalse();
+            return mapper.readTree("{\"status\":\"CONNECTED\",\"metrics\":[{\"metric\":\"CPU\",\"unit\":\"%\",\"value\":42.5,\"status\":\"AVAILABLE\"},{\"metric\":\"GPU\",\"unit\":\"%\",\"value\":0,\"status\":\"AVAILABLE\"}]}");
+        });
+        sshMonitoring.collect(id);
+        mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("SSH_CONNECTED")).andExpect(jsonPath("$.metrics[0].value").value(42.5));
+        mvc.perform(get(path+"/series?metric=CPU&range=1h").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.points[0].value").value(42.5));
+        mvc.perform(get(path+"/series?metric=invalid&range=1h").with(login("metrics-member"))).andExpect(status().isBadRequest());
+        mvc.perform(get(path+"/series?metric=CPU&range=2h").with(login("metrics-member"))).andExpect(status().isBadRequest());
+        jdbc.update("UPDATE server_metric_sample SET sampled_at=now()-interval '2 minutes' WHERE asset_id=?",id);
+        mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("STALE")).andExpect(jsonPath("$.metrics[0].status").value("STALE"));
+        org.mockito.Mockito.when(sshWorker.run(any())).thenReturn(mapper.readTree("{\"status\":\"FAILED\"}"));
+        sshMonitoring.collect(id);
+        mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("SSH_UNAVAILABLE")).andExpect(jsonPath("$.metrics[0].value").doesNotExist());
+        jdbc.update("UPDATE server_asset SET enabled=false WHERE id=?",id);
+        reset(sshWorker); sshMonitoring.collect(id);
+        org.mockito.Mockito.verifyNoInteractions(sshWorker);
+        mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("DISABLED"));
+        jdbc.update("DELETE FROM server_asset WHERE id=?",id);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM server_metric_sample WHERE asset_id=?",Integer.class,id)).isZero();
     }
 
     @Test void sshDraftsEnforceAdminOwnershipConnectionSaveExpiryAndDeleteVersion() throws Exception {

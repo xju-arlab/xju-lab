@@ -6,6 +6,7 @@ import base64
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -225,7 +226,60 @@ def hardware(text):
             "gpus": gpus or compute, "gpuDetection": "NVIDIA_SMI" if gpus else "PCI" if compute else "NONE" if kind == "CPU" else "UNKNOWN"}
 
 
-def connect(request):
+SAMPLE = r'''set -eu
+export LC_ALL=C
+awk '/^cpu / {print "CPU1\t" $0}' /proc/stat
+sleep 1
+awk '/^cpu / {print "CPU2\t" $0}' /proc/stat
+awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2; seen=1} END {if(t>0 && seen) print "MEMORY\t" 100*(t-a)/t}' /proc/meminfo
+df -Pk / | awk 'NR==2 && $2>0 {print "DISK\t" 100*($2-$4)/$2}'
+awk '{print "LOAD\t" $1}' /proc/loadavg
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null | sed 's/^/GPU\t/' || true
+fi
+'''
+
+
+def metrics(text, gpu_supported):
+    fields, gpus = {}, []
+    for line in text.splitlines():
+        name, sep, value = line.partition('\t')
+        if not sep:
+            continue
+        if name == 'GPU':
+            try:
+                number = float(value)
+                if math.isfinite(number) and 0 <= number <= 100:
+                    gpus.append(number)
+            except ValueError:
+                pass
+        else:
+            fields[name] = value.strip()
+    values = {}
+    try:
+        # Linux guest/guest_nice are already included in user/nice: count the first eight fields only.
+        first, second = [[int(v) for v in fields[key].split()[1:9]] for key in ('CPU1', 'CPU2')]
+        total = sum(second) - sum(first)
+        idle = (second[3] + second[4]) - (first[3] + first[4])
+        if len(first) == len(second) == 8 and total > 0 and 0 <= idle <= total:
+            values['CPU'] = 100 * (1 - idle / total)
+    except (KeyError, ValueError, IndexError):
+        pass
+    for name in ('MEMORY', 'DISK', 'LOAD'):
+        try:
+            number = float(fields[name])
+            if math.isfinite(number) and number >= 0 and (name == 'LOAD' or number <= 100):
+                values[name] = number
+        except (KeyError, ValueError):
+            pass
+    if gpus:
+        values['GPU'] = sum(gpus) / len(gpus)
+    return [{'metric': name, 'unit': 'load' if name == 'LOAD' else '%', 'value': values.get(name),
+             'status': 'AVAILABLE' if name in values else 'UNSUPPORTED' if name == 'GPU' and not gpu_supported else 'NO_DATA'}
+            for name in ('CPU', 'MEMORY', 'DISK', 'LOAD', 'GPU')]
+
+
+def connect(request, collect=False):
     key = application_key()
     nodes = request["nodes"]
     transports = []
@@ -251,6 +305,8 @@ def connect(request):
                     raise ValueError("服务器要求额外认证，暂不支持多因素 SSH 登录")
             except paramiko.AuthenticationException:
                 client.close()
+                if collect:
+                    raise ValueError('SSH 公钥认证失败，请管理员重新连接此服务器') from None
                 password = request.get("password") if request.get("passwordTarget") == target else None
                 if not password:
                     raise Challenge({"status": "PASSWORD_REQUIRED", "host": target, "message": "请输入此主机的 SSH 密码"})
@@ -271,6 +327,8 @@ def connect(request):
                 except paramiko.AuthenticationException:
                     raise ValueError("公钥已追加，但免密登录验证失败，请检查服务器公钥登录策略") from None
             parent = client
+        if collect:
+            return {'status': 'CONNECTED', 'metrics': metrics(run_fixed(parent, SAMPLE), request.get('gpuSupported', False))}
         return {"status": "CONNECTED", "hardware": hardware(run_fixed(parent, DISCOVER)),
                 "message": "连接成功，已验证公钥登录", "keyVerified": True}
     finally:
@@ -295,6 +353,9 @@ def main(request):
         return {"nodes": resolve(request["config"], request["alias"])}
     if action == "connect":
         return connect(request)
+    if action == "metrics":
+        # Periodic reads only use the existing key and pinned hosts. Never approve a new host or install keys.
+        return connect({'nodes': request['nodes'], 'gpuSupported': request.get('gpuSupported', False)}, collect=True)
     raise ValueError("不支持的 SSH 操作")
 
 

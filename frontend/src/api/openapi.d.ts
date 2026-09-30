@@ -2812,7 +2812,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Fixed-query metrics with explicit unavailable */
+                /** @description Fixed-query metrics from saved SSH connections or Prometheus, with explicit collecting, unavailable, stale and unsupported states */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -3517,6 +3517,8 @@ export interface components {
             hardware: components["schemas"]["ServerHardware"] | null;
             /** Format: date-time */
             discoveredAt: string | null;
+            /** @enum {string} */
+            monitoringSource: "SSH" | "PROMETHEUS" | "NONE";
         };
         SshCatalog: {
             config?: string;

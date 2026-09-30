@@ -1,3 +1,5 @@
+import { queryCache } from './queryCache'
+
 export type ApiProblem = { code: string; message: string; requestId: string; fieldErrors?: Record<string, string> }
 
 export class ApiError extends Error {
@@ -6,6 +8,9 @@ export class ApiError extends Error {
 
 type ApiOptions = Omit<RequestInit, 'body'> & { body?: unknown }
 let csrfPromise: Promise<{ headerName: string; token: string }> | undefined
+const authListeners = new Set<(status: number) => void>()
+export function onAuthFailure(listener: (status: number) => void) { authListeners.add(listener); return () => { authListeners.delete(listener) } }
+export function clearSessionData() { csrfPromise = undefined; queryCache.clearPrivate(); queryCache.setScope('anonymous') }
 
 async function getCsrf() {
   if (!csrfPromise) {
@@ -36,11 +41,22 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     headers.set(csrf.headerName, csrf.token)
   }
   const response = await fetch(`/api/v1${path}`, { ...options, method, headers, body, credentials: 'same-origin' })
-  if (!response.ok) throw await toApiError(response)
+  if (!response.ok) {
+    const error = await toApiError(response)
+    if (response.status === 401 || response.status === 403) {
+      csrfPromise = undefined
+      if (path !== '/session') authListeners.forEach(listener => listener(response.status))
+    }
+    throw error
+  }
+  const transientConnection = path.startsWith('/monitor/admin/ssh/') && !path.endsWith('/save')
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !transientConnection) queryCache.invalidate()
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
 export type Session = { authenticated: true; memberId: string; displayName: string; roles: string[]; issuer: string; registrationComplete: boolean }
-export const getSession = () => apiRequest<Session>('/session')
+let sessionRequest: Promise<Session> | undefined
+export const getSession = () => sessionRequest ??= apiRequest<Session>('/session').finally(() => { sessionRequest = undefined })
+export const sessionScope = (session: Session) => JSON.stringify([session.issuer, session.memberId, [...session.roles].sort(), session.registrationComplete])
 export const loginUrl = () => '/oauth2/authorization/lab'

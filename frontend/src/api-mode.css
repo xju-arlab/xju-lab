@@ -157,6 +157,29 @@
 }
 
 .printer-status-panel { margin-top: 14px; }
+.api-page-enter { animation: api-content-enter 240ms ease-out; }
+.api-stat-grid,.api-card-grid > .api-panel,.api-row,.api-form-panel > form { animation: api-content-enter 220ms ease-out; }
+.api-loading-state { padding: 18px 0; animation: api-content-enter 180ms ease-out; }
+.api-loading-state.is-compact { padding: 10px 0; }
+.api-loading-caption { display: flex; align-items: center; gap: 9px; color: var(--color-text-muted); font-size: 12px; }
+.api-loading-spinner { flex: 0 0 auto; animation: api-loading-spin 1s linear infinite; }
+.api-loading-lines { display: grid; gap: 10px; padding-top: 20px; }
+.api-loading-lines i { height: 13px; border-radius: 4px; background: #e9ece7; animation: api-loading-pulse 1.5s ease-in-out infinite; }
+.api-loading-lines i:nth-child(2) { width: 82%; animation-delay: .12s; }
+.api-loading-lines i:nth-child(3) { width: 58%; animation-delay: .24s; }
+.api-query-progress { position: sticky; top: 0; z-index: 45; height: 2px; margin-bottom: -2px; overflow: hidden; opacity: 0; transition: opacity 220ms ease; pointer-events: none; }
+.api-query-progress.is-loading { opacity: 1; }
+.api-query-progress span { display: block; width: 38%; height: 100%; border-radius: 2px; background: #75968a; }
+.api-query-progress.is-loading span { animation: api-query-travel 1.5s ease-in-out infinite; }
+.api-login-button { min-width: 144px; }
+.api-login-button[aria-busy="true"] { cursor: progress; }
+.api-session-warning { padding: 10px 20px; background: #f8f4e9; font-size: 12px; }
+.api-session-warning button { margin-left: 12px; text-decoration: underline; }
+.server-config-notes { margin: 0; padding-left: 17px; list-style: disc; }
+.server-config-notes li + li { margin-top: 4px; }
+@keyframes api-loading-spin { to { transform: rotate(360deg); } }
+@keyframes api-loading-pulse { 50% { opacity: .45; } }
+@keyframes api-query-travel { from { transform: translateX(-110%); } to { transform: translateX(370%); } }
 .printer-status-panel .section-heading h2 { display: flex; align-items: center; gap: 8px; }
 .api-credential-panel { margin: 12px 0; padding: 12px; background: #f8f7f3; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .api-credential-panel h3 { margin: 0; font-size: 13px; }

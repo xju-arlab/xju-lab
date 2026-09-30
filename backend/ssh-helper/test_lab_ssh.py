@@ -50,6 +50,20 @@ class ConfigTests(unittest.TestCase):
                 lab_ssh.check_host(node, changed, {challenge['host']: lab_ssh.fingerprint(changed)})
             self.assertEqual(mismatch.exception.payload['status'], 'FAILED')
 
+    def test_metrics_cpu_delta_memory_disk_load_and_gpu(self):
+        raw = 'CPU1\tcpu 10 0 10 80 0 0 0 0 5 0\nCPU2\tcpu 40 0 20 140 0 0 0 0 10 0\nMEMORY\t45\nDISK\t60\nLOAD\t1.25\nGPU\t20\nGPU\t40'
+        values = {row['metric']: row for row in lab_ssh.metrics(raw, True)}
+        self.assertAlmostEqual(values['CPU']['value'], 40)
+        self.assertEqual(values['GPU']['value'], 30)
+        self.assertEqual(values['MEMORY']['value'], 45)
+        self.assertEqual(values['DISK']['value'], 60)
+        self.assertEqual(values['LOAD']['value'], 1.25)
+
+    def test_missing_invalid_metrics_are_not_fabricated(self):
+        values = {row['metric']: row for row in lab_ssh.metrics('CPU1\tcpu 0\nCPU2\tcpu 0\nMEMORY\tNaN\nDISK\t101\nGPU\t[N/A]\nLOAD\t-1', True)}
+        self.assertTrue(all(row['value'] is None and row['status'] == 'NO_DATA' for row in values.values()))
+        self.assertEqual(lab_ssh.metrics('', False)[-1]['status'], 'UNSUPPORTED')
+
 
 @unittest.skipUnless(os.environ.get('RUN_SSH_INTEGRATION') == '1', 'requires isolated OpenSSH containers')
 class RealSshTests(unittest.TestCase):
@@ -94,6 +108,15 @@ class RealSshTests(unittest.TestCase):
             request.pop('password', None)
             request['approved'] = {}
             self.assertEqual(invoke()['status'], 'CONNECTED')
+            request['action'] = 'metrics'
+            collected = invoke()
+            self.assertEqual(collected['status'], 'CONNECTED')
+            values = {row['metric']: row for row in collected['metrics']}
+            for metric in ('CPU', 'MEMORY', 'DISK', 'LOAD'):
+                self.assertEqual(values[metric]['status'], 'AVAILABLE')
+                self.assertGreaterEqual(values[metric]['value'], 0)
+            self.assertEqual(values['GPU']['status'], 'UNSUPPORTED')
+            request['action'] = 'connect'
             key = paramiko.RSAKey.from_private_key_file(str(Path(directory) / 'id_rsa'))
             for port in [22221, 22222]:
                 client = paramiko.SSHClient()
