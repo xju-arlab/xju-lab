@@ -125,6 +125,11 @@ test('administrator SSH onboarding uses a jump host and survives password-free r
     for (const width of [375, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 })
       await expect(dialog).toBeVisible()
+      await expect.poll(async () => {
+        const box = await dialog.boundingBox()
+        return Boolean(box && box.x >= 0 && box.x + box.width <= width && box.width <= width - 24)
+      }, { message: 'The entire server dialog must stay inside the viewport' }).toBe(true)
+      expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       if (cycle === 0) await page.screenshot({ path: testInfo.outputPath(`ssh-success-${width}.png`) })
     }

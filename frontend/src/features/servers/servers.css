@@ -1,9 +1,9 @@
 .server-dialog-overlay[data-state] { background: rgba(35, 34, 30, .24); }
-.server-dialog[role="dialog"] { width: min(600px, calc(100vw - 32px)); max-width: 600px; max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 12px; background: var(--color-bg-subtle, #f7f6f3); }
+.server-dialog[role="dialog"] { width: min(600px, calc(100vw - 32px)); max-width: 600px; min-width: 0; grid-template-columns: minmax(0, 1fr); transition: none; max-height: calc(100dvh - 40px); overflow-y: auto; overflow-x: hidden; border-radius: 12px; background: var(--color-bg-subtle, #f7f6f3); }
 .server-dialog h2 { font-family: var(--font-serif); font-size: 22px; }
 .server-dialog textarea { font-family: ui-monospace, monospace; font-size: 12px; resize: vertical; }
 .server-dialog .field { min-width: 0; }
-.server-dialog .form-stack { gap: 16px; }
+.server-dialog .form-stack { min-width: 0; gap: 16px; }
 .server-challenge[role="dialog"] { max-width: 440px; }
 .server-connection { display: flex; align-items: center; gap: 14px; padding: 18px; }
 .server-connection strong { font-size: 15px; }
@@ -26,3 +26,5 @@
 @keyframes server-success { 0% { transform: scale(.65); opacity: 0; } 65% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes server-reveal { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .server-success-icon, .server-spinner, .server-connected { animation: none; } }
+
+.server-dialog .server-dialog-footer { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
