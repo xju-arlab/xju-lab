@@ -37,6 +37,15 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   const registrationNetwork: string[] = []
   if (await registrationHeading.isVisible().catch(() => false)) {
     await page.evaluate(() => {
+      sessionStorage.setItem('lab-registration-listeners', 'installed')
+      document.addEventListener('click', event => {
+        const target = event.target instanceof Element ? event.target.closest('button') : null
+        sessionStorage.setItem('lab-registration-last-click', JSON.stringify({
+          text: target?.textContent?.trim() ?? null,
+          type: target?.getAttribute('type') ?? null,
+          form: target?.closest('form')?.getAttribute('class') ?? null,
+        }))
+      }, true)
       document.addEventListener('click', event => {
         const target = event.target instanceof Element ? event.target.closest('button') : null
         if (target?.textContent?.trim() !== '保存并进入实验室') return
@@ -93,10 +102,12 @@ async function signIn(page: Page, user: { username: string; password: string }) 
     await expect(page.getByRole('button', { name: '保存并进入实验室' })).toBeEnabled()
     const beforeSubmit = await page.evaluate(() => {
       const form = document.querySelector('form')!
-      return {
+      const result = {
         valid: form.checkValidity(),
         fields: Array.from(form.querySelectorAll('input')).map(input => ({ name: input.name, value: input.value, required: input.required, valid: input.validity.valid })),
       }
+      sessionStorage.setItem('lab-registration-before-submit', JSON.stringify(result))
+      return result
     })
     expect(beforeSubmit.valid, `Registration form was invalid before submit: ${JSON.stringify(beforeSubmit)}`).toBe(true)
     await page.getByRole('button', { name: '保存并进入实验室' }).click()
@@ -115,6 +126,9 @@ async function signIn(page: Page, user: { username: string; password: string }) 
       navigation: performance.getEntriesByType('navigation').map(entry => ({ type: (entry as PerformanceNavigationTiming).type, name: entry.name })),
       registrationSubmit: sessionStorage.getItem('lab-registration-submit'),
       registrationSaveClick: sessionStorage.getItem('lab-registration-save-click'),
+      registrationListeners: sessionStorage.getItem('lab-registration-listeners'),
+      registrationLastClick: sessionStorage.getItem('lab-registration-last-click'),
+      registrationBeforeSubmit: sessionStorage.getItem('lab-registration-before-submit'),
     }))
     throw new Error(`${String(error)}\nRegistration diagnostics: ${JSON.stringify({ ...diagnostics, network: registrationNetwork, browserNavigations })}`)
   }
