@@ -57,8 +57,12 @@ async function signIn(page: Page, user: { username: string; password: string }) 
 
 test('OIDC API mode keeps project data scoped across users and viewports', async ({ browser }) => {
   const pageErrors: string[] = []
+  const failedResponses: string[] = []
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const adminPage = await adminContext.newPage()
+  adminPage.on('response', response => {
+    if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`)
+  })
   adminPage.on('pageerror', error => pageErrors.push(error.message))
   const meetingResponses: string[] = []
   adminPage.on('response', response => {
@@ -68,7 +72,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   })
 
   await signIn(adminPage, admin)
-  adminPage.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()) })
+  adminPage.on('console', message => { if (message.type() === 'error') pageErrors.push(`${message.text()} @ ${JSON.stringify(message.location())}`) })
   const adminSession = await adminPage.evaluate(async () => (await fetch('/api/v1/session')).json())
   expect(adminSession.roles.some((role: string) => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role)), JSON.stringify(adminSession)).toBe(true)
   for (const width of [375, 768, 1440]) {
@@ -318,6 +322,9 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
 
   const memberAContext = await browser.newContext({ viewport: { width: 375, height: 812 } })
   const memberAPage = await memberAContext.newPage()
+  memberAPage.on('response', response => {
+    if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`)
+  })
   memberAPage.on('pageerror', error => pageErrors.push(error.message))
   await signIn(memberAPage, memberA)
   await memberAPage.getByRole('button', { name: '打开导航' }).click()
@@ -358,6 +365,9 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
 
   const memberBContext = await browser.newContext()
   const memberBPage = await memberBContext.newPage()
+  memberBPage.on('response', response => {
+    if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`)
+  })
   memberBPage.on('pageerror', error => pageErrors.push(error.message))
   await signIn(memberBPage, memberB)
   await memberBPage.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '项目空间' }).click()
@@ -373,7 +383,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   }, projectId)
   expect(memberBAccess).toEqual({ projectVisible: false, taskStatus: 404 })
 
-  expect(pageErrors).toEqual([])
+  expect(pageErrors, `Browser console/page errors; HTTP errors=${failedResponses.join(' | ')}`).toEqual([])
   await memberBContext.close()
   await memberAContext.close()
   await adminContext.close()
