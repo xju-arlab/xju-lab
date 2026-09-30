@@ -61,9 +61,28 @@ jobs:
         working-directory: frontend
       - name: Route the local IdP hostname to the isolated test service
         run: echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts >/dev/null
-      - name: Build and start the isolated full stack with test IdP
-        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp up --build -d
-      - name: Wait for the app, web and IdP
+      - name: Start data services and the local test IdP
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp up -d postgres redis object-store mailpit keycloak
+      - name: Wait for the local IdP before starting the API
+        run: |
+          set -euo pipefail
+          ready=false
+          deadline=$((SECONDS + 180))
+          while (( SECONDS < deadline )); do
+            if curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:8080/realms/xju-lab/.well-known/openid-configuration >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$ready" != true ]]; then
+            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp ps
+            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 keycloak postgres redis object-store
+            exit 1
+          fi
+      - name: Build and start the API and web containers
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp up --build -d app web
+      - name: Wait for the app and web
         run: |
           set -euo pipefail
           ready=false
@@ -74,8 +93,7 @@ jobs:
             attempt=$((attempt + 1))
             if curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:18080/api/v1/health >/dev/null \
               && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:18080/api/v1/ready >/dev/null \
-              && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:18080/ >/dev/null \
-              && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:8080/realms/xju-lab/.well-known/openid-configuration >/dev/null; then
+              && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:18080/ >/dev/null; then
               ready=true
               break
             fi
