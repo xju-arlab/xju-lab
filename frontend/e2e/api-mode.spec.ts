@@ -11,6 +11,10 @@ function percentile(samples: number[], percentileValue: number) {
 }
 
 async function signIn(page: Page, user: { username: string; password: string }) {
+  const browserNavigations: string[] = []
+  page.on('framenavigated', frame => {
+    if (frame === page.mainFrame()) browserNavigations.push(frame.url())
+  })
   await page.goto('/app/dashboard')
   const loginLink = page.getByRole('link', { name: /统一身份登录/ })
   await expect(loginLink).toBeVisible()
@@ -32,6 +36,17 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   const registrationHeading = page.getByRole('heading', { name: '完成成员实名登记' })
   const registrationNetwork: string[] = []
   if (await registrationHeading.isVisible().catch(() => false)) {
+    await page.evaluate(() => {
+      document.addEventListener('submit', event => {
+        const form = event.target
+        if (!(form instanceof HTMLFormElement) || !form.querySelector('input[name="realName"]')) return
+        sessionStorage.setItem('lab-registration-submit', JSON.stringify({
+          defaultPrevented: event.defaultPrevented,
+          valid: form.checkValidity(),
+          values: Object.fromEntries(new FormData(form).entries()),
+        }))
+      })
+    })
     const realName = page.getByLabel('真实姓名')
     const studentNumberField = page.getByLabel('学号')
     const className = page.getByLabel('班级')
@@ -80,8 +95,10 @@ async function signIn(page: Page, user: { username: string; password: string }) 
         readOnly: input.readOnly, disabled: input.disabled, validationMessage: input.validationMessage,
       })),
       formValidity: Array.from(document.forms).map(form => form.checkValidity()),
+      navigation: performance.getEntriesByType('navigation').map(entry => ({ type: (entry as PerformanceNavigationTiming).type, name: entry.name })),
+      registrationSubmit: sessionStorage.getItem('lab-registration-submit'),
     }))
-    throw new Error(`${String(error)}\nRegistration diagnostics: ${JSON.stringify({ ...diagnostics, network: registrationNetwork })}`)
+    throw new Error(`${String(error)}\nRegistration diagnostics: ${JSON.stringify({ ...diagnostics, network: registrationNetwork, browserNavigations })}`)
   }
   await expect(page.getByText('API 实时数据')).toBeVisible()
 }
