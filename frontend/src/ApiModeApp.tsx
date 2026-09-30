@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, Printer, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, Menu, Printer, Search, Server, Settings2, ShieldCheck, Users, X } from 'lucide-react'
 import { ApiError, apiRequest, getSession, loginUrl, toApiError, type Session } from './api/client'
 import './api-mode.css'
+import './features/seats/seats.css'
+import type { Seat as DemoSeat } from './demo'
+import { FloorPlan } from './features/seats/FloorPlan'
+import { defaultLayout, type DeskPosition, type LayoutState } from './features/seats/layout'
+import { exportFloorPlan } from './features/seats/export'
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 type Problem = { message: string }
@@ -91,11 +96,34 @@ function SeatsPage({ session }: { session: Session }) {
   const [selected, setSelected] = useState<Seat | null>(null)
   const [notice, setNotice] = useState('')
   const [editing, setEditing] = useState(false)
+  const [query, setQuery] = useState('')
+  const [exporting, setExporting] = useState(false)
   const [draft, setDraft] = useState<{ canvas: { width: number; height: number }; desks: Array<Record<string, unknown>>; [key: string]: unknown } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const isAdmin = session.roles.some(role => ['LAB_ADMIN', 'SUPER_ADMIN'].includes(role))
   useEffect(() => { if (layout.data) setDraft(layout.data.layout) }, [layout.data])
-  const seatsWithLayout = useMemo(() => seats.data?.items.filter(s => s.layoutItem && typeof s.layoutItem === 'object') ?? [], [seats.data])
-  const canvas = draft?.canvas ?? { width: 1400, height: 1060 }
+  const planLayout = useMemo<LayoutState>(() => ({
+    ...defaultLayout,
+    room: (draft?.room as LayoutState['room'] | undefined) ?? defaultLayout.room,
+    desks: defaultLayout.desks.map(base => {
+      const item = draft?.desks.find(value => value.id === base.id)
+      return item ? { ...base, ...item } as DeskPosition : base
+    }),
+  }), [draft])
+  const planSeats = useMemo<DemoSeat[]>(() => (seats.data?.items ?? []).map(seat => ({
+    id: seat.id,
+    name: seat.displayName ?? undefined,
+    memberId: seat.memberId ?? undefined,
+    direction: seat.direction ?? undefined,
+    grade: seat.cohort ?? undefined,
+    status: seat.kind !== 'seat' ? 'temporary' : seat.onLeaveNow ? 'leave' : seat.memberId ? 'occupied' : 'empty',
+  })), [seats.data])
+  const matchingSeatIds = useMemo(() => new Set((seats.data?.items ?? []).filter(seat =>
+    [seat.id, seat.kind, seat.displayName, seat.direction, seat.cohort]
+      .filter(value => value !== null && value !== undefined).join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  ).map(seat => seat.id)), [query, seats.data])
+  const seatCount = seats.data?.items.filter(seat => seat.kind === 'seat').length ?? 0
+  const assignedCount = seats.data?.items.filter(seat => seat.kind === 'seat' && seat.memberId).length ?? 0
   function adjustSelected(axis: 'x' | 'y' | 'width' | 'depth', delta: number) {
     if (!selected || !draft) return
     setDraft({ ...draft, desks: draft.desks.map(item => item.id === selected.id ? { ...item, [axis]: Math.max(0, Number(item[axis] ?? 0) + delta) } : item) })
@@ -116,12 +144,14 @@ function SeatsPage({ session }: { session: Session }) {
     try { await apiRequest(`/seats/${encodeURIComponent(selected.id)}/assignment`, { method: 'DELETE' }); setNotice('工位分配已解除'); setSelected(null); seats.reload() }
     catch (error) { setNotice(messageOf(error)) }
   }
-  return <><Heading title="工位一览" description="沿用已确认的 31 个工位坐标，分配与布局由服务端保存。" actions={isAdmin && <Button variant="outline" onClick={() => setEditing(value => !value)}>{editing ? '退出标定' : '标定布局'}</Button>} /><LoadingOrError loading={seats.loading || layout.loading} error={seats.error || layout.error} retry={() => { seats.reload(); layout.reload() }} />{notice && <p className="api-feedback" role="status">{notice}</p>}<Panel className="api-seat-panel"><div className="api-seat-canvas" style={{ aspectRatio: `${canvas.width} / ${canvas.height}` }}>{seatsWithLayout.map(seat => {
-    const item = (editing && draft?.desks.find(value => value.id === seat.id) ? draft.desks.find(value => value.id === seat.id) : seat.layoutItem) as { x?: number; y?: number; width?: number; depth?: number; label?: string; kind?: string }
-    const direction = seat.direction?.includes('算法') ? 'api-seat-algorithm' : seat.direction?.includes('深度') ? 'api-seat-deep' : ''
-    const grade = seat.cohort ? `api-seat-cohort-${seat.cohort}` : ''
-    return <button key={seat.id} className={`api-seat ${seat.kind !== 'seat' ? 'api-seat-facility' : ''} ${seat.onLeaveNow ? 'api-seat-away' : ''} ${direction} ${grade} ${selected?.id === seat.id ? 'api-seat-selected' : ''}`} style={{ left: `${Number(item.x ?? 0) / canvas.width * 100}%`, top: `${Number(item.y ?? 0) / canvas.height * 100}%`, width: `${Number(item.width ?? 45) / canvas.width * 100}%`, height: `${Number(item.depth ?? 28) / canvas.height * 100}%` }} onClick={() => setSelected(seat)} title={seat.displayName ? `${seat.id} · ${seat.displayName}` : seat.id}><strong>{seat.id || String(item.label ?? '')}</strong>{seat.displayName && <small>{seat.displayName}</small>}</button>
-  })}</div><div className="api-seat-legend"><span>人工工位 {seatsWithLayout.filter(s => s.kind === 'seat').length}</span><span>算法方向 · 蓝色</span><span>深度学习 · 紫色</span><span>请假状态淡显</span></div></Panel>{selected && <Panel className="api-detail-panel"><button className="api-close" onClick={() => setSelected(null)} aria-label="关闭"><X size={18} /></button><h2>{selected.id}</h2>{selected.kind !== 'seat' ? <p>此位置为实验室设施，不可分配成员。</p> : selected.memberId ? <><p><strong>{selected.displayName}</strong> · {selected.direction ?? '研究方向待填写'} {selected.cohort ? `· ${selected.cohort} 级` : ''}</p>{selected.onLeaveNow && <Status tone="orange">当前请假</Status>}{isAdmin && <div className="api-actions"><Button variant="outline" onClick={release}>解除分配</Button></div>}</> : <><p>该工位尚未分配。</p>{isAdmin ? <form className="api-inline-form" onSubmit={assign}><label className="field"><span>选择成员</span><select name="memberId" required defaultValue=""><option value="" disabled>选择成员</option>{members.data?.items.map(member => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><Button type="submit">分配工位</Button></form> : <p>仅实验室管理员可以修改工位分配。</p>}</>}{editing && isAdmin && selected.kind === 'seat' && <div className="api-layout-controls"><span>移动 / 调整（吸附 10）</span><div><Button variant="outline" onClick={() => adjustSelected('y', -10)}>上移</Button><Button variant="outline" onClick={() => adjustSelected('y', 10)}>下移</Button><Button variant="outline" onClick={() => adjustSelected('x', -10)}>左移</Button><Button variant="outline" onClick={() => adjustSelected('x', 10)}>右移</Button></div><div><Button variant="outline" onClick={() => adjustSelected('width', -10)}>缩窄</Button><Button variant="outline" onClick={() => adjustSelected('width', 10)}>加宽</Button><Button variant="outline" onClick={() => adjustSelected('depth', -10)}>缩短</Button><Button variant="outline" onClick={() => adjustSelected('depth', 10)}>加深</Button></div><div><Button onClick={saveLayout}>保存布局</Button><Button variant="outline" onClick={() => { if (layout.data) setDraft(layout.data.layout); setEditing(false) }}>取消</Button></div><small>当前布局版本 {layout.data?.version ?? '—'}；并发修改会返回冲突，需刷新后重试。</small></div>}</Panel>}</>
+  async function exportPlan(format: 'svg' | 'png') {
+    if (!svgRef.current || exporting) return
+    setExporting(true)
+    try { await exportFloorPlan(svgRef.current, format); setNotice(format.toUpperCase() + ' 平面图已生成') }
+    catch { setNotice('图片导出失败，请重试') }
+    finally { setExporting(false) }
+  }
+  return <><Heading title="工位一览" description="沿用已确认的 31 个工位坐标，分配与布局由服务端保存。" actions={isAdmin && <Button variant="outline" onClick={() => setEditing(value => !value)}>{editing ? '退出标定' : '标定布局'}</Button>} /><LoadingOrError loading={seats.loading || layout.loading} error={seats.error || layout.error} retry={() => { seats.reload(); layout.reload() }} />{notice && <p className="api-feedback" role="status">{notice}</p>}<Panel className="api-seat-panel"><div className="api-seat-toolbar"><label className="field"><span>搜索工位或成员</span><input aria-label="搜索工位或成员" placeholder="工位编号、成员、方向…" value={query} onChange={event => setQuery(event.target.value)} /></label><div className="api-seat-legend"><span>人工工位 {seatCount}</span><span>已分配 {assignedCount}</span><span>空闲 {Math.max(0, seatCount - assignedCount)}</span><span>请假状态淡显</span></div><div className="api-actions"><button className="seat-export-button" disabled={exporting || seats.loading || layout.loading} onClick={() => void exportPlan('svg')}><ArrowDownToLine size={14} />SVG</button><button className="seat-export-button" disabled={exporting || seats.loading || layout.loading} onClick={() => void exportPlan('png')}><ArrowDownToLine size={14} />PNG</button></div></div><div className="api-seat-canvas"><FloorPlan ref={svgRef} seats={planSeats} selectedId={selected?.id} matches={query.trim() ? matchingSeatIds : undefined} showAssignments onSelect={id => setSelected(seats.data?.items.find(seat => seat.id === id) ?? null)} layout={planLayout} /></div></Panel>{selected && <Panel className="api-detail-panel"><button className="api-close" onClick={() => setSelected(null)} aria-label="关闭"><X size={18} /></button><h2>{selected.id}</h2>{selected.kind !== 'seat' ? <p>此位置为实验室设施，不可分配成员。</p> : selected.memberId ? <><p><strong>{selected.displayName}</strong> · {selected.direction ?? '研究方向待填写'} {selected.cohort ? `· ${selected.cohort} 级` : ''}</p>{selected.onLeaveNow && <Status tone="orange">当前请假</Status>}{isAdmin && <div className="api-actions"><Button variant="outline" onClick={release}>解除分配</Button></div>}</> : <><p>该工位尚未分配。</p>{isAdmin ? <form className="api-inline-form" onSubmit={assign}><label className="field"><span>选择成员</span><select name="memberId" required defaultValue=""><option value="" disabled>选择成员</option>{members.data?.items.map(member => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><Button type="submit">分配工位</Button></form> : <p>仅实验室管理员可以修改工位分配。</p>}</>}{editing && isAdmin && selected.kind === 'seat' && <div className="api-layout-controls"><span>移动 / 调整（吸附 10）</span><div><Button variant="outline" onClick={() => adjustSelected('y', -10)}>上移</Button><Button variant="outline" onClick={() => adjustSelected('y', 10)}>下移</Button><Button variant="outline" onClick={() => adjustSelected('x', -10)}>左移</Button><Button variant="outline" onClick={() => adjustSelected('x', 10)}>右移</Button></div><div><Button variant="outline" onClick={() => adjustSelected('width', -10)}>缩窄</Button><Button variant="outline" onClick={() => adjustSelected('width', 10)}>加宽</Button><Button variant="outline" onClick={() => adjustSelected('depth', -10)}>缩短</Button><Button variant="outline" onClick={() => adjustSelected('depth', 10)}>加深</Button></div><div><Button onClick={saveLayout}>保存布局</Button><Button variant="outline" onClick={() => { if (layout.data) setDraft(layout.data.layout); setEditing(false) }}>取消</Button></div><small>当前布局版本 {layout.data?.version ?? '—'}；并发修改会返回冲突，需刷新后重试。</small></div>}</Panel>}</>
 }
 
 function ProjectsPage({ session }: { session: Session }) {
