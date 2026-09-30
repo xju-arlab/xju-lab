@@ -27,7 +27,7 @@
 
 面向算法与科研实验室的成员、工位、项目、会议、请假、计算资源、成长考核和打印机状态管理平台，同时提供经审核的公开实验室主页。
 
-**已部署到 huawei2：[lab.icthub.top](https://lab.icthub.top)，成员入口为 [实验室平台](https://lab.icthub.top/app/dashboard)。** B00–B12 本仓实现与隔离验收完成，2026-09-30 [主分支七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912)。生产 PostgreSQL/Redis、独立 Authentik 客户端、HTTPS 路由和 SMTP SSL 认证已验证；真实账号完整登录、实际邮件投递及设备/OJ 联调仍待完成。已实现实名/唯一学号登记、班级解析年级、多选方向和角色约束；打印功能仅保留设备状态。Lab 与 OJ 是同级应用，共用身份提供方，角色按来源隔离。逐包证据见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
+**已部署到 huawei2：[lab.icthub.top](https://lab.icthub.top)，成员入口为 [实验室平台](https://lab.icthub.top/app/dashboard)。** B00–B12 本仓实现与隔离验收完成，2026-09-30 [主分支七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36708522067)。生产 PostgreSQL/Redis、独立 Authentik 客户端、HTTPS 路由和 SMTP SSL 认证已验证；真实账号完整登录、实际邮件投递及设备/OJ 联调仍待完成。已实现实名/唯一学号登记、班级解析年级、多选方向和角色约束；打印功能仅保留设备状态。Lab 与 OJ 是同级应用，共用身份提供方，角色按来源隔离。逐包证据见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
 
 ## 快速启动
 
@@ -58,7 +58,7 @@ pnpm test:seats
 | 模块 | 本地实现 | 生产或外部待验证 |
 |---|---|---|
 | 总览、项目、待办、会议 | API 模式、统一任务、项目成员/里程碑、会议行动项 | 真实团队资料和组织策略 |
-| 工位 | 确认布局、版本冲突、服务端分配与历史 | 真实名册导入 |
+| 工位 | 确认布局、版本冲突、服务端分配与历史；点击桌面显示带三角指向的成员信息气泡 | 真实名册导入 |
 | 请假 | 服务端状态机、审批、时区/重叠校验、审计与 outbox | 正式 SMTP 投递 |
 | 打印机状态 | 管理员登记设备及 Agent 凭据；只读 CUPS 状态采集；仪表盘在线/离线状态；无打印页或任务接口 | 真实设备上的状态 Agent 与 CUPS 联调 |
 | 计算资源 | 管理员 SSH 添加/删除、跳板与公钥免密、硬件识别、固定指标 API、缺失/过期状态与告警 | 实验室 SSH 网络/账号/指纹与真实 GPU、Prometheus/exporter |

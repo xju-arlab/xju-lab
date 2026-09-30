@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `d69596e` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912)。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V8/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
+> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `6da246c` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36708522067)。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V8/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
@@ -13,6 +13,8 @@
 该提示词授权持续开发与本仓提交推送；不把缺少的生产凭据、真实设备或其他项目的变更当作已存在。开发与外部验收的边界见计划第 1、6 节。
 
 ## 当前实现与待复验
+
+- 真实 API 页面已统一使用原有 ComboBox；会议参会成员支持多选，表单保留必填与重置。工位点击直接显示三角指向的小圆角气泡，展示编号、姓名、班级、方向和当前请假状态；普通浏览不再使用地图下方详情面板。API 图形与气泡不再从同名演示成员补资料。测试、发布证据见 `progress.md` 最新记录。
 
 - 实名登记页已按最新六点精简：三个必填红星、单一班级示例、小圆角多选方向，无自定义方向入口、邮箱说明和身份 issuer 展示；具体本轮检查见 `progress.md`。
 

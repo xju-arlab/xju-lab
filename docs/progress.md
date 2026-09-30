@@ -6,9 +6,18 @@
 
 ## 当前状态
 
-本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `d69596e` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `6da246c` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36708522067)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
+
+### 2026-09-30：恢复统一下拉与工位三角气泡
+
+- 正式 API 模式的 12 处原生下拉统一复用已有 ComboBox，包括 ACM 比赛、理论考试、培养期、成员/负责人/审批人和时区；会议参会成员保留多选。补齐必填提示、原生表单校验、FormData 多值、重置和空列表反馈，保留原有键盘与浮层样式。
+- 工位气泡复用已确认原型的桌面锚点与三角定位，8px 小圆角；展示编号、真实姓名、班级、方向与当前请假（若有）。管理员分配/解除在气泡内完成，布局标定控件继续保留；API 成员信息不再从同名 demo 名册补全。
+- Windows 隔离依赖目录执行 TypeScript、Vite production build（1655 模块）、17 项考核测试、工位回归和 Playwright 用例加载，均通过。工位回归新增 API 与 demo 同名时不回退、2027 年级和新方向字段保真检查。
+- 隔离 Chromium 合成会话覆盖 375/768/1440 px：气泡/三角/字段/边界、空与有选项菜单、键盘和焦点返回、外部点击、必填阻止提交、表单重置、多选 FormData、已分配成员过滤。截图 `C:\Users\genev\AppData\Local\Temp\xju-lab-seat-bubble-{375,768,1440}.png` 与 `xju-lab-combobox-{375,768,1440}.png`；核对桌面与手机截图，不含真实成员数据。
+- 代码 `6da246c` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36708522067)。真实 OIDC/API 浏览器业务用例 37.5 秒，覆盖必填拦截、统一下拉提交、工位分配后气泡展示、刷新持久化、Escape 焦点返回和 SVG/PNG 导出；SSH 用例 14.1 秒，两项共 52.6 秒。
+- huawei2 在 `main` 执行 `./deploy.sh` 成功，应用与 Web 已重建启动，PostgreSQL/Redis 健康。公网 `/`、`/app/seats`、`/api/v1/health`、`/api/v1/ready` 均 200。发布日志：`~/.local/state/xju-lab-tools/deploy-seat-bubble.log`。完整生产成员资料展示仍需真实账号查看，本轮不代替本人登录。
 
 ### 2026-09-30：精简成员实名登记页
 
