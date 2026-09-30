@@ -144,6 +144,40 @@ class BaselineIntegrationTest {
         assertThat(response.getBody()).contains("AUTHENTICATION_REQUIRED", "requestId");
     }
 
+    @Test void oidcIdentityUsesIssuerAndSubjectAndCannotBeReassigned() throws Exception {
+        UUID first=member("shared-subject",null);
+        UUID second=jdbc.queryForObject("INSERT INTO member(display_name) VALUES ('second issuer identity') RETURNING id",UUID.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update("INSERT INTO external_identity(member_id,issuer,subject) VALUES (?, 'http://idp.invalid', 'shared-subject')",second))
+            .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+        jdbc.update("INSERT INTO external_identity(member_id,issuer,subject) VALUES (?, 'http://other-idp.invalid', 'shared-subject')",second);
+
+        mvc.perform(get("/api/v1/session").with(login("http://idp.invalid","shared-subject")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.memberId").value(first.toString()));
+        mvc.perform(get("/api/v1/session").with(login("http://other-idp.invalid","shared-subject")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.memberId").value(second.toString()));
+    }
+
+    @Test void memberDeactivationImmediatelyRevokesExistingIdentitySessionsAndApiMutationsRequireCsrf() throws Exception {
+        member("status-admin","LAB_ADMIN");
+        UUID target=member("status-target","MEMBER");
+        mvc.perform(get("/api/v1/session").with(login("status-target"))).andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/admin/members/"+target+"/status").with(login("status-admin"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"active\":false,\"version\":1}"))
+            .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT active FROM member WHERE id=?",Boolean.class,target)).isTrue();
+
+        mvc.perform(patch("/api/v1/admin/members/"+target+"/status").with(login("status-admin")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"active\":false,\"version\":1}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false)).andExpect(jsonPath("$.version").value(2));
+        mvc.perform(get("/api/v1/session").with(login("status-target"))).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT active FROM external_identity WHERE member_id=?",Boolean.class,target)).isFalse();
+
+        mvc.perform(patch("/api/v1/admin/members/"+target+"/status").with(login("status-admin")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"active\":true,\"version\":2}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(true)).andExpect(jsonPath("$.version").value(3));
+        mvc.perform(get("/api/v1/session").with(login("status-target"))).andExpect(status().isOk());
+    }
+
     @Test void adminMemberDirectoryRequiresAnAdministratorAndReportsOjSyncState() throws Exception {
         UUID admin=member("member-directory-admin","LAB_ADMIN");
         UUID target=member("member-directory-target","SUPER_ADMIN");
@@ -222,13 +256,31 @@ class BaselineIntegrationTest {
         String meeting=new com.fasterxml.jackson.databind.ObjectMapper().readTree(meetingCreated.getResponse().getContentAsString()).get("id").asText();
         mvc.perform(post("/api/v1/meetings/"+meeting+"/actions").with(login("collab-owner")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"title\":\"Reproduce the baseline\",\"assigneeId\":\""+actor+"\"}"))
-            .andExpect(status().isCreated());
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("OPEN"));
+        String taskId=jdbc.queryForObject("SELECT id FROM task WHERE project_id=? AND title='Reproduce the baseline'",UUID.class,UUID.fromString(project)).toString();
         mvc.perform(get("/api/v1/projects/"+project+"/tasks").with(login("collab-owner"))).andExpect(status().isOk())
-            .andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].title").value("Reproduce the baseline"));
+            .andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].title").value("Reproduce the baseline"))
+            .andExpect(jsonPath("$.items[0].status").value("OPEN"));
         mvc.perform(get("/api/v1/meetings/"+meeting+"/actions").with(login("collab-owner"))).andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].title").value("Reproduce the baseline"));
+            .andExpect(jsonPath("$[0].title").value("Reproduce the baseline")).andExpect(jsonPath("$[0].status").value("OPEN"));
         mvc.perform(get("/api/v1/tasks/mine").with(login("collab-owner"))).andExpect(status().isOk())
-            .andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].title").value("Reproduce the baseline"));
+            .andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].title").value("Reproduce the baseline"))
+            .andExpect(jsonPath("$.items[0].status").value("OPEN"));
+        mvc.perform(patch("/api/v1/tasks/"+taskId).with(login("collab-unrelated")).with(csrf()).header("If-Match-Version",1)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DONE\"}"))
+            .andExpect(status().isNotFound());
+        mvc.perform(patch("/api/v1/tasks/"+taskId).with(login("collab-owner")).with(csrf()).header("If-Match-Version",1)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DONE\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DONE")).andExpect(jsonPath("$.version").value(2));
+        mvc.perform(get("/api/v1/projects/"+project+"/tasks").with(login("collab-owner"))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].status").value("DONE"));
+        mvc.perform(get("/api/v1/meetings/"+meeting+"/actions").with(login("collab-owner"))).andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].status").value("DONE"));
+        mvc.perform(get("/api/v1/tasks/mine").with(login("collab-owner"))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].status").value("DONE"));
+        mvc.perform(patch("/api/v1/tasks/"+taskId).with(login("collab-owner")).with(csrf()).header("If-Match-Version",1)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"OPEN\"}"))
+            .andExpect(status().isConflict());
         mvc.perform(get("/api/v1/meetings").with(login("collab-unrelated"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
         mvc.perform(get("/api/v1/meetings/"+meeting+"/minutes").with(login("collab-owner"))).andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(1)).andExpect(jsonPath("$.body").value(""));
@@ -539,9 +591,10 @@ class BaselineIntegrationTest {
         if(role!=null)jdbc.update("INSERT INTO role_assignment(member_id,role,source) VALUES (?,?,?)",id,role,role.equals("SUPER_ADMIN")?"bootstrap":"test-fixture");
         return id;
     }
-    private RequestPostProcessor login(String subject){
+    private RequestPostProcessor login(String subject){return login("http://idp.invalid",subject);}
+    private RequestPostProcessor login(String issuer,String subject){
         Instant now=Instant.now();
-        return oidcLogin().idToken(token->token.claim("iss","http://idp.invalid").claim("sub",subject).claim("aud",List.of("integration-test")).issuedAt(now.minusSeconds(30)).expiresAt(now.plusSeconds(300)));
+        return oidcLogin().idToken(token->token.claim("iss",issuer).claim("sub",subject).claim("aud",List.of("integration-test")).issuedAt(now.minusSeconds(30)).expiresAt(now.plusSeconds(300)));
     }
     private static java.nio.file.Path temporaryPrivateFiles(){try{return java.nio.file.Files.createTempDirectory("xju-lab-private-files-");}catch(java.io.IOException ex){throw new ExceptionInInitializerError(ex);}}
 }
