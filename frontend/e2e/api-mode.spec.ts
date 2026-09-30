@@ -299,7 +299,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const anonymousContext = await browser.newContext()
   const anonymousPage = await anonymousContext.newPage()
   await anonymousPage.goto('/')
-  await expect(anonymousPage.locator('h1')).toContainText(publicName)
+  await expect(anonymousPage.getByRole('heading', { name: new RegExp(publicName) })).toBeVisible()
   await expect(anonymousPage.getByText(publicProject)).toBeVisible()
   await expect(anonymousPage.getByText(taskTitle)).toHaveCount(0)
   await adminPage.getByRole('button', { name: '撤回公开内容' }).click()
