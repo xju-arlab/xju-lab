@@ -746,7 +746,7 @@ class BaselineIntegrationTest {
         mvc.perform(get(path+"/series?metric=CPU&range=2h").with(login("metrics-member"))).andExpect(status().isBadRequest());
         jdbc.update("UPDATE server_metric_sample SET sampled_at=now()-interval '2 minutes' WHERE asset_id=?",id);
         mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("STALE")).andExpect(jsonPath("$.metrics[0].status").value("STALE"));
-        org.mockito.Mockito.when(sshWorker.run(any())).thenReturn(mapper.readTree("{\"status\":\"FAILED\"}"));
+        org.mockito.Mockito.doReturn(mapper.readTree("{\"status\":\"FAILED\"}")).when(sshWorker).run(any());
         sshMonitoring.collect(id);
         mvc.perform(get(path+"/metrics").with(login("metrics-member"))).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("SSH_UNAVAILABLE")).andExpect(jsonPath("$.metrics[0].value").doesNotExist());
         jdbc.update("UPDATE server_asset SET enabled=false WHERE id=?",id);
