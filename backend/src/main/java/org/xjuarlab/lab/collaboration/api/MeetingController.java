@@ -48,7 +48,7 @@ public class MeetingController {
     }
     @GetMapping("/{meetingId}/minutes") public MinutesView minutes(Authentication auth,@PathVariable UUID meetingId){
         UUID actor=current.id(auth);MeetingView meeting=loadMeeting(meetingId);requireAccess(meeting.projectId(),meetingId,actor);
-        return jdbc.query("SELECT version,body FROM minutes_revision WHERE meeting_id=? ORDER BY version DESC LIMIT 1",(rs,row)->new MinutesView(meetingId,rs.getLong(1),rs.getString(2))).stream().findFirst().orElse(new MinutesView(meetingId,meeting.version(),""));
+        return jdbc.query("SELECT version,body FROM minutes_revision WHERE meeting_id=? ORDER BY version DESC LIMIT 1",(rs,row)->new MinutesView(meetingId,rs.getLong(1),rs.getString(2)),meetingId).stream().findFirst().orElse(new MinutesView(meetingId,meeting.version(),""));
     }
     @PutMapping("/{meetingId}/minutes") @Transactional public MinutesView saveMinutes(Authentication auth,@PathVariable UUID meetingId,@RequestHeader("If-Match-Version") long expected,@Valid @RequestBody SaveMinutes body){
         UUID actor=current.id(auth);MeetingView meeting=loadMeetingForUpdate(meetingId);requireAccess(meeting.projectId(),meetingId,actor);

@@ -230,8 +230,12 @@ class BaselineIntegrationTest {
         mvc.perform(get("/api/v1/tasks/mine").with(login("collab-owner"))).andExpect(status().isOk())
             .andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].title").value("Reproduce the baseline"));
         mvc.perform(get("/api/v1/meetings").with(login("collab-unrelated"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/meetings/"+meeting+"/minutes").with(login("collab-owner"))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(1)).andExpect(jsonPath("$.body").value(""));
         mvc.perform(put("/api/v1/meetings/"+meeting+"/minutes").with(login("collab-owner")).with(csrf()).header("If-Match-Version",1).contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Decision recorded\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+        mvc.perform(get("/api/v1/meetings/"+meeting+"/minutes").with(login("collab-owner"))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(2)).andExpect(jsonPath("$.body").value("Decision recorded"));
         mvc.perform(put("/api/v1/meetings/"+meeting+"/minutes").with(login("collab-owner")).with(csrf()).header("If-Match-Version",1).contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Stale edit\"}"))
             .andExpect(status().isConflict());
     }
