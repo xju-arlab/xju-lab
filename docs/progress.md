@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `3a17b7b` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36723780669)，实时查询现为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `704d134` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36726564206)，惠普只读状态接口已验证持续同步，服务器实时查询仍为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
 
@@ -14,8 +14,10 @@
 
 - 按用户提供地址新增固定 `hp.icthub.top/v1/status` 适配器与 V10，默认关闭；启用后幂等登记设备、每 15 秒读取。网络不占用业务事务，限制超时/字段，禁止重定向。管理员停用停止同步，旧 Agent 兼容；不新增打印页或任务接口。
 - 总览显示源名称/型号、纸张报告与独立的彩色/黑色墨盒余量，保持估计和未知语义；源失联、过期或离线不能误报在线，旧读数标明最近读取时间。名称和数值来自接口，不硬编码生产读数。
-- 本地 OpenAPI 生成、TypeScript、Vite production build（1666 模块）和 3 项打印机浏览器回归通过。覆盖两墨盒估计值、未知/离线/过期/不可用、纸张差异、管理按钮与 375/768/1440 px；截图位于 Windows 隔离验证目录 `frontend/test-results/printer-status-printer-car-1fbde-dges-and-fits-all-viewports/`，已查看手机截图。新增 3 项解码单测及真实 PostgreSQL 权限/幂等/失败保留/停用恢复用例，等待本次 CI 执行。
-- huawei2 已直接读取该接口，获得「算法实验室·惠普打印机」和 `HP DeskJet 4900 series`；宿主机代理路径曾返回 403，直连成功。应用发布与上线后持续同步尚待本次提交部署验证。
+- 本地 OpenAPI 生成、TypeScript、Vite production build（1666 模块）和 3 项打印机浏览器回归通过，另重跑 4 项缓存/登录/SSH 开关用例通过。覆盖两墨盒估计值、未知/离线/过期/不可用、纸张差异、管理按钮与 375/768/1440 px；截图位于 Windows 隔离验证目录 `frontend/test-results/printer-status-printer-car-1fbde-dges-and-fits-all-viewports/`，已查看手机截图。新增 3 项解码单测及真实 PostgreSQL 权限/幂等/失败保留/停用恢复用例，后端 CI 全部 46 项测试通过。
+- huawei2 已通过 `./deploy.sh` 发布 `704d134`，启用固定源，数据库 V10；公网 ready 200、匿名打印机 API 401、`.env` 600。真实同步获得「算法实验室·惠普打印机」和 `HP DeskJet 4900 series`；两次观察时间从 14:07:49Z 推进至 14:08:52Z，检查时在线/空闲，彩色约 20%、黑色约 50%，纸张「未报告缺纸」；仅一个绑定、无 Agent 凭据。宿主机代理路径曾返回 403，应用直连成功。日志为 `~/.local/state/xju-lab-tools/deploy-printer-status.log` / `hp-status-{first,repeat}.log`，没有复制凭据。
+- 公网资源 `index-BcfQ1GAI.js` / `index-oftsGqVa.css` 已更新，对公网构建使用隔离合成 API 重跑 3 项打印机浏览器回归通过；首次页面加载网络超时，完整重跑成功，无生产写入。真实设备断电、缺纸及换墨盒尚未现场验证。
+- 代码 `704d134` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36726564206)：后端 46 项、浏览器 11 项（含真实 OIDC/业务闭环与新增状态用例），以及前端、统一验证脚本、SSH、状态 Agent 和隔离备份恢复。
 
 ### 2026-09-30：统一中文日期输入与展示
 

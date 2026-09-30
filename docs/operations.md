@@ -85,6 +85,6 @@ cd /home/winbeau/projects/xju-lab && ./deploy.sh
 
 ## SSH 采样与镜像权限
 
-已保存 SSH 资产无需配置 Prometheus 即可后台采样；表 `server_metric_sample` 保存 25 小时历史。SSH 密钥和已确认指纹继续保存在原 `ssh-state` 卷。采样没有密码认证或自动确认新指纹，失败记录与有效读数分开；监控曲线从实际采样开始积累。
+已保存 SSH 资产无需配置 Prometheus；开启「实时查询」后由鉴权请求触发采样，关闭时不自动采样；表 `server_metric_sample` 保存 25 小时历史。SSH 密钥和已确认指纹继续保存在原 `ssh-state` 卷。采样没有密码认证或自动确认新指纹，失败记录与有效读数分开；监控曲线从实际采样开始积累。
 
 镜像显式赋予 `/app/ssh-helper` 代码读取和目录遍历权限，并以普通 `app` 账户加载 worker 验证；私钥目录权限不变。CI 会用目录 700/脚本 600 模拟受限宿主机，避免 Git 拉取时的 umask 导致上线后不可读。构建工具独立分层、Maven 依赖使用 BuildKit 缓存，SSH 代码改动不再使 Java 源码编译层失效。

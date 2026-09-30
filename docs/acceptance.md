@@ -22,7 +22,7 @@ SSH 服务器管理回归：管理员入口/普通成员只读；挂载和粘贴
 |---|---|---|
 | 前端 | OpenAPI 类型漂移检查、build、assessment/seats 回归通过；Keycloak 管理员/双成员登录、实名登记和跨用户隔离通过。13 个 API 路由在 375/768/1440 px 无页面级横向溢出；移动导航、错误/重试、空/无权状态、静态 Service Worker 缓存、CSV/SVG/PNG 内容通过 | 屏幕阅读器和真实设备辅助功能检查 |
 | 后端 | CI PostgreSQL 17.6、Redis、RustFS 集成环境；迁移、权限、注册、并发业务闭环通过 | 目标环境容量、生产部署与完整业务数据恢复验收 |
-| Printer Agent | Python Agent 心跳/只读 CUPS 状态链路和浏览器在线状态通过；旧打印取件/任务路由返回 404；应用无打印页或打印队列 | huawei2 Agent、真实打印机与耗材状态映射 |
+| 打印机状态 | Python Agent/CUPS 隔离状态链路通过；惠普固定 HTTP 源已在 huawei2 持续同步，设备名称/型号、纸张/独立墨盒与过期/失联呈现通过；应用无打印页或打印队列 | 现场断电/缺纸/更换耗材后的读数核对 |
 | 部署与恢复 | CI 干净 Compose 启动 API/Web/Keycloak/数据服务并通过健康检查；统一 `scripts/verify.sh` 与 PostgreSQL/RustFS 隔离恢复演练通过。huawei2 已拉取 main，生产 `.env` 缺失时部署脚本按预期停止 | 完整业务数据库/文件一致性、生产 RTO/RPO、生产配置后部署和回退 |
 | 外部联调 | LabOS 固定用途 OJ connector/outbox 和接口契约已交付；主仓没有修改 OJ 系统 | OJ 端实现/补丁、Authentik、SMTP、生产 S3、Prometheus/exporter、域名/TLS |
 
