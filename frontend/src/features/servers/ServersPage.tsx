@@ -17,8 +17,18 @@ const base = '/monitor/admin/ssh'
 const message = (error: unknown) => error instanceof Error ? error.message : '操作失败，请稍后重试'
 const size = (value: number | null) => value == null ? '待识别' : `${(value / 1024 ** 3).toFixed(1)} GiB`
 
+function gpuSummary(gpus: string[]) {
+  const models = new Map<string, number>()
+  for (const gpu of gpus) {
+    // nvidia-smi includes raw memory.total after the model name.
+    const model = gpu.replace(/,\s*\d+(?:\.\d+)?\s*(?:MiB)?\s*$/, '').trim()
+    models.set(model, (models.get(model) ?? 0) + 1)
+  }
+  return [...models].map(([model, count]) => count > 1 ? `${model} ✕ ${count}` : model).join('；')
+}
+
 function HardwareDetails({ data }: { data: Hardware }) {
-  return <dl className="server-hardware"><div><dt>服务器类型</dt><dd>{data.kind === 'UNKNOWN' ? '待确认' : `${data.kind} 服务器`}</dd></div><div><dt>处理器</dt><dd>{data.cpuModel ?? '待识别'}{data.cpuCores == null ? '' : ` · ${data.cpuCores} 核`}</dd></div><div><dt>内存 / 系统盘</dt><dd>{size(data.memoryBytes)} / {size(data.diskBytes)}</dd></div><div><dt>系统</dt><dd>{data.os ?? '待识别'}</dd></div>{data.gpus.length > 0 && <div><dt>GPU</dt><dd>{data.gpus.join('；')}</dd></div>}</dl>
+  return <dl className="server-hardware"><div><dt>服务器类型</dt><dd>{data.kind === 'UNKNOWN' ? '待确认' : `${data.kind} 服务器`}</dd></div><div><dt>处理器</dt><dd>{data.cpuModel ?? '待识别'}{data.cpuCores == null ? '' : ` · ${data.cpuCores} 核`}</dd></div><div><dt>内存 / 系统盘</dt><dd>{size(data.memoryBytes)} / {size(data.diskBytes)}</dd></div><div><dt>系统</dt><dd>{data.os ?? '待识别'}</dd></div>{data.gpus.length > 0 && <div><dt>GPU</dt><dd>{gpuSummary(data.gpus)}</dd></div>}</dl>
 }
 
 function AddServerDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
@@ -114,8 +124,9 @@ export function ServersPage({ session }: { session: Session }) {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<Asset | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
+  const [monitoring, setMonitoring] = useState(false)
   const [seriesId, setSeriesId] = useState<string | null>(null)
-  const seriesQuery = useQuery<{ points: { timestamp: string; value: number }[] }>(seriesId ? `/monitor/assets/${seriesId}/series?metric=CPU&range=1h` : null)
+  const seriesQuery = useQuery<{ points: { timestamp: string; value: number }[] }>(monitoring && seriesId ? `/monitor/assets/${seriesId}/series?metric=CPU&range=1h` : null)
   const series = seriesQuery.data
   async function toggle(asset: Asset) {
     try { await apiRequest(`/monitor/admin/assets/${asset.id}`, { method: 'PATCH', headers: { 'If-Match-Version': String(asset.version) }, body: { name: asset.name, prometheusJob: asset.prometheusJob, targetLabel: asset.targetLabel, gpuSupported: asset.gpuSupported, enabled: !asset.enabled } }); setNotice('服务器状态已更新'); reload() }
@@ -128,14 +139,13 @@ export function ServersPage({ session }: { session: Session }) {
     catch (reason) { setNotice(message(reason)); setDeleting(null); reload() }
     finally { setDeletingBusy(false) }
   }
-  return <><div className="page-heading"><div><div className="eyebrow">算法与科研实验室</div><h1>计算资源</h1><p>服务器硬件与运行状态，缺失指标显示待接入。</p></div>{admin && <Button onClick={() => setAdding(true)}><Plus size={16} />添加服务器</Button>}</div>
+  return <><div className="page-heading"><div><div className="eyebrow">算法与科研实验室</div><h1>计算资源</h1><p>服务器硬件与运行状态</p></div><div className="server-heading-actions"><button type="button" className="server-monitor-toggle" role="switch" aria-label="实时查询" aria-checked={monitoring} onClick={() => { setMonitoring(value => !value); setSeriesId(null) }}><span className="server-toggle-track" aria-hidden="true"><span /></span>实时查询</button>{admin && <Button onClick={() => setAdding(true)}><Plus size={16} />添加服务器</Button>}</div></div>
     <QueryFeedback loading={loading} error={error} retry={reload} />{notice && <p role="status" className="api-feedback">{notice}</p>}
     <div className="api-card-grid">{assets.map(asset => <section key={asset.id} className="panel api-panel"><div className="section-heading"><h2><Server size={18} /> {asset.name}</h2><span className={`tag tag-${asset.enabled ? 'teal' : 'gray'}`}>{asset.hardware?.kind === 'GPU' ? 'GPU' : asset.hardware?.kind === 'CPU' ? 'CPU' : '服务器'} · {asset.enabled ? '已登记' : '已停用'}</span></div>
       {asset.hardware ? <HardwareDetails data={asset.hardware} /> : <p className="api-note">硬件信息待录入。</p>}
       {asset.discoveredAt && <p className="api-note">硬件采集：{new Date(asset.discoveredAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}（北京时间）</p>}
-      <p className="api-note">{!asset.enabled ? '监控已停用' : asset.monitoringSource === 'SSH' ? 'SSH 自动采集 · 每 30 秒更新' : asset.monitoringSource === 'PROMETHEUS' ? 'Prometheus 自动采集' : '尚未配置采集来源'}</p>
-      <AssetMetrics asset={asset} />
-      <div className="server-actions">{asset.enabled && <Button variant="outline" onClick={() => { if (seriesId === asset.id) seriesQuery.reload(); else setSeriesId(asset.id) }}>读取 1 小时 CPU 曲线</Button>}{admin && <><Button variant="outline" onClick={() => void toggle(asset)}>{asset.enabled ? '停用' : '启用'}</Button><Button variant="ghost" aria-label={`删除${asset.name}`} onClick={() => setDeleting(asset)}><Trash2 size={16} />删除</Button></>}</div>
+      {monitoring && asset.enabled && <AssetMetrics asset={asset} />}
+      <div className="server-actions">{monitoring && asset.enabled && <Button variant="outline" onClick={() => { if (seriesId === asset.id) seriesQuery.reload(); else setSeriesId(asset.id) }}>读取 1 小时 CPU 曲线</Button>}{admin && <><Button variant="outline" onClick={() => void toggle(asset)}>{asset.enabled ? '停用' : '启用'}</Button><Button variant="ghost" aria-label={`删除${asset.name}`} onClick={() => setDeleting(asset)}><Trash2 size={16} />删除</Button></>}</div>
       {seriesId === asset.id && <QueryFeedback loading={seriesQuery.loading} error={seriesQuery.error} retry={seriesQuery.reload} />}{seriesId === asset.id && series && (series.points.length > 0 ? <svg className="api-series" viewBox="0 0 300 90" role="img" aria-label="过去一小时 CPU 使用率"><polyline fill="none" stroke="currentColor" strokeWidth="2" points={series.points.map((point, index) => `${series.points.length < 2 ? 150 : index * 300 / (series.points.length - 1)},${82 - Math.max(0, Math.min(100, point.value)) * .72}`).join(' ')} /></svg> : <p className="api-note">所选时段没有采样点。</p>)}
     </section>)}</div>{!loading && !error && assets.length === 0 && <section className="panel api-panel"><p>服务器尚未登记。{admin ? '点击“添加服务器”开始连接。' : '请联系管理员添加。'}</p></section>}
     {adding && <AddServerDialog onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setNotice('服务器已添加'); reload() }} />}

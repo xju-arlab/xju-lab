@@ -726,6 +726,46 @@ class BaselineIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.examVersion").value(version+1));
     }
 
+    @Test void sshMonitoringOnlyConnectsOnDemandAndReusesRecentOrRunningReads() throws Exception {
+        member("on-demand-member",null);
+        UUID id=jdbc.queryForObject("INSERT INTO server_asset(name,ssh_connection) VALUES ('按需采集测试','{\"nodes\":[{\"host\":\"fixture\",\"user\":\"lab\",\"port\":22}]}') RETURNING id",UUID.class);
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        var entered=new java.util.concurrent.CountDownLatch(1);
+        var release=new java.util.concurrent.CountDownLatch(1);
+        org.mockito.Mockito.when(sshWorker.run(any())).thenAnswer(call->{
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            entered.countDown();
+            assertThat(release.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            return mapper.readTree("{\"status\":\"CONNECTED\",\"metrics\":[{\"metric\":\"CPU\",\"unit\":\"%\",\"value\":12,\"status\":\"AVAILABLE\"}]}");
+        });
+        try(var onDemand=new org.xjuarlab.lab.monitoring.SshMonitoring(jdbc,mapper,sshWorker,true)) {
+            onDemand.cleanup();
+            mvc.perform(get("/api/v1/monitor/assets").with(login("on-demand-member"))).andExpect(status().isOk());
+            onDemand.series(id,"CPU","1h",java.time.Duration.ofHours(1));
+            org.mockito.Mockito.verifyNoInteractions(sshWorker);
+            assertThat(onDemand.metrics(id,false).state()).isEqualTo("COLLECTING");
+            assertThat(entered.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(onDemand.metrics(id,false).state()).isEqualTo("COLLECTING");
+            verify(sshWorker,org.mockito.Mockito.times(1)).run(any());
+            release.countDown();
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(()->
+                assertThat(onDemand.metrics(id,false).state()).isEqualTo("SSH_CONNECTED"));
+            onDemand.cleanup();
+            onDemand.metrics(id,false);
+            verify(sshWorker,org.mockito.Mockito.times(1)).run(any());
+            jdbc.update("UPDATE server_metric_sample SET sampled_at=now()-interval '35 seconds' WHERE asset_id=?",id);
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(()-> {
+                onDemand.metrics(id,false);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM server_metric_sample WHERE asset_id=?",Integer.class,id)).isEqualTo(2);
+            });
+            verify(sshWorker,org.mockito.Mockito.times(2)).run(any());
+            jdbc.update("UPDATE server_metric_sample SET sampled_at=now()-interval '26 hours' WHERE asset_id=?",id);
+            onDemand.cleanup();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM server_metric_sample WHERE asset_id=?",Integer.class,id)).isZero();
+            verify(sshWorker,org.mockito.Mockito.times(2)).run(any());
+        } finally { release.countDown(); jdbc.update("DELETE FROM server_asset WHERE id=?",id); }
+    }
+
     @Test void sshMonitoringPersistsRealSamplesAndSeparatesFailureDisabledAndStale() throws Exception {
         member("metrics-member",null);
         var mapper=new com.fasterxml.jackson.databind.ObjectMapper();

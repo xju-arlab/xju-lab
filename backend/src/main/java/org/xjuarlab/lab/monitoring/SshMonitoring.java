@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,9 +18,9 @@ import org.springframework.stereotype.Service;
 import org.xjuarlab.lab.servers.infrastructure.SshWorker;
 import static org.xjuarlab.lab.monitoring.MonitoringController.*;
 
-/** Bounded background reads over saved SSH connections. No network calls inside a database transaction. */
+/** Bounded, request-triggered reads over saved SSH connections. No network calls inside a database transaction. */
 @Service
-public class SshMonitoring {
+public class SshMonitoring implements AutoCloseable {
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
     private final SshWorker worker;
@@ -32,16 +31,14 @@ public class SshMonitoring {
             @Value("${lab.monitor.ssh-enabled:true}") boolean enabled) {
         this.jdbc=jdbc; this.mapper=mapper; this.worker=worker; this.enabled=enabled;
     }
-    @PreDestroy void close() { executor.shutdownNow(); }
+    @Override @PreDestroy public void close() { executor.shutdownNow(); }
 
     public boolean supports(UUID id) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT ssh_connection IS NOT NULL AND (prometheus_job IS NULL OR target_label IS NULL) FROM server_asset WHERE id=?",Boolean.class,id));
     }
-    @Scheduled(fixedDelayString="${lab.monitor.ssh-poll-ms:30000}", initialDelayString="${lab.monitor.ssh-initial-delay-ms:5000}")
-    public void poll() {
-        if (!enabled) return;
+    @Scheduled(fixedDelay=3600000, initialDelay=3600000)
+    public void cleanup() {
         jdbc.update("DELETE FROM server_metric_sample WHERE sampled_at < now()-interval '25 hours'");
-        for (UUID id : jdbc.query("SELECT s.id FROM server_asset s LEFT JOIN LATERAL (SELECT max(sampled_at) AS latest FROM server_metric_sample WHERE asset_id=s.id) m ON true WHERE enabled AND ssh_connection IS NOT NULL AND (prometheus_job IS NULL OR target_label IS NULL) AND (m.latest IS NULL OR m.latest < now()-interval '25 seconds') ORDER BY m.latest NULLS FIRST",(rs,row)->(UUID)rs.getObject(1))) request(id);
     }
     private synchronized void request(UUID id) {
         if (!enabled || running.size() >= 2 || !running.add(id)) return;
@@ -69,15 +66,16 @@ public class SshMonitoring {
         if(samples.isEmpty()) { request(id); return new AssetMetrics(id,"COLLECTING",unavailable("COLLECTING",gpu)); }
         Sample sample=samples.getFirst();
         boolean stale=sample.time().isBefore(OffsetDateTime.now().minusSeconds(90));
-        if(stale) request(id);
-        if(!sample.state().equals("CONNECTED")) return new AssetMetrics(id,"SSH_UNAVAILABLE",unavailable("SSH_UNAVAILABLE",gpu));
+        boolean refreshing=enabled && sample.time().isBefore(OffsetDateTime.now().minusSeconds(25));
+        if(refreshing) request(id);
+        if(!sample.state().equals("CONNECTED")) return new AssetMetrics(id,refreshing?"COLLECTING":"SSH_UNAVAILABLE",unavailable("SSH_UNAVAILABLE",gpu));
         List<MetricView> result=new ArrayList<>();
         for(JsonNode metric:sample.metrics()) {
             Double value=metric.path("value").isNumber()?metric.path("value").asDouble():null;
             String status=metric.path("status").asText("NO_DATA");
             result.add(new MetricView(metric.path("metric").asText(),metric.path("unit").asText(),value,stale&&value!=null?"STALE":status,sample.time(),sample.time().plusSeconds(90)));
         }
-        return new AssetMetrics(id,stale?"STALE":"SSH_CONNECTED",List.copyOf(result));
+        return new AssetMetrics(id,refreshing?"COLLECTING":stale?"STALE":"SSH_CONNECTED",List.copyOf(result));
     }
     public MetricSeries series(UUID id, String metric, String range, Duration duration) {
         var points=jdbc.query("SELECT s.sampled_at,(m.value->>'value')::double precision FROM server_metric_sample s CROSS JOIN LATERAL jsonb_array_elements(s.metrics) m(value) WHERE s.asset_id=? AND s.sampled_at>=? AND s.state='CONNECTED' AND m.value->>'metric'=? AND m.value->>'status'='AVAILABLE' AND jsonb_typeof(m.value->'value')='number' ORDER BY s.sampled_at",(rs,row)->new SeriesPoint(rs.getTimestamp(1).toInstant(),rs.getDouble(2),"AVAILABLE"),id,OffsetDateTime.now().minus(duration),metric);

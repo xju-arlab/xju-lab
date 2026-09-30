@@ -1,5 +1,66 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test('server live queries are opt-in, stop when switched off, and reset on revisits', async ({ page }, testInfo) => {
+  const { state } = await fixtures(page)
+  state.delay = 0
+  let metricReads = 0
+  const hardware = { kind: 'GPU', cpuModel: '测试处理器', cpuCores: 32, memoryBytes: 137438953472, diskBytes: 1099511627776, os: 'Linux', gpuDetection: 'NVIDIA_SMI', gpus: Array(4).fill('NVIDIA H100 80GB HBM3, 81559') }
+  await page.route('**/api/v1/monitor/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/assets')) {
+      await route.fulfill({ json: [
+        { id: 'gpu', name: '科研计算服务器', version: 1, enabled: true, monitoringSource: 'SSH', gpuSupported: true, hardware },
+        { id: 'mixed', name: '异构测试服务器', version: 1, enabled: false, monitoringSource: 'SSH', gpuSupported: true, hardware: { ...hardware, gpus: ['NVIDIA H100 80GB HBM3, 81559', 'NVIDIA H100 80GB HBM3, 81559', 'NVIDIA L4, 23034'] } },
+      ] }); return
+    }
+    if (path.endsWith('/metrics')) {
+      metricReads++
+      await route.fulfill({ json: { state: 'SSH_CONNECTED', metrics: [{ metric: 'CPU', unit: '%', value: 12.5, status: 'AVAILABLE' }] } }); return
+    }
+    throw new Error(`Unexpected monitor request: ${path}`)
+  })
+  await page.clock.install()
+  for (const width of [375, 768, 1440]) {
+    const before = metricReads
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/app/servers')
+    const toggle = page.getByRole('switch', { name: '实时查询' })
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await expect(page.getByText('NVIDIA H100 80GB HBM3 ✕ 4', { exact: true })).toBeVisible()
+    await expect(page.getByText('NVIDIA H100 80GB HBM3 ✕ 2；NVIDIA L4', { exact: true })).toBeVisible()
+    await expect(page.getByText(/SSH 自动采集/)).toHaveCount(0)
+    await page.clock.fastForward(35_000)
+    expect(metricReads).toBe(before)
+    await expect(page.getByText('CPU 使用率', { exact: true })).toHaveCount(0)
+    const switchBox = (await toggle.boundingBox())!
+    const addBox = (await page.getByRole('button', { name: '添加服务器' }).boundingBox())!
+    expect(switchBox.x + switchBox.width).toBeLessThanOrEqual(addBox.x)
+    expect(Math.abs(switchBox.y + switchBox.height / 2 - addBox.y - addBox.height / 2)).toBeLessThan(2)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath(`server-toggle-off-${width}.png`), animations: 'disabled' })
+    await toggle.focus()
+    await page.keyboard.press('Space')
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByText('CPU 使用率', { exact: true })).toBeVisible()
+    await expect.poll(() => metricReads).toBe(before + 1)
+    await page.screenshot({ path: testInfo.outputPath(`server-toggle-on-${width}.png`), animations: 'disabled' })
+    await page.clock.fastForward(31_000)
+    await expect.poll(() => metricReads).toBe(before + 2)
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await page.clock.fastForward(61_000)
+    expect(metricReads).toBe(before + 2)
+    await expect(page.getByText('CPU 使用率', { exact: true })).toHaveCount(0)
+    await toggle.click()
+    await expect(page.getByText('CPU 使用率', { exact: true })).toBeVisible()
+    await expect.poll(() => metricReads).toBe(before + 3)
+    await page.reload()
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await page.clock.fastForward(31_000)
+    expect(metricReads).toBe(before + 3)
+  }
+})
+
 async function fixtures(page: Page) {
   const counts = new Map<string, number>()
   const state = { authenticated: true, delay: 500, name: '缓存验收成员', failOverview: false }

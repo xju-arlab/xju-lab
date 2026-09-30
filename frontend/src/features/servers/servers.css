@@ -37,3 +37,11 @@
 @keyframes server-dialog-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 480px) { .server-dialog[role="dialog"] { padding: 20px; } .server-hardware > div { grid-template-columns: 80px minmax(0, 1fr); gap: 10px; } }
 @media (prefers-reduced-motion: reduce) { .server-dialog[role="dialog"], .server-success-icon, .server-spinner, .server-connected, .server-progress span { animation: none; } }
+.server-heading-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.server-monitor-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 0; border: 0; background: transparent; color: var(--color-text-muted); font: 12px var(--font-sans); white-space: nowrap; cursor: pointer; }
+.server-monitor-toggle:focus-visible { outline: 2px solid var(--cat-tools); outline-offset: 4px; border-radius: 4px; }
+.server-toggle-track { display: flex; align-items: center; width: 32px; height: 19px; padding: 2px; border-radius: 99px; background: var(--color-border); transition: background-color 200ms ease; }
+.server-toggle-track > span { width: 15px; height: 15px; border-radius: 50%; background: white; box-shadow: 0 1px 3px #0002; transform: translateX(0); transition: transform 200ms ease; }
+.server-monitor-toggle[aria-checked=true] .server-toggle-track { background: var(--cat-tools); }
+.server-monitor-toggle[aria-checked=true] .server-toggle-track > span { transform: translateX(13px); }
+@media (prefers-reduced-motion: reduce) { .server-toggle-track, .server-toggle-track > span { transition: none; } }
