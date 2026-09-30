@@ -28,7 +28,7 @@ export function PrinterStatusPanel() {
       const old = ['STALE', 'UNAVAILABLE', 'OFFLINE'].includes(printer.status)
       const supplies = report?.supplies ?? []
       return <article className="printer-device" key={printer.id} aria-label={printer.name}>
-        <div className="printer-device-heading"><h3>{printer.name}</h3><span className={`tag tag-${current ? 'teal' : 'orange'}`}>{printerStatusLabels[printer.status]}</span></div>
+        <div className="printer-device-heading"><h3>{printer.name}</h3><div className="printer-device-meta"><span className="printer-observed">最近读取 · {dateText(printer.lastSeenAt, '暂无记录')}</span><span className={`tag tag-${current ? 'teal' : 'orange'}`}>{printerStatusLabels[printer.status]}</span></div></div>
         <div className="printer-device-body">
           <div className="printer-info">
             {(report?.model || printer.location) && <div className="printer-model">{[report?.model, printer.location].filter(Boolean).join(' · ')}</div>}
@@ -56,7 +56,6 @@ export function PrinterStatusPanel() {
           {printer.source === 'AGENT' && report.tonerSupported && report.tonerPercent != null && <p>耗材余量 {report.tonerPercent}%</p>}
           </>}
         </div>
-        <div className="printer-observed">最近读取 · {dateText(printer.lastSeenAt, '暂无记录')}</div>
       </article>
     })}
     {printers.data?.length === 0 && <div className="empty-state"><Printer size={22} /><p>尚未登记打印机。</p></div>}

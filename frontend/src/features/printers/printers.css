@@ -1,6 +1,7 @@
 .printer-device { padding: 17px 0 3px; border-top: 1px solid var(--color-border); container-type: inline-size; }
 .printer-device + .printer-device { margin-top: 16px; }
-.printer-device-heading { display: flex; align-items: center; gap: 10px; }
+.printer-device-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.printer-device-meta { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; }
 .printer-device-heading h3 { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .printer-device-heading .tag { flex-shrink: 0; }
 .printer-device-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 440px); align-items: center; gap: 12px 24px; margin-top: 12px; }
@@ -21,6 +22,6 @@
 .printer-supply-low .printer-supply-track > span { background: #b98451; }
 .printer-supply-unknown { background: repeating-linear-gradient(120deg, #e8e8e0 0 4px, #f7f6f2 4px 8px); }
 .printer-supply small { display: block; margin-top: 6px; font-size: 11px; }
-.printer-observed { margin-top: 14px; color: var(--color-text-muted); font-size: 11px; }
+.printer-observed { color: var(--color-text-muted); font-size: 11px; }
 @container (max-width: 600px) { .printer-device-body { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .printer-supply-track > span { transition: none; } }
