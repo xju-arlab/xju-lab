@@ -11,10 +11,6 @@ function percentile(samples: number[], percentileValue: number) {
 }
 
 async function signIn(page: Page, user: { username: string; password: string }) {
-  const browserNavigations: string[] = []
-  page.on('framenavigated', frame => {
-    if (frame === page.mainFrame()) browserNavigations.push(frame.url())
-  })
   await page.goto('/app/dashboard')
   const loginLink = page.getByRole('link', { name: /统一身份登录/ })
   await expect(loginLink).toBeVisible()
@@ -34,37 +30,10 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   await expect(platformLink, `OIDC login did not return to the app at ${resultLocation}; page text: ${resultText}`).toBeVisible({ timeout: 30_000 })
   await platformLink.click()
   const registrationHeading = page.getByRole('heading', { name: '完成成员实名登记' })
+  const dashboardHeading = page.getByRole('heading', { name: '总览' })
+  await expect(registrationHeading.or(dashboardHeading), `OIDC session did not resolve for ${user.username}; page text: ${await page.locator('body').innerText().catch(() => '')}`).toBeVisible({ timeout: 30_000 })
   const registrationNetwork: string[] = []
-  if (await registrationHeading.isVisible().catch(() => false)) {
-    await page.evaluate(() => {
-      sessionStorage.setItem('lab-registration-listeners', 'installed')
-      document.addEventListener('click', event => {
-        const target = event.target instanceof Element ? event.target.closest('button') : null
-        sessionStorage.setItem('lab-registration-last-click', JSON.stringify({
-          text: target?.textContent?.trim() ?? null,
-          type: target?.getAttribute('type') ?? null,
-          form: target?.closest('form')?.getAttribute('class') ?? null,
-        }))
-      }, true)
-      document.addEventListener('click', event => {
-        const target = event.target instanceof Element ? event.target.closest('button') : null
-        if (target?.textContent?.trim() !== '保存并进入实验室') return
-        const form = target.closest('form')
-        sessionStorage.setItem('lab-registration-save-click', JSON.stringify({
-          valid: form?.checkValidity(),
-          values: form ? Array.from(form.querySelectorAll('input')).map(input => ({ name: input.name, value: input.value, valid: input.validity.valid })) : [],
-        }))
-      }, true)
-      document.addEventListener('submit', event => {
-        const form = event.target
-        if (!(form instanceof HTMLFormElement) || !form.querySelector('input[name="realName"]')) return
-        sessionStorage.setItem('lab-registration-submit', JSON.stringify({
-          defaultPrevented: event.defaultPrevented,
-          valid: form.checkValidity(),
-          values: Object.fromEntries(new FormData(form).entries()),
-        }))
-      })
-    })
+  if (await registrationHeading.isVisible()) {
     const realName = page.getByLabel('真实姓名')
     const studentNumberField = page.getByLabel('学号')
     const className = page.getByLabel('班级')
@@ -102,36 +71,15 @@ async function signIn(page: Page, user: { username: string; password: string }) 
     await expect(page.getByRole('button', { name: '保存并进入实验室' })).toBeEnabled()
     const beforeSubmit = await page.evaluate(() => {
       const form = document.querySelector('form')!
-      const result = {
+      return {
         valid: form.checkValidity(),
         fields: Array.from(form.querySelectorAll('input')).map(input => ({ name: input.name, value: input.value, required: input.required, valid: input.validity.valid })),
       }
-      sessionStorage.setItem('lab-registration-before-submit', JSON.stringify(result))
-      return result
     })
     expect(beforeSubmit.valid, `Registration form was invalid before submit: ${JSON.stringify(beforeSubmit)}`).toBe(true)
     await page.getByRole('button', { name: '保存并进入实验室' }).click()
   }
-  try {
-    await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
-  } catch (error) {
-    const diagnostics = await page.evaluate(() => ({
-      url: location.href,
-      text: document.body.innerText.slice(0, 1200),
-      inputs: Array.from(document.querySelectorAll('input')).map(input => ({
-        name: input.name, valid: input.checkValidity(), valueLength: input.value.length,
-        readOnly: input.readOnly, disabled: input.disabled, validationMessage: input.validationMessage,
-      })),
-      formValidity: Array.from(document.forms).map(form => form.checkValidity()),
-      navigation: performance.getEntriesByType('navigation').map(entry => ({ type: (entry as PerformanceNavigationTiming).type, name: entry.name })),
-      registrationSubmit: sessionStorage.getItem('lab-registration-submit'),
-      registrationSaveClick: sessionStorage.getItem('lab-registration-save-click'),
-      registrationListeners: sessionStorage.getItem('lab-registration-listeners'),
-      registrationLastClick: sessionStorage.getItem('lab-registration-last-click'),
-      registrationBeforeSubmit: sessionStorage.getItem('lab-registration-before-submit'),
-    }))
-    throw new Error(`${String(error)}\nRegistration diagnostics: ${JSON.stringify({ ...diagnostics, network: registrationNetwork, browserNavigations })}`)
-  }
+  await expect(dashboardHeading, `Lab dashboard did not load for ${user.username}; registration API activity: ${registrationNetwork.join(' | ')}`).toBeVisible()
   await expect(page.getByText('API 实时数据')).toBeVisible()
 }
 
