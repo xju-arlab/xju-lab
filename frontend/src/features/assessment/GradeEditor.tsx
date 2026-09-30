@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { ComboBox } from '../../components/common/ComboBox'
+import { dateText } from '../../lib/date'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../components/ui/dialog'
 import { rubricScore, validScore } from './scoring'
 import type { Exam, Grade, GradeStatus, Student } from './types'
@@ -30,7 +31,7 @@ export function GradeEditor({ exam, students, initialStudentId, onClose, onSave 
     onSave({ studentId, status, score: status === 'graded' ? preview : null, ...(status === 'graded' && mode === 'parts' ? { parts: numericParts } : {}), note: note.trim() })
     onClose()
   }
-  return <Dialog open onOpenChange={open => { if (!open) onClose() }}><DialogContent className="lab-dialog growth-dialog"><DialogTitle>录入考核成绩</DialogTitle><DialogDescription>{exam.title} · {exam.date} · 仅保存在本浏览器的演示数据中</DialogDescription>
+  return <Dialog open onOpenChange={open => { if (!open) onClose() }}><DialogContent className="lab-dialog growth-dialog"><DialogTitle>录入考核成绩</DialogTitle><DialogDescription>{exam.title} · {dateText(exam.date)} · 仅保存在本浏览器的演示数据中</DialogDescription>
     <form className="form-stack" onSubmit={submit}>
       <label className="field"><span>学生</span><ComboBox value={studentId} onValueChange={changeStudent} options={students.map(student => ({ value: student.id, label: `${student.name} · ${student.number}` }))} /></label>
       <div className="growth-form-row"><label className="field"><span>成绩状态</span><ComboBox value={status} onValueChange={value => { setStatus(value as GradeStatus); setError('') }} options={[{ value: 'graded', label: '已评分' }, { value: 'pending', label: '待评分' }, { value: 'absent', label: '缺考' }, { value: 'exempt', label: '免考' }]} /></label>

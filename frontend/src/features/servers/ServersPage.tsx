@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { useQuery } from '../../api/useQuery'
 import { QueryFeedback } from '../../components/common/QueryFeedback'
+import { dateText } from '../../lib/date'
 import './servers.css'
 
 type Hardware = { kind: 'CPU' | 'GPU' | 'UNKNOWN'; cpuModel: string | null; cpuCores: number | null; memoryBytes: number | null; diskBytes: number | null; os: string | null; gpus: string[]; gpuDetection: string }
@@ -143,7 +144,7 @@ export function ServersPage({ session }: { session: Session }) {
     <QueryFeedback loading={loading} error={error} retry={reload} />{notice && <p role="status" className="api-feedback">{notice}</p>}
     <div className="api-card-grid">{assets.map(asset => <section key={asset.id} className="panel api-panel"><div className="section-heading"><h2><Server size={18} /> {asset.name}</h2><span className={`tag tag-${asset.enabled ? 'teal' : 'gray'}`}>{asset.hardware?.kind === 'GPU' ? 'GPU' : asset.hardware?.kind === 'CPU' ? 'CPU' : '服务器'} · {asset.enabled ? '已登记' : '已停用'}</span></div>
       {asset.hardware ? <HardwareDetails data={asset.hardware} /> : <p className="api-note">硬件信息待录入。</p>}
-      {asset.discoveredAt && <p className="api-note">硬件采集：{new Date(asset.discoveredAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}（北京时间）</p>}
+      {asset.discoveredAt && <p className="api-note">硬件采集：{dateText(asset.discoveredAt)}（北京时间）</p>}
       {monitoring && asset.enabled && <AssetMetrics asset={asset} />}
       <div className="server-actions">{monitoring && asset.enabled && <Button variant="outline" onClick={() => { if (seriesId === asset.id) seriesQuery.reload(); else setSeriesId(asset.id) }}>读取 1 小时 CPU 曲线</Button>}{admin && <><Button variant="outline" onClick={() => void toggle(asset)}>{asset.enabled ? '停用' : '启用'}</Button><Button variant="ghost" aria-label={`删除${asset.name}`} onClick={() => setDeleting(asset)}><Trash2 size={16} />删除</Button></>}</div>
       {seriesId === asset.id && <QueryFeedback loading={seriesQuery.loading} error={seriesQuery.error} retry={seriesQuery.reload} />}{seriesId === asset.id && series && (series.points.length > 0 ? <svg className="api-series" viewBox="0 0 300 90" role="img" aria-label="过去一小时 CPU 使用率"><polyline fill="none" stroke="currentColor" strokeWidth="2" points={series.points.map((point, index) => `${series.points.length < 2 ? 150 : index * 300 / (series.points.length - 1)},${82 - Math.max(0, Math.min(100, point.value)) * .72}`).join(' ')} /></svg> : <p className="api-note">所选时段没有采样点。</p>)}
