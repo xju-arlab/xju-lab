@@ -20,9 +20,9 @@
 .dual-direction-swatch { background: linear-gradient(130deg,#dfeafb,#eee1f6); }
 .seat-data-note { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 12px; color: #aab19f; font-size: 9px; }
 .seat-info-bubble { position: fixed; z-index: 80; width: 304px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 19px; color: #536249; background: #fffefb; border: 1px solid #d9e2cf; border-radius: 15px; filter: drop-shadow(0 9px 17px #35432b20); outline: none; }
-.seat-info-bubble::before { content: ''; position: absolute; width: 13px; height: 13px; background: #fffefb; z-index: 1; }
-.api-seat-bubble { width: 284px; padding: 16px; border-radius: 8px; }
-.api-seat-bubble-body { max-height: calc(100dvh - 102px); overflow-y: auto; overscroll-behavior: contain; }
+.seat-info-bubble::before { content: ''; position: absolute; width: 13px; height: 13px; border-radius: 3px; background: #fffefb; z-index: 1; }
+.api-seat-bubble { width: 284px; max-height: none; padding: 16px; border-radius: 8px; }
+.api-seat-bubble-body { overflow: visible; }
 .api-seat-bubble .bubble-avatar { border-radius: 6px; flex-shrink: 0; }
 .api-seat-bubble .bubble-member h3 { overflow-wrap: anywhere; }
 .api-seat-bubble .bubble-directions { margin-bottom: 2px; }
