@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。本轮继续保留仅打印机状态、huawei2 部署与 `main` 交付要求，并新增 Authentik OIDC 已验证 `@icthub.top` 开放注册、实名学号不可自改、班级派生年级和多选方向。本地实现与新 CI 结果待本轮最终记录。生产启动还需要 Authentik 自助注册/验证邮件配置、本项目 OIDC client/secret、SMTP 和数据库密钥。Compose Web 上游仍为 `http://127.0.0.1:18080`。
+> 2026-09-30。B00–B12 本地实现和全栈 CI 已验收；主分支提交 `92e2029` 的 [六个 CI 作业全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36694354217)。仅保留打印机设备状态，打印页面/文件/队列/执行逻辑已删除。Lab 开放已验证 `@icthub.top` 邮箱注册，完成实名、唯一学号、班级派生年级和多选方向；姓名/学号仅超级管理员可更正。huawei2 仓库路径 `/home/winbeau/projects/xju-lab`，部署命令 `cd /home/winbeau/projects/xju-lab && ./deploy.sh`。Compose Web 只绑定服务器回环 `http://127.0.0.1:18080`；生产 `.env` 缺失时脚本停止在预检，公网尚未启动。Authentik 自助注册/验证邮件、项目 OIDC client/secret、SMTP、数据库密钥和域名 TLS 路由待配置联调。
 
 ## 新对话提示词
 
@@ -18,8 +18,8 @@
 - `backend/` 是 Java 21 / Spring Boot 模块化单体；PostgreSQL/Flyway、Redis 会话、OIDC、权限、审计/outbox、各业务模块和 OpenAPI 契约均已创建。
 - `printer-agent/` 保留独立 Python 状态 Agent、只读 CUPS 状态采集和 systemd 服务文件；不含 SQLite 打印 journal 或打印任务执行代码。
 - `deploy/`、GitHub Actions、Compose、Nginx、开发 Keycloak realm、Prometheus 模板、备份/恢复脚本和运维说明已加入。
-- GitHub Actions [B00–B12 全栈 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36665041393) 覆盖前端 build/单测、后端 PostgreSQL 集成测试与 6 个 Flyway 迁移、统一 `scripts/verify.sh`、本地 Keycloak OIDC 浏览器业务闭环、完整响应和主要状态检查、Agent 5 项单测、容器健康检查和隔离 PostgreSQL/RustFS 备份恢复。具体视口、路由和性能样本见 [`progress.md`](progress.md)。
-- OJ 目标接口、生产 Authentik/SMTP/S3/Prometheus、真实成员名单、huawei2 生产配置、真实设备状态映射、域名/TLS 和一致性灾备仍需联调。详见 [`integration-status.md`](integration-status.md)。
+- GitHub Actions [当前主分支全栈 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36694354217) 六个作业全部通过，覆盖前端、PostgreSQL 后端、统一验证、OIDC 浏览器业务闭环、Printer Agent 与隔离备份恢复。具体路由、视口和性能口径见 [`progress.md`](progress.md)。
+- 下一步是补齐生产 `.env` 后在 huawei2 执行 `cd /home/winbeau/projects/xju-lab && ./deploy.sh`，将 `lab.icthub.top` 反向代理指向 `http://127.0.0.1:18080`，并验证 Authentik、SMTP、设备状态、Prometheus 和数据恢复。缺少的配置和值不得用示例凭据代替。详见 [`integration-status.md`](integration-status.md)。
 
 ## 必须保留
 
