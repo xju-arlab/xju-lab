@@ -48,6 +48,29 @@
 .api-leave-card p { margin: 6px 0; }
 .api-assessment-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 13px 0; }
 .api-assessment-toolbar .field { min-width: 220px; }
+.heading-copy { width: 100%; min-width: 0; }
+.heading-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 5px; }
+.heading-title-row h1 { flex-shrink: 0; }
+.api-subject-tabs { flex-shrink: 0; margin-left: auto; }
+.api-subject-tabs button,.api-assessment-toolbar .filter-tabs button { transition: background 220ms ease, color 220ms ease, box-shadow 220ms ease; }
+.api-assessment-import { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 240ms cubic-bezier(.22,1,.36,1), opacity 200ms ease; }
+.api-assessment-import.is-open { grid-template-rows: 1fr; opacity: 1; }
+.api-assessment-import > div { min-height: 0; overflow: hidden; }
+.api-async-section { overflow: hidden; transition: height 240ms cubic-bezier(.22,1,.36,1); }
+.api-async-inner { display: flow-root; }
+.api-async-inner .api-table-panel { margin-top: 0; }
+.api-async-content { opacity: 1; animation: api-content-enter 220ms ease-out; transition: opacity 180ms ease; }
+.api-async-content.is-updating { opacity: .55; }
+.api-ranking-skeleton { min-height: 240px; padding: 22px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); animation: api-content-enter 220ms ease-out; }
+.api-ranking-skeleton > span,.api-ranking-skeleton i { display: block; height: 12px; border-radius: 4px; background: #eeede8; }
+.api-ranking-skeleton > span { width: 100px; height: 18px; margin-bottom: 20px; }
+.api-ranking-skeleton > div { display: grid; grid-template-columns: 35px minmax(0,1fr) 60px; gap: 22px; padding: 13px 0; border-top: 1px solid var(--color-border); }
+@keyframes api-content-enter { from { opacity: .45; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 760px) {
+  .heading-title-row h1 { font-size: 26px; }
+  .api-subject-tabs button { padding: 0 8px; font-size: 10px; }
+}
+@media (max-width: 350px) { .heading-title-row { flex-wrap: wrap; } }
 .api-table-panel { margin-top: 12px; }
 .api-table-wrap { width: 100%; overflow: auto; }
 .api-table-wrap table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }

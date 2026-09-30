@@ -7,6 +7,7 @@ import './api-mode.css'
 import './features/seats/seats.css'
 import type { Seat as DemoSeat } from './demo'
 import { ComboBox } from './components/common/ComboBox'
+import { AsyncSection } from './components/common/AsyncSection'
 import { ApiSeatPopover, type ApiSeat as Seat } from './features/seats/ApiSeatPopover'
 import { FloorPlan } from './features/seats/FloorPlan'
 import { defaultLayout, type DeskPosition, type LayoutState } from './features/seats/layout'
@@ -29,25 +30,23 @@ type Settings = { name: string; location: string; timezone: string; description:
 type AdminMember = { id: string; accountId: string | null; displayName: string; realName: string | null; studentNumber: string | null; className: string | null; contact: string | null; cohort: number | null; active: boolean; version: number; roles: string[]; ojAdminDesired: boolean | null; ojSyncVersion: number | null; ojConfirmedVersion: number | null; ojSyncStatus: string | null; ojLastError: string | null }
 
 function useLoad<T>(path: string | null): Loaded<T> {
-  const [data, setData] = useState<T | null>(null)
-  const [loadedPath, setLoadedPath] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [state, setState] = useState<{ path: string | null; data: T | null; loading: boolean; error: string }>({ path: null, data: null, loading: false, error: '' })
   const [version, setVersion] = useState(0)
   const reload = useCallback(() => setVersion(value => value + 1), [])
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
     if (!path) {
-      setData(null); setLoadedPath(''); setLoading(false); setError('')
+      setState({ path: null, data: null, loading: false, error: '' })
       return () => { active = false }
     }
-    setLoading(true); setError('')
-    apiRequest<T>(path).then(value => { if (active) { setData(value); setLoadedPath(path) } })
-      .catch(reason => { if (active) setError(messageOf(reason)) })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
+    setState(previous => ({ path, data: previous.path === path ? previous.data : null, loading: true, error: '' }))
+    apiRequest<T>(path, { signal: controller.signal })
+      .then(data => { if (active) setState({ path, data, loading: false, error: '' }) })
+      .catch(reason => { if (active) setState({ path, data: null, loading: false, error: messageOf(reason) }) })
+    return () => { active = false; controller.abort() }
   }, [path, version])
-  return { data: loadedPath === path ? data : null, loading, error, reload }
+  return { ...(state.path === path ? state : { data: null, loading: Boolean(path), error: '' }), reload }
 }
 
 function messageOf(error: unknown) {
@@ -58,8 +57,8 @@ function dateText(value?: string | null) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
-function Heading({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
-  return <div className="page-heading"><div><div className="eyebrow">算法与科研实验室</div><h1>{title}</h1>{description && <p>{description}</p>}</div><div className="heading-actions">{actions}</div></div>
+function Heading({ title, description, actions, titleActions }: { title: string; description?: string; actions?: ReactNode; titleActions?: ReactNode }) {
+  return <div className="page-heading"><div className={titleActions ? 'heading-copy' : undefined}><div className="eyebrow">算法与科研实验室</div>{titleActions ? <div className="heading-title-row"><h1>{title}</h1>{titleActions}</div> : <h1>{title}</h1>}{description && <p>{description}</p>}</div>{actions && <div className="heading-actions">{actions}</div>}</div>
 }
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) { return <section className={`panel api-panel ${className}`}>{children}</section> }
 function Status({ children, tone = 'gray' }: { children: ReactNode; tone?: string }) { return <span className={`tag tag-${tone}`}>{children}</span> }
@@ -325,41 +324,18 @@ function AssessmentPage({ session }: { session: Session }) {
   const canGrade = canManage || session.roles.includes('TEACHER')
   const selectedTerm = termId || terms.data?.find(term => term.active)?.id || terms.data?.[0]?.id || ''
   const selectedTermRow = terms.data?.find(term => term.id === selectedTerm)
-  const exams = useLoad<Exam[]>(selectedTerm ? `/assessment/terms/${selectedTerm}/exams` : '/assessment/terms')
-  const contests = useLoad<Contest[]>(selectedTerm ? `/assessment/terms/${selectedTerm}/contests` : '/assessment/terms')
-  const termMembers = useLoad<Page<{ memberId: string; displayName: string; number: string; veteran: boolean; version: number }>>(selectedTerm ? `/assessment/terms/${selectedTerm}/members?page=1&pageSize=100` : '/assessment/terms')
-  const members = useLoad<Page<{ id: string; displayName: string }>>('/members?page=1&pageSize=100')
+  const exams = useLoad<Exam[]>(selectedTerm ? `/assessment/terms/${selectedTerm}/exams` : null)
+  const contests = useLoad<Contest[]>(selectedTerm ? `/assessment/terms/${selectedTerm}/contests` : null)
   const selectedExam = exams.data?.find(item => item.id === examId) ?? exams.data?.[0]
   const selectedContest = contests.data?.find(item => item.id === contestId) ?? contests.data?.find(item => item.complete) ?? contests.data?.[0]
   const rankingPath = subject === 'theory' && selectedExam
     ? `/assessment/exams/${selectedExam.id}/ranking?excludeVeterans=${excludeVeterans}`
     : subject === 'acm' && selectedContest?.complete
       ? `/assessment/terms/${selectedTerm}/contests/${selectedContest.id}/ranking?excludeVeterans=${excludeVeterans}` : ''
-  const ranking = useLoad<{ items: Array<Record<string, unknown>>; total: number; algorithmVersion: string; sourceVersion: string }>(rankingPath || '/assessment/terms')
-  const importStatus = useLoad<{ id: string; status: string; result: Record<string, unknown> }>(importId ? `/assessment/acm/imports/${importId}` : '/assessment/terms')
+  const ranking = useLoad<{ items: Array<Record<string, unknown>>; total: number; algorithmVersion: string; sourceVersion: string }>(rankingPath || null)
+  const importStatus = useLoad<{ id: string; status: string; result: Record<string, unknown> }>(importId ? `/assessment/acm/imports/${importId}` : null)
   useEffect(() => { if (importId) { const timer = window.setInterval(importStatus.reload, 2500); return () => window.clearInterval(timer) } }, [importId, importStatus.reload])
 
-  async function createTerm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement)
-    try { const term = await apiRequest<Term>('/assessment/terms', { method: 'POST', body: { name: form.get('name'), startsOn: form.get('startsOn'), endsOn: form.get('endsOn'), active: form.get('active') === 'on' } }); setTermId(term.id); setNotice('培养期已创建'); terms.reload(); formElement.reset() }
-    catch (error) { setNotice(messageOf(error)) }
-  }
-  async function addTermMember(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selectedTerm) return
-    const formElement = event.currentTarget; const memberId = String(new FormData(formElement).get('memberId') ?? '')
-    try { await apiRequest(`/assessment/terms/${selectedTerm}/members`, { method: 'POST', body: { memberId, veteran: false } }); setNotice('成员已加入培养期'); termMembers.reload(); terms.reload(); formElement.reset() }
-    catch (error) { setNotice(messageOf(error)) }
-  }
-  async function setVeteran(member: { memberId: string; veteran: boolean; version: number }, veteran: boolean) {
-    try { await apiRequest(`/assessment/terms/${selectedTerm}/members/${member.memberId}`, { method: 'PATCH', body: { veteran, version: member.version } }); termMembers.reload(); terms.reload() }
-    catch (error) { setNotice(messageOf(error)); termMembers.reload() }
-  }
-  async function createExam(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selectedTerm) return
-    const form = new FormData(event.currentTarget)
-    try { const exam = await apiRequest<Exam>(`/assessment/terms/${selectedTerm}/exams`, { method: 'POST', body: { title: form.get('title'), kind: form.get('kind'), startsAt: `${form.get('startsAt')}:00+08:00`, rubric: [] } }); setExamId(exam.id); setSubject('theory'); setNotice('理论考试已创建'); exams.reload(); terms.reload() }
-    catch (error) { setNotice(messageOf(error)) }
-  }
   async function importContest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const key = crypto.randomUUID()
     try { const result = await apiRequest<{ id: string; status: string }>('/assessment/acm/imports', { method: 'POST', headers: { 'Idempotency-Key': key }, body: { sourceUrl } }); setImportId(result.id); setNotice(`导入任务已进入队列：${result.status}`); setSourceUrl('') }
@@ -391,16 +367,19 @@ function AssessmentPage({ session }: { session: Session }) {
   }
 
   const activeImport = importStatus.data
-  return <><Heading title="成长与考核" description="ACM 算法与深度学习理论基础分开展示；服务端按已确认规则重算本次与历史排行。" />
-    <LoadingOrError loading={terms.loading} error={terms.error} retry={terms.reload} />
-    {terms.data && terms.data.length > 0 && <div className="api-assessment-toolbar"><label className="field"><span>培养期</span><ComboBox value={selectedTerm} onValueChange={setTermId} options={terms.data.map(term => ({ value: term.id, label: term.name + (term.active ? " · 当前" : "") }))} /></label><label className="api-check"><input type="checkbox" checked={excludeVeterans} onChange={event => setExcludeVeterans(event.target.checked)} />排除已标记老成员并重算各场</label></div>}
+  const catalog = subject === 'theory' ? exams : contests
+  const loading = terms.loading || catalog.loading || ranking.loading
+  const error = terms.error || catalog.error || ranking.error
+  const retry = () => { terms.reload(); catalog.reload(); ranking.reload() }
+  const emptyText = !selectedTerm ? '暂无培养期。' : subject === 'theory' ? '暂无理论考试。' : !selectedContest ? '暂无 ACM 比赛，可导入 OJ 比赛后查看。' : '比赛尚未完成，完成后可查看排行。'
+  return <><Heading title="成长与考核" description="ACM 算法与深度学习理论基础分开展示；服务端按已确认规则重算本次与历史排行。" titleActions={<div className="filter-tabs api-subject-tabs" role="tablist" aria-label="考核方向"><button role="tab" aria-selected={subject === 'acm'} className={subject === 'acm' ? 'selected' : ''} onClick={() => setSubject('acm')}>ACM 算法</button><button role="tab" aria-selected={subject === 'theory'} className={subject === 'theory' ? 'selected' : ''} onClick={() => setSubject('theory')}>深度学习理论基础</button></div>} />
+    <div className="api-assessment-toolbar"><label className="field"><span>培养期</span><ComboBox value={selectedTerm} onValueChange={setTermId} disabled={!terms.data?.length} placeholder={terms.loading ? "正在读取培养期…" : "暂无培养期"} options={(terms.data ?? []).map(term => ({ value: term.id, label: term.name + (term.active ? " · 当前" : "") }))} /></label><label className="api-check"><input type="checkbox" checked={excludeVeterans} onChange={event => setExcludeVeterans(event.target.checked)} />排除已标记老成员并重算各场</label></div>
     {notice && <p className="api-feedback" role="status">{notice}</p>}
-    {canManage && <Panel className="api-form-panel"><h2>培养期、成员与场次管理</h2>{(!terms.data || terms.data.length === 0) && <form className="api-inline-form" onSubmit={createTerm}><TextField label="培养期名称" name="name" required maxLength={120} /><TextField label="开始日期" name="startsOn" type="date" required /><TextField label="结束日期" name="endsOn" type="date" required /><label className="api-check"><input type="checkbox" name="active" />设为当前培养期</label><Button type="submit">创建培养期</Button></form>}{selectedTerm && <><form className="api-inline-form" onSubmit={addTermMember}><label className="field"><span>加入成员</span><ComboBox name="memberId" required defaultValue="" placeholder="选择成员" options={(members.data?.items ?? []).filter(person => !termMembers.data?.items.some(row => row.memberId === person.id)).map(person => ({ value: person.id, label: person.displayName }))} /></label><Button type="submit">加入培养期</Button></form><div className="api-row-wrap">{termMembers.data?.items.map(person => <label key={person.memberId} className="api-check"><input type="checkbox" checked={person.veteran} onChange={event => setVeteran(person, event.target.checked)} />{person.displayName} · 老成员</label>)}</div><form className="api-inline-form" onSubmit={createExam}><TextField label="考试名称" name="title" required maxLength={160} /><label className="field"><span>形式</span><ComboBox name="kind" options={[{ value: "WRITTEN", label: "笔试" }, { value: "PRACTICAL", label: "机试" }]} /></label><TextField label="考试时间（北京时间）" name="startsAt" type="datetime-local" required /><Button type="submit">创建理论考试</Button></form><p className="api-note">每场形式固定为笔试或机试；留空量规时按百分制录入。</p></>}</Panel>}
-    <div className="filter-tabs api-subject-tabs" role="tablist" aria-label="考核方向"><button role="tab" aria-selected={subject === 'acm'} className={subject === 'acm' ? 'selected' : ''} onClick={() => setSubject('acm')}>ACM 算法</button><button role="tab" aria-selected={subject === 'theory'} className={subject === 'theory' ? 'selected' : ''} onClick={() => setSubject('theory')}>深度学习理论基础</button></div>
-    {subject === 'acm' && canManage && <Panel className="api-form-panel"><h2>导入整场 ACM 比赛</h2><form className="api-inline-form" onSubmit={importContest}><label className="field api-grow"><span>OJ 比赛链接</span><input value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} type="url" placeholder="https://oj.icthub.top/contest/123" required /></label><Button type="submit">提交导入</Button></form>{activeImport && <p className="api-feedback">导入状态：{activeImport.status}{activeImport.result?.code ? ` · ${String(activeImport.result.code)}` : ''}</p>}</Panel>}
-    <div className="api-assessment-toolbar">{subject === 'theory' ? <label className="field"><span>理论场次</span><ComboBox value={selectedExam?.id ?? ""} onValueChange={setExamId} placeholder="选择考试" options={(exams.data ?? []).map(exam => ({ value: exam.id, label: exam.title + " · " + (exam.kind === "WRITTEN" ? "笔试" : "机试") }))} /></label> : <label className="field"><span>ACM 比赛</span><ComboBox value={selectedContest?.id ?? ""} onValueChange={setContestId} placeholder="选择比赛" options={(contests.data ?? []).map(contest => ({ value: contest.id, label: contest.title + (contest.complete ? "" : " · 尚未完成") }))} /></label>}<div className="filter-tabs"><button className={rankingView === 'current' ? 'selected' : ''} onClick={() => setRankingView('current')}>本次排名</button><button className={rankingView === 'history' ? 'selected' : ''} onClick={() => setRankingView('history')}>历史排名</button></div><div className="api-actions"><Button variant="outline" onClick={downloadCsv}>导出 CSV</Button>{canManage && <Button onClick={publishRanking}>发布排行</Button>}</div></div>
-    <LoadingOrError loading={exams.loading || contests.loading || ranking.loading} error={exams.error || contests.error || ranking.error} retry={() => { exams.reload(); contests.reload(); ranking.reload() }} />
-    {rankingPath && ranking.data?.items && <Panel className="api-table-panel"><div className="section-heading"><h2>{subject === 'acm' ? 'ACM 算法' : '深度学习理论基础'}</h2><Status>{ranking.data.algorithmVersion ?? '服务端计分'}</Status></div><div className="api-table-wrap"><table><thead><tr><th>名次</th><th>成员</th><th>{rankingView === 'current' ? subject === 'theory' ? '本次成绩' : '本场 AC' : '综合分'}</th><th>历史均分</th><th>有效场次</th></tr></thead><tbody>{ranking.data.items.map((row, index) => { const student = row.student as { id?: string; name?: string; number?: string } | undefined; const grade = row.grade as { status?: string; score?: number | null; comment?: string | null } | undefined; return <tr key={student?.id ?? index}><td>{rankingView === 'current' ? String(row.currentRank ?? '—') : String(row.overallRank ?? '—')}</td><td><strong>{student?.name ?? '成员'}</strong><small>{student?.number ?? ''}</small>{canGrade && subject === 'theory' && selectedExam && student?.id && <details className="api-grade-editor"><summary>录入 / 修订</summary><form className="form-stack" onSubmit={event => saveGrade(event, row)}><label className="field"><span>状态</span><ComboBox name="status" defaultValue={grade?.status ?? "GRADED"} options={[{ value: "GRADED", label: "已评分" }, { value: "PENDING", label: "待评分" }, { value: "ABSENT", label: "缺考" }, { value: "EXEMPT", label: "免考" }]} /></label><TextField label="百分制成绩" name="score" type="number" defaultValue={grade?.score == null ? '' : String(grade.score)} /><TextField label="评语" name="comment" defaultValue={grade?.comment ?? ''} maxLength={2000} /><TextField label="修订原因" name="reason" required maxLength={1000} /><Button type="submit">保存修订</Button></form></details>}</td><td>{rankingView === 'current' ? String(subject === 'theory' ? row.currentScore ?? '—' : row.currentCount ?? '—') : String(row.composite ?? '—')}</td><td>{String(row.historyAverage ?? '—')}</td><td>{String(row.historyCount ?? 0)} / {String(row.historyTotal ?? 0)}</td></tr> })}</tbody></table></div>{ranking.data.items.length === 0 && <Empty text="当前没有可展示的成绩。" />}</Panel>}
+    {canManage && <div className={'api-assessment-import' + (subject === 'acm' ? ' is-open' : '')} aria-hidden={subject !== 'acm'} {...(subject !== 'acm' ? { inert: '' } : {})}><div><Panel className="api-form-panel"><h2>导入整场 ACM 比赛</h2><form className="api-inline-form" onSubmit={importContest}><label className="field api-grow"><span>OJ 比赛链接</span><input value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} type="url" placeholder="https://oj.icthub.top/contest/123" required /></label><Button type="submit">提交导入</Button></form>{activeImport && <p className="api-feedback">导入状态：{activeImport.status}{activeImport.result?.code ? ` · ${String(activeImport.result.code)}` : ''}</p>}</Panel></div></div>}
+    <div className="api-assessment-toolbar">{subject === 'theory' ? <label className="field"><span>理论场次</span><ComboBox value={selectedExam?.id ?? ""} onValueChange={setExamId} placeholder="选择考试" options={(exams.data ?? []).map(exam => ({ value: exam.id, label: exam.title + " · " + (exam.kind === "WRITTEN" ? "笔试" : "机试") }))} /></label> : <label className="field"><span>ACM 比赛</span><ComboBox value={selectedContest?.id ?? ""} onValueChange={setContestId} placeholder="选择比赛" options={(contests.data ?? []).map(contest => ({ value: contest.id, label: contest.title + (contest.complete ? "" : " · 尚未完成") }))} /></label>}<div className="filter-tabs"><button className={rankingView === 'current' ? 'selected' : ''} onClick={() => setRankingView('current')}>本次排名</button><button className={rankingView === 'history' ? 'selected' : ''} onClick={() => setRankingView('history')}>历史排名</button></div><div className="api-actions"><Button variant="outline" disabled={loading || !!error || !ranking.data} onClick={downloadCsv}>导出 CSV</Button>{canManage && <Button disabled={loading || !!error || !ranking.data} onClick={publishRanking}>发布排行</Button>}</div></div>
+    <AsyncSection loading={loading} error={error} hasContent={!!ranking.data} contentKey={`${rankingPath}:${rankingView}`} onRetry={retry}>
+    {rankingPath && ranking.data?.items ? <Panel className="api-table-panel"><div className="section-heading"><h2>{subject === 'acm' ? 'ACM 算法' : '深度学习理论基础'}</h2><Status>{ranking.data.algorithmVersion ?? '服务端计分'}</Status></div><div className="api-table-wrap"><table><thead><tr><th>名次</th><th>成员</th><th>{rankingView === 'current' ? subject === 'theory' ? '本次成绩' : '本场 AC' : '综合分'}</th><th>历史均分</th><th>有效场次</th></tr></thead><tbody>{ranking.data.items.map((row, index) => { const student = row.student as { id?: string; name?: string; number?: string } | undefined; const grade = row.grade as { status?: string; score?: number | null; comment?: string | null } | undefined; return <tr key={student?.id ?? index}><td>{rankingView === 'current' ? String(row.currentRank ?? '—') : String(row.overallRank ?? '—')}</td><td><strong>{student?.name ?? '成员'}</strong><small>{student?.number ?? ''}</small>{canGrade && subject === 'theory' && selectedExam && student?.id && <details className="api-grade-editor"><summary>录入 / 修订</summary><form className="form-stack" onSubmit={event => saveGrade(event, row)}><label className="field"><span>状态</span><ComboBox name="status" defaultValue={grade?.status ?? "GRADED"} options={[{ value: "GRADED", label: "已评分" }, { value: "PENDING", label: "待评分" }, { value: "ABSENT", label: "缺考" }, { value: "EXEMPT", label: "免考" }]} /></label><TextField label="百分制成绩" name="score" type="number" defaultValue={grade?.score == null ? '' : String(grade.score)} /><TextField label="评语" name="comment" defaultValue={grade?.comment ?? ''} maxLength={2000} /><TextField label="修订原因" name="reason" required maxLength={1000} /><Button type="submit">保存修订</Button></form></details>}</td><td>{rankingView === 'current' ? String(subject === 'theory' ? row.currentScore ?? '—' : row.currentCount ?? '—') : String(row.composite ?? '—')}</td><td>{String(row.historyAverage ?? '—')}</td><td>{String(row.historyCount ?? 0)} / {String(row.historyTotal ?? 0)}</td></tr> })}</tbody></table></div>{ranking.data.items.length === 0 && <Empty text="当前没有可展示的成绩。" />}</Panel> : <Panel><Empty text={emptyText} /></Panel>}
+    </AsyncSection>
   </>
 }
 
