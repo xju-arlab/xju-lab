@@ -6,9 +6,9 @@
 
 ## 目标
 
-建设单实验室日常协作平台，统一管理成员、工位、项目、任务、会议、请假、打印、计算资源与成长考核，并提供经审核的公开实验室主页。需求编号 R01–R12、首版边界和质量基线见[需求](01-requirements.md)。
+建设单实验室日常协作平台，统一管理成员、工位、项目、任务、会议、请假、打印机状态、计算资源与成长考核，并提供经审核的公开实验室主页。需求编号 R01–R12、首版边界和质量基线见[需求](01-requirements.md)。
 
-首个真实业务闭环为：OIDC 登录 → 成员授权 → 工位分配 → 项目/会议统一任务 → 站内请假审批 → 总览。后续完成私有文件与通知、考核、打印 Agent、监控、OJ 集成、公开发布和 PWA。
+首个真实业务闭环为：OIDC 登录 → 成员授权 → 工位分配 → 项目/会议统一任务 → 站内请假审批 → 总览。后续完成通知邮件、考核、打印机状态 Agent、监控、OJ 集成、公开发布和 PWA。打印任务及文件提交不在当前范围。
 
 不做多租户、原生 App、自动判卷、实际考勤、GPU 调度、复杂收费或招新个人信息采集。生产环境与硬件信息缺失不阻塞本仓开发，外部验证必须单独登记。
 
@@ -22,7 +22,7 @@
 
 ## 架构与实施
 
-React + TypeScript 前端、Spring Boot 模块化单体、PostgreSQL/Flyway、Redis 会话、S3 兼容私有存储、事务 outbox、独立 Python Printer Agent，以及外部 Authentik/Prometheus/OJ。见[总体架构](02-architecture.md)。
+React + TypeScript 前端、Spring Boot 模块化单体、PostgreSQL/Flyway、Redis 会话、S3 兼容备份存储、事务 outbox、独立 Python 打印机状态 Agent，以及外部 Authentik/Prometheus/OJ。见[总体架构](02-architecture.md)。
 
 [完整开发计划](06-backend-completion.md)是当前执行依据，冻结工程默认值、权限和数据约束，并给每包列出实现范围及退出条件：
 

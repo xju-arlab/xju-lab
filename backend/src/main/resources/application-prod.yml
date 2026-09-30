@@ -25,7 +25,5 @@ server:
       cookie:
         secure: true
 lab:
-  files:
-    mode: s3
   frontend-origin: ${LAB_FRONTEND_ORIGIN}
-  admission-group: ${PRODUCT_ADMISSION_GROUP}
+  registration-domain: ${PRODUCT_REGISTRATION_DOMAIN}

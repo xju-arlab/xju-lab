@@ -97,7 +97,7 @@
 | `/app/meetings`、`/app/meetings/:id` | 会议列表，议程、参会、纪要、行动项、项目关联 | A1 |
 | `/app/leave` | 我的申请/待我审批，申请表、详情、操作历史 | A1 |
 | `/approval/leave` | token 校验提示、统一登录、申请详情、确认决定 | B |
-| `/app/print`、`/app/print/jobs/:id` | 上传/预览/设置/确认，队列、状态、取消、故障说明 | C |
+| `/app/dashboard`、`/app/admin/settings` | 仪表盘打印机状态；管理员登记设备、轮换 Agent 凭据和启停设备 | 仅状态监控 |
 | `/app/servers`、`/app/servers/:id` | 服务器卡、GPU 行、曲线、最近采集和异常说明 | D |
 | `/app/assessment`、`/app/assessment?tab=theory` | ACM 算法 / 深度学习理论基础两个 Tab，比赛过滤与综合排行、笔试/机试成绩录入和历史明细；见[专项设计](09-assessment-and-showcase.md) | F07 原型 / E 接入 |
 | `/app/notifications`、`/app/profile` | 通知、个人资料、统一账户设置链接 | B/A1 |
@@ -109,7 +109,7 @@
 
 ## 5. 状态与交互
 
-每页具备 skeleton、首次空态、筛选无结果、请求失败重试、无权限、数据过期状态。主操作 pending 时禁止重复点击，但幂等仍由后端保证。审批与打印提交不乐观标记成功；普通任务编辑可乐观更新，版本冲突回滚并展示差异提示。
+每页具备 skeleton、首次空态、筛选无结果、请求失败重试、无权限、数据过期状态。主操作 pending 时禁止重复点击，但幂等仍由后端保证。审批不乐观标记成功；普通任务编辑可乐观更新，版本冲突回滚并展示差异提示。
 
 Query keys 含当前 userId 与过滤条件，退出/换用户清空 Query cache；Zustand 只保留导航/显示偏好，不保存 OIDC token、审批 token、请假原因或成员表。筛选/页码放 URL；草稿默认内存，离开未保存页面提示。
 

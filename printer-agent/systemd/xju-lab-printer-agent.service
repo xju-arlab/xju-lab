@@ -1,5 +1,5 @@
 [Unit]
-Description=XJU Lab Printer Agent
+Description=XJU Lab Printer Status Agent
 After=network-online.target cups.service
 Wants=network-online.target
 
@@ -17,7 +17,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/xju-lab-printer-agent
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
 MemoryDenyWriteExecute=true

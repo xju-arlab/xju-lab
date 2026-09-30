@@ -62,7 +62,7 @@ jobs:
       - name: Route the local IdP hostname to the isolated test service
         run: echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts >/dev/null
       - name: Start data services and the local test IdP
-        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp up -d postgres redis object-store mailpit keycloak
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev up -d postgres redis object-store mailpit keycloak
       - name: Wait for the local IdP before starting the API
         run: |
           set -euo pipefail
@@ -76,12 +76,12 @@ jobs:
             sleep 2
           done
           if [[ "$ready" != true ]]; then
-            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp ps
-            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 keycloak postgres redis object-store
+            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev ps
+            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev logs --tail=200 keycloak postgres redis object-store
             exit 1
           fi
       - name: Build and start the API and web containers
-        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp up --build -d app web
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev up --build -d app web
       - name: Wait for the app and web
         run: |
           set -euo pipefail
@@ -99,28 +99,28 @@ jobs:
             fi
             if (( SECONDS - last_snapshot >= 60 )); then
               echo "::group::Local stack startup snapshot (attempt ${attempt})"
-              docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp ps
-              docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=30 app web keycloak postgres redis object-store || true
+              docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev ps
+              docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev logs --tail=30 app web keycloak postgres redis object-store || true
               echo "::endgroup::"
               last_snapshot=$SECONDS
             fi
             sleep 5
           done
           if [[ "$ready" != true ]]; then
-            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 app web keycloak postgres redis object-store
+            docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev logs --tail=200 app web keycloak postgres redis object-store
             exit 1
           fi
       - name: Seed isolated 100-member capacity smoke-test data
-        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp exec -T postgres psql -v ON_ERROR_STOP=1 -U xju_lab -d xju_lab < scripts/e2e/seed-capacity-members.sql
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev exec -T postgres psql -v ON_ERROR_STOP=1 -U xju_lab -d xju_lab < scripts/e2e/seed-capacity-members.sql
       - name: Run OIDC, business workflow, and responsive browser checks
         run: pnpm test:e2e
         working-directory: frontend
       - name: Collect stack logs on failure
         if: failure()
-        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp logs --tail=200 app web keycloak postgres redis object-store
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev logs --tail=200 app web keycloak postgres redis object-store
       - name: Stop the isolated stack
         if: always()
-        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp down --volumes --remove-orphans
+        run: docker compose --env-file .env.example -f deploy/compose.yaml -f deploy/compose.ci-e2e.yaml --profile app --profile local-idp --profile local-dev down --volumes --remove-orphans
   printer-agent:
     runs-on: ubuntu-24.04
     steps:

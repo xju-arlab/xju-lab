@@ -2,13 +2,13 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-29。本仓 B00–B12 实现与隔离验收已由 GitHub Actions 跑通。代码提交 `163f79a` 的[六个 CI 作业](https://github.com/xju-arlab/xju-lab/actions/runs/36669375197)全部通过，包含 33 项后端测试、OIDC 双用户业务闭环、13 个路由三种视口、键盘/Esc/焦点、PWA 静态缓存、加载/错误/重试、CSV/SVG/PNG、Printer Agent 协议、并发分配/审批边界、性能 smoke 和 PostgreSQL/RustFS 隔离恢复。没有生产发布；后续从真实外部服务、硬件及生产部署联调开始。
+> 2026-09-30。本轮继续保留仅打印机状态、huawei2 部署与 `main` 交付要求，并新增 Authentik OIDC 已验证 `@icthub.top` 开放注册、实名学号不可自改、班级派生年级和多选方向。本地实现与新 CI 结果待本轮最终记录。生产启动还需要 Authentik 自助注册/验证邮件配置、本项目 OIDC client/secret、SMTP 和数据库密钥。Compose Web 上游仍为 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
 在本仓库目录新开 Luna 对话，发送下面这一句：
 
-> 请读取 AGENTS.md、docs/HANDOFF.md 和 docs/plan/06-backend-completion.md，保留现有前端设计与已确认业务规则，从首个未完成的 B00–B12 工作包连续完成本项目的后端、前端真实接入、Printer Agent、测试与部署配置，普通技术选择按文档默认值自主推进，外部缺项如实登记并继续所有可本地完成的工作，完成验收后更新文档并 add、commit、push 到 xju-arlab/xju-lab，最终报告真实完成范围与仍待生产联调的事项。
+> 保持 `main` 分支。读取 AGENTS.md、docs/HANDOFF.md 和 docs/plan/06-backend-completion.md，保留现有产品设计；仅保留打印机状态；Lab 开放已验证 `@icthub.top` 邮箱注册，Lab/OJ 使用同一身份提供方但产品角色隔离；完成实名姓名/学号、班级解析年级、多选方向及管理员更正。继续 huawei2 部署与验证。使用 GitHub CLI 核对 xju-arlab/xju-lab，提交并推送到 main。生产外部配置缺项需记录并继续所有可本地完成事项。
 
 该提示词授权持续开发与本仓提交推送；不把缺少的生产凭据、真实设备或其他项目的变更当作已存在。开发与外部验收的边界见计划第 1、6 节。
 
@@ -16,10 +16,10 @@
 
 - 前端保留原设计与显式 demo 模式，并新增 OpenAPI 生成类型的 API 模式；各主要业务页面已接真实 API。正式 API 失败不会退回假数据。
 - `backend/` 是 Java 21 / Spring Boot 模块化单体；PostgreSQL/Flyway、Redis 会话、OIDC、权限、审计/outbox、各业务模块和 OpenAPI 契约均已创建。
-- `printer-agent/` 包含独立 Python Agent、SQLite journal、CUPS/IPP 适配器和 systemd 服务文件。Agent 5 项 unittest 通过；隔离虚拟 CUPS/IPP 已收到测试 PDF。
+- `printer-agent/` 保留独立 Python 状态 Agent、只读 CUPS 状态采集和 systemd 服务文件；不含 SQLite 打印 journal 或打印任务执行代码。
 - `deploy/`、GitHub Actions、Compose、Nginx、开发 Keycloak realm、Prometheus 模板、备份/恢复脚本和运维说明已加入。
 - GitHub Actions [B00–B12 全栈 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36665041393) 覆盖前端 build/单测、后端 PostgreSQL 集成测试与 6 个 Flyway 迁移、统一 `scripts/verify.sh`、本地 Keycloak OIDC 浏览器业务闭环、完整响应和主要状态检查、Agent 5 项单测、容器健康检查和隔离 PostgreSQL/RustFS 备份恢复。具体视口、路由和性能样本见 [`progress.md`](progress.md)。
-- OJ 目标接口、生产 Authentik/SMTP/S3/Prometheus、真实成员名单、实机打印、域名/TLS、生产一致性灾备与上线仍未验证。详见 [`integration-status.md`](integration-status.md)。
+- OJ 目标接口、生产 Authentik/SMTP/S3/Prometheus、真实成员名单、huawei2 生产配置、真实设备状态映射、域名/TLS 和一致性灾备仍需联调。详见 [`integration-status.md`](integration-status.md)。
 
 ## 必须保留
 
@@ -28,6 +28,7 @@
 - 工位确认布局：`frontend/src/features/seats/layout.confirmed.json`；来源：`docs/design/lab-layout-calibrated.json`。31 个可坐人工位，单布局、标定吸附、带箭头成员气泡、两方向/三年级配色、SVG/PNG 等距留白；不得以旧编辑器布局覆盖。
 - ACM / 深度学习两个 Tab、各有本次/历史排行；老成员过滤先作用于各场再重算；同培养期理论笔试/机试混合历史、单场形式互斥；历史 25% + 当次 75%。细则见 [09 专项](design/09-assessment-and-showcase.md)。
 - OJ 导入只有比赛链接一个必填输入；SUPER_ADMIN 同步为同一人 OJ Admin 的独立来源授权，撤销/停用也需同步。现有 OJ 登录覆盖角色的问题须按 [11 专项](design/11-oj-import-and-admin-sync.md)处理。
+- Lab 自助注册只允许邮箱已验证且域名精确为 `icthub.top`；实名、学号、班级和至少一个方向完成前，服务端拒绝其他业务 API。班级由服务端按 `专业简称YY-班号` 解析年级；普通成员不可修改姓名/学号，仅 SUPER_ADMIN 可审计更正。
 - GPU 数据目前为演示；CPU 部署服务器型号、核心数、内存、磁盘及利用率待录入，不能编造。
 - 公开主页只允许显式发布的脱敏快照；内部数据不自动公开。
 

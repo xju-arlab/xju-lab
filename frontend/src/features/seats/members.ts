@@ -16,9 +16,10 @@ export const gradeColors: Record<number, string> = { 2024: '#2f7756', 2025: '#ad
 export function memberForSeat(seat?: Seat): SeatMember | undefined {
   if (!seat?.name) return
   const member = seatMembers.find(m => m.id === seat.memberId || m.name === seat.name)
-  const savedDirections = seat.direction?.split(/[、,，/]+/).map(d => d.trim()).filter(Boolean) ?? []
+  const explicitDirections = seat.directions?.filter(direction => typeof direction === 'string' && direction.trim()).map(direction => direction.trim())
+  const savedDirections = explicitDirections?.length ? explicitDirections : seat.direction?.split(/[、,，/]+/).map(d => d.trim()).filter(Boolean) ?? []
   // Earlier prototype categories/grades fall back to the corrected roster without losing assignments.
-  const directions = savedDirections.length && savedDirections.every(d => d in directionPalette) ? [...new Set(savedDirections)] : member?.directions ?? []
+  const directions = explicitDirections?.length ? [...new Set(savedDirections)] : savedDirections.length && savedDirections.every(d => d in directionPalette) ? [...new Set(savedDirections)] : member?.directions ?? []
   const grade = seat.grade && seat.grade in gradeColors ? seat.grade : member?.grade
   const className = seat.grade && !(seat.grade in gradeColors) ? member?.className ?? '' : seat.className ?? member?.className ?? ''
   return { id: seat.memberId ?? member?.id ?? seat.id, name: seat.name, className, grade, studentId: seat.studentId ?? member?.studentId ?? '', contact: seat.contact ?? member?.contact ?? '', directions }

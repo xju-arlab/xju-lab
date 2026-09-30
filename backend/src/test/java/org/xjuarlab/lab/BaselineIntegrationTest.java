@@ -16,11 +16,14 @@ import org.xjuarlab.lab.leave.ApprovalTokenCryptography;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.xjuarlab.lab.notifications.OutboxWorker;
+import org.xjuarlab.lab.security.OidcMemberProvisioningSuccessHandler;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
@@ -36,6 +39,10 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -58,7 +65,6 @@ import org.springframework.http.MediaType;
 @Import(BaselineIntegrationTest.TestOidcConfiguration.class)
 @AutoConfigureMockMvc
 class BaselineIntegrationTest {
-    private static final java.nio.file.Path PRIVATE_FILES = temporaryPrivateFiles();
     @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:17.6-bookworm"))
         .withDatabaseName("xju_lab_test").withUsername("xju_test").withPassword("test-password");
     @Container static final GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7.4.3-alpine"))
@@ -71,7 +77,6 @@ class BaselineIntegrationTest {
         properties.add("spring.data.redis.host", redis::getHost);
         properties.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         properties.add("spring.data.redis.password", () -> "redis-test-password");
-        properties.add("lab.files.local-root", PRIVATE_FILES::toString);
     }
 
     @Autowired TestRestTemplate http;
@@ -79,6 +84,7 @@ class BaselineIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ApprovalTokenCryptography tokenCrypto;
     @Autowired OutboxWorker outboxWorker;
+    @Autowired OidcMemberProvisioningSuccessHandler oidcMemberProvisioningSuccessHandler;
     @Autowired JavaMailSender mailSender;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
@@ -129,6 +135,91 @@ class BaselineIntegrationTest {
             .contains("code_challenge_method=S256");
     }
 
+    @Test void oidcAdmissionRequiresAnEmailVerifiedAtTheExactLabDomainAndGrantsOnlyMember() throws Exception {
+        var unverifiedRequest = new MockHttpServletRequest();
+        var unverifiedResponse = new MockHttpServletResponse();
+        oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(unverifiedRequest, unverifiedResponse,
+                oidcAuthentication("unverified@icthub.top", false, "signup-unverified"));
+        assertThat(unverifiedResponse.getStatus()).isEqualTo(403);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM external_identity WHERE subject='signup-unverified'", Integer.class)).isZero();
+
+        var foreignRequest = new MockHttpServletRequest();
+        var foreignResponse = new MockHttpServletResponse();
+        oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(foreignRequest, foreignResponse,
+                oidcAuthentication("member@evil.icthub.top", true, "signup-foreign"));
+        assertThat(foreignResponse.getStatus()).isEqualTo(403);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM external_identity WHERE subject='signup-foreign'", Integer.class)).isZero();
+
+        var acceptedRequest = new MockHttpServletRequest();
+        var acceptedResponse = new MockHttpServletResponse();
+        oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(acceptedRequest, acceptedResponse,
+                oidcAuthentication("member@icthub.top", true, "signup-accepted"));
+        assertThat(acceptedResponse.getStatus()).isEqualTo(302);
+        UUID memberId = jdbc.queryForObject("SELECT member_id FROM external_identity WHERE issuer='http://idp.invalid' AND subject='signup-accepted'", UUID.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_assignment WHERE member_id=? AND role='MEMBER' AND revoked_at IS NULL", Integer.class, memberId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_assignment WHERE member_id=? AND role IN ('LAB_ADMIN','SUPER_ADMIN') AND revoked_at IS NULL", Integer.class, memberId)).isZero();
+    }
+
+    @Test void selfRegistrationDerivesGradeAndDoesNotAllowMembersToEditNameOrStudentNumber() throws Exception {
+        UUID id = incompleteMember("registration-self-service");
+        String studentNumber = "student-" + UUID.randomUUID();
+        mvc.perform(get("/api/v1/overview").with(login("registration-self-service")))
+            .andExpect(status().isForbidden());
+        String registration = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                "realName", "李晓", "studentNumber", studentNumber, "className", "计算机24-3", "directions", List.of("算法", "深度学习", "图神经网络")));
+        mvc.perform(put("/api/v1/members/me/registration").with(login("registration-self-service")).with(csrf())
+                .header("If-Match-Version", 1).contentType(MediaType.APPLICATION_JSON).content(registration))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.realName").value("李晓"))
+            .andExpect(jsonPath("$.studentNumber").value(studentNumber)).andExpect(jsonPath("$.grade").value(24))
+            .andExpect(jsonPath("$.registrationComplete").value(true)).andExpect(jsonPath("$.directions.length()").value(3));
+        assertThat(jdbc.queryForObject("SELECT cohort FROM member WHERE id=?", Integer.class, id)).isEqualTo(24);
+        mvc.perform(get("/api/v1/session").with(login("registration-self-service")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.registrationComplete").value(true));
+
+        incompleteMember("registration-duplicate-student");
+        String duplicateRegistration = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                "realName", "重复学号", "studentNumber", studentNumber, "className", "计算机24-3", "directions", List.of("算法")));
+        mvc.perform(put("/api/v1/members/me/registration").with(login("registration-duplicate-student")).with(csrf())
+                .header("If-Match-Version", 1).contentType(MediaType.APPLICATION_JSON).content(duplicateRegistration))
+            .andExpect(status().isConflict());
+
+        mvc.perform(put("/api/v1/members/me/registration").with(login("registration-self-service")).with(csrf())
+                .header("If-Match-Version", 2).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"realName":"另一个姓名","studentNumber":"another-number","className":"信安25-1","directions":["算法"]}"""))
+            .andExpect(status().isConflict());
+
+        mvc.perform(patch("/api/v1/members/me").with(login("registration-self-service")).with(csrf())
+                .header("If-Match-Version", 2).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"className":"信安25-1","directions":["算法","量子计算"],"introduction":"研究者","realName":"伪造姓名","studentNumber":"伪造学号"}"""))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.realName").value("李晓"))
+            .andExpect(jsonPath("$.studentNumber").value(studentNumber)).andExpect(jsonPath("$.className").value("信安25-1"))
+            .andExpect(jsonPath("$.grade").value(25)).andExpect(jsonPath("$.directions.length()").value(2));
+        assertThat(jdbc.queryForObject("SELECT direction FROM member WHERE id=?", String.class, id)).isEqualTo("算法、量子计算");
+
+        mvc.perform(patch("/api/v1/members/me").with(login("registration-self-service")).with(csrf())
+                .header("If-Match-Version", 3).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"className":"计算机2024-3","directions":["算法"]}"""))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test void onlySuperAdminCanChangeMemberRealNameOrStudentNumber() throws Exception {
+        UUID target = member("identity-update-target", null);
+        member("identity-update-lab-admin", "LAB_ADMIN");
+        member("identity-update-super-admin", "SUPER_ADMIN");
+        String body = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                "realName", "管理员修改姓名", "studentNumber", "identity-" + UUID.randomUUID()));
+        mvc.perform(patch("/api/v1/admin/members/" + target + "/identity").with(login("identity-update-lab-admin")).with(csrf())
+                .header("If-Match-Version", 1).contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/v1/admin/members/" + target + "/identity").with(login("identity-update-target")).with(csrf())
+                .header("If-Match-Version", 1).contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/v1/admin/members/" + target + "/identity").with(login("identity-update-super-admin")).with(csrf())
+                .header("If-Match-Version", 1).contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.realName").value("管理员修改姓名"));
+        assertThat(jdbc.queryForObject("SELECT display_name FROM member WHERE id=?", String.class, target)).isEqualTo("管理员修改姓名");
+    }
+
     @Test void postgresConstraintsPreventASecondActiveSeatForOneMember() {
         var member = jdbc.queryForObject("insert into member(display_name) values ('constraint-test') returning id", java.util.UUID.class);
         jdbc.update("insert into seat_assignment(seat_id,member_id) values ('A01',?)", member);
@@ -146,7 +237,7 @@ class BaselineIntegrationTest {
 
     @Test void oidcIdentityUsesIssuerAndSubjectAndCannotBeReassigned() throws Exception {
         UUID first=member("shared-subject",null);
-        UUID second=jdbc.queryForObject("INSERT INTO member(display_name) VALUES ('second issuer identity') RETURNING id",UUID.class);
+        UUID second=jdbc.queryForObject("INSERT INTO member(display_name,real_name,student_number,class_name,cohort,directions,direction) VALUES ('second issuer identity','second issuer identity',?,'计算机24-3',24,'[\"算法\"]'::jsonb,'算法') RETURNING id",UUID.class,"t"+UUID.randomUUID().toString().replace("-","").substring(0,20));
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update("INSERT INTO external_identity(member_id,issuer,subject) VALUES (?, 'http://idp.invalid', 'shared-subject')",second))
             .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
         jdbc.update("INSERT INTO external_identity(member_id,issuer,subject) VALUES (?, 'http://other-idp.invalid', 'shared-subject')",second);
@@ -408,23 +499,6 @@ class BaselineIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM leave_decision WHERE application_id=? AND decision IN ('APPROVED','WITHDRAWN')",Integer.class,UUID.fromString(application))).isEqualTo(1);
     }
 
-    @Test void privatePdfUploadRangeDownloadAndOwnershipAreEnforced() throws Exception {
-        UUID owner=member("file-owner","MEMBER"); member("file-outsider", "MEMBER");
-        byte[] pdf;
-        try(var document=new org.apache.pdfbox.pdmodel.PDDocument(); var output=new java.io.ByteArrayOutputStream()) {
-            document.addPage(new org.apache.pdfbox.pdmodel.PDPage()); document.save(output); pdf=output.toByteArray();
-        }
-        var upload=mvc.perform(multipart("/api/v1/files").file(new MockMultipartFile("file","report.pdf","application/pdf",pdf)).with(login("file-owner")).with(csrf()))
-            .andExpect(status().isCreated()).andExpect(jsonPath("$.pageCount").value(1)).andReturn();
-        String fileId=new com.fasterxml.jackson.databind.ObjectMapper().readTree(upload.getResponse().getContentAsString()).get("id").asText();
-        mvc.perform(get("/api/v1/files/"+fileId+"/content").with(login("file-owner")).header("Range","bytes=0-3"))
-            .andExpect(status().isPartialContent()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Range",org.hamcrest.Matchers.startsWith("bytes 0-3/")));
-        mvc.perform(get("/api/v1/files/"+fileId+"/content").with(login("file-outsider"))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/files/"+fileId+"/content").with(login("file-owner")).header("Range","bytes=999999-"))
-            .andExpect(status().isRequestedRangeNotSatisfiable()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Range",org.hamcrest.Matchers.startsWith("bytes */")));
-        mvc.perform(multipart("/api/v1/files").file(new MockMultipartFile("file","fake.pdf","application/pdf","not a PDF".getBytes())).with(login("file-owner")).with(csrf()))
-            .andExpect(status().isBadRequest());
-    }
 
     @Test void emailApprovalGetDoesNotMutateAndPostConsumesOnlyForTheAssignedApprover() throws Exception {
         UUID approver=member("email-approval-approver","TEACHER"); member("email-approval-applicant","MEMBER"); member("email-approval-outsider","MEMBER");
@@ -504,41 +578,41 @@ class BaselineIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].student.id").value(alice.toString()));
     }
 
-    @Test void printerJobsAreIdempotentLeasedWithFencingAndNeverAssumedPhysicallyCanceled() throws Exception {
-        UUID admin=member("printer-admin","LAB_ADMIN"),owner=member("printer-owner","MEMBER");member("printer-outsider","MEMBER");
-        var created=mvc.perform(post("/api/v1/admin/printers").with(login("printer-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"name\":\"Test printer\",\"location\":\"A411\",\"capabilities\":{\"known\":true,\"colorSupported\":true,\"duplexSupported\":true,\"maxCopies\":4,\"paperSizes\":[\"A4\"]}}"))
+    @Test void printerAgentReportsOnlyAuthenticatedDeviceStatus() throws Exception {
+        member("printer-status-admin", "LAB_ADMIN");
+        member("printer-status-viewer", "MEMBER");
+        var created = mvc.perform(post("/api/v1/admin/printers").with(login("printer-status-admin")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                    {"name":"Status printer","location":"A411"}
+                    """))
             .andExpect(status().isOk()).andReturn();
-        var credential=new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString());UUID printer=UUID.fromString(credential.get("printerId").asText());String token=credential.get("token").asText();
-        assertThat(jdbc.queryForObject("SELECT token_hash FROM agent_identity WHERE id=?",String.class,UUID.fromString(credential.get("agentId").asText()))).isNotEqualTo(token);
-        byte[] pdf;try(var document=new org.apache.pdfbox.pdmodel.PDDocument();var output=new java.io.ByteArrayOutputStream()){document.addPage(new org.apache.pdfbox.pdmodel.PDPage());document.save(output);pdf=output.toByteArray();}
-        var upload=mvc.perform(multipart("/api/v1/files").file(new MockMultipartFile("file","print.pdf","application/pdf",pdf)).with(login("printer-owner")).with(csrf())).andExpect(status().isCreated()).andReturn();
-        UUID file=UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper().readTree(upload.getResponse().getContentAsString()).get("id").asText());
-        String body="{\"printerId\":\""+printer+"\",\"fileId\":\""+file+"\",\"pages\":\"1\",\"copies\":2,\"sides\":\"DUPLEX_LONG_EDGE\",\"color\":\"COLOR\"}";
-        var first=mvc.perform(post("/api/v1/print/jobs").with(login("printer-owner")).with(csrf()).header("Idempotency-Key","test-print-1").contentType(MediaType.APPLICATION_JSON).content(body))
-            .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("QUEUED")).andExpect(jsonPath("$.options.estimatedSheets").value(2)).andReturn();
-        UUID job=UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper().readTree(first.getResponse().getContentAsString()).get("id").asText());
-        mvc.perform(post("/api/v1/print/jobs").with(login("printer-owner")).with(csrf()).header("Idempotency-Key","test-print-1").contentType(MediaType.APPLICATION_JSON).content(body))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(job.toString()));
-        mvc.perform(post("/api/v1/print/jobs").with(login("printer-owner")).with(csrf()).header("Idempotency-Key","test-print-1").contentType(MediaType.APPLICATION_JSON)
-            .content(body.replace("\"copies\":2","\"copies\":3"))).andExpect(status().isConflict());
-        mvc.perform(get("/api/v1/print/jobs/"+job).with(login("printer-outsider"))).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/printer-agent/poll").header("Authorization","Bearer invalid-token")).andExpect(status().isUnauthorized());
-        var leased=mvc.perform(post("/api/v1/printer-agent/poll").header("Authorization","Bearer "+token)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.job.jobId").value(job.toString())).andExpect(jsonPath("$.job.fencingToken").value(1)).andReturn();
-        var leasedJson=new com.fasterxml.jackson.databind.ObjectMapper().readTree(leased.getResponse().getContentAsString()).get("job");long version=leasedJson.get("version").asLong();
-        mvc.perform(get(leasedJson.get("contentUrl").asText()).contextPath("").header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(content().contentType("application/pdf"));
-        mvc.perform(post("/api/v1/printer-agent/jobs/"+job+"/status").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content("{\"state\":\"SUBMITTING\",\"fencingToken\":1,\"version\":"+version+",\"detail\":{\"cupsJobId\":\"printer-17\"}}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(version+1));version++;
-        mvc.perform(post("/api/v1/printer-agent/jobs/"+job+"/status").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content("{\"state\":\"SUBMITTED\",\"fencingToken\":1,\"version\":"+version+"}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("SUBMITTED"));version++;
-        mvc.perform(post("/api/v1/print/jobs/"+job+"/cancel").with(login("printer-owner")).with(csrf()).header("If-Match-Version",version))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCEL_REQUESTED"));version++;
-        mvc.perform(post("/api/v1/printer-agent/poll").header("Authorization","Bearer "+token)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.cancelRequests[0].jobId").value(job.toString())).andExpect(jsonPath("$.cancelRequests[0].version").value(version));
-        mvc.perform(post("/api/v1/printer-agent/jobs/"+job+"/status").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content("{\"state\":\"CANCELED\",\"fencingToken\":1,\"version\":"+version+"}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("CANCELED"));
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM print_event WHERE job_id=?",Integer.class,job)).isEqualTo(6);
+        var credential = new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString());
+        String token = credential.get("token").asText();
+        UUID agent = UUID.fromString(credential.get("agentId").asText());
+        assertThat(jdbc.queryForObject("SELECT token_hash FROM agent_identity WHERE id=?", String.class, agent)).isNotEqualTo(token);
+
+        String heartbeat = """
+            {"agentVersion":"0.2.0","deviceState":"READY","tonerSupported":true,"tonerPercent":18}
+            """;
+        mvc.perform(post("/api/v1/printer-agent/heartbeat").header("Authorization", "Bearer invalid-token")
+                .contentType(MediaType.APPLICATION_JSON).content(heartbeat))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/printer-agent/heartbeat").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(heartbeat))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("OK"));
+        mvc.perform(get("/api/v1/printers").with(login("printer-status-viewer")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].status").value("ONLINE"))
+            .andExpect(jsonPath("$[0].lastReport.deviceState").value("READY"))
+            .andExpect(jsonPath("$[0].lastReport.tonerPercent").value(18));
+        mvc.perform(post("/api/v1/printer-agent/heartbeat").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                    {"agentVersion":"0.2.0","deviceState":"READY","tonerSupported":true,"tonerPercent":101}
+                    """))
+            .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/printer-agent/poll").header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/print/jobs").with(login("printer-status-viewer")))
+            .andExpect(status().isNotFound());
     }
 
     @Test void ojImportRejectsAnyContestHostOutsideTheConfiguredOrigin() throws Exception {
@@ -618,10 +692,27 @@ class BaselineIntegrationTest {
     }
 
     private UUID member(String subject,String role){
-        UUID id=jdbc.queryForObject("INSERT INTO member(display_name) VALUES (?) RETURNING id",UUID.class,subject);
+        String studentNumber="t"+UUID.randomUUID().toString().replace("-","").substring(0,20);
+        UUID id=jdbc.queryForObject("INSERT INTO member(display_name,real_name,student_number,class_name,cohort,directions,direction) VALUES (?,?,?,'计算机24-3',24,'[\"算法\"]'::jsonb,'算法') RETURNING id",UUID.class,subject,subject,studentNumber);
         jdbc.update("INSERT INTO external_identity(member_id,issuer,subject) VALUES (?, 'http://idp.invalid', ?)",id,subject);
         if(role!=null)jdbc.update("INSERT INTO role_assignment(member_id,role,source) VALUES (?,?,?)",id,role,role.equals("SUPER_ADMIN")?"bootstrap":"test-fixture");
         return id;
+    }
+    private UUID incompleteMember(String subject) {
+        UUID id=jdbc.queryForObject("INSERT INTO member(display_name) VALUES (?) RETURNING id",UUID.class,subject);
+        jdbc.update("INSERT INTO external_identity(member_id,issuer,subject) VALUES (?, 'http://idp.invalid', ?)",id,subject);
+        jdbc.update("INSERT INTO role_assignment(member_id,role,source) VALUES (?,'MEMBER','oidc-admission')",id);
+        return id;
+    }
+    private UsernamePasswordAuthenticationToken oidcAuthentication(String email, boolean verified, String subject) {
+        Instant now = Instant.now();
+        Map<String,Object> claims = new java.util.HashMap<>();
+        claims.put("iss", "http://idp.invalid"); claims.put("sub", subject); claims.put("aud", List.of("integration-test"));
+        claims.put("iat", now); claims.put("exp", now.plusSeconds(300)); claims.put("email", email);
+        claims.put("email_verified", verified); claims.put("name", "OIDC Test Member");
+        var idToken = new OidcIdToken("test-token", now.minusSeconds(30), now.plusSeconds(300), claims);
+        var user = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("ROLE_USER")), idToken);
+        return new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
     }
     private RequestPostProcessor login(String subject){return login("http://idp.invalid",subject);}
     private RequestPostProcessor login(String issuer,String subject){
@@ -640,5 +731,4 @@ class BaselineIntegrationTest {
             return List.of(firstResult.get(30,java.util.concurrent.TimeUnit.SECONDS),secondResult.get(30,java.util.concurrent.TimeUnit.SECONDS));
         } finally { start.countDown();executor.shutdownNow(); }
     }
-    private static java.nio.file.Path temporaryPrivateFiles(){try{return java.nio.file.Files.createTempDirectory("xju-lab-private-files-");}catch(java.io.IOException ex){throw new ExceptionInInitializerError(ex);}}
 }

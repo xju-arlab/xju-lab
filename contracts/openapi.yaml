@@ -12,7 +12,6 @@ tags:
   - name: projects
   - name: meetings
   - name: leaves
-  - name: files
   - name: notifications
   - name: overview
   - name: assessment
@@ -64,7 +63,17 @@ paths:
       parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProfileUpdate' } } } }
       responses:
-        '200': { description: Updated profile }
+        '200': { description: Updated profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
+        '409': { $ref: '#/components/responses/ApiError' }
+  /members/me/registration:
+    put:
+      tags: [members]
+      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MemberRegistration' } } } }
+      responses:
+        '200': { description: Completed the authenticated member's required real-name registration, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
         '409': { $ref: '#/components/responses/ApiError' }
   /lab/settings:
     get:
@@ -85,7 +94,15 @@ paths:
   /admin/members:
     get:
       tags: [members]
-      responses: { '200': { description: Administrator member directory with role and versioned OJ sync status } }
+      responses: { '200': { description: Administrator member directory with role and versioned OJ sync status, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AdminMember' } } } } } }
+  /admin/members/{memberId}/identity:
+    patch:
+      tags: [members]
+      parameters:
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IfMatchVersion' }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MemberIdentityUpdate' } } } }
+      responses: { '200': { description: Updated real name and student number, content: { application/json: { schema: { $ref: '#/components/schemas/AdminMember' } } } }, '400': { $ref: '#/components/responses/ApiError' }, '403': { $ref: '#/components/responses/ApiError' }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
   /admin/members/{memberId}/roles/{role}:
     put:
       tags: [members]
@@ -280,21 +297,6 @@ paths:
       tags: [leaves]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token, decision], properties: { token: { type: string }, decision: { type: string, enum: [APPROVED, REJECTED] }, reason: { type: string, maxLength: 1000 } } } } } }
       responses: { '200': { description: Token consumed by the authenticated assigned approver }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
-  /files:
-    post:
-      tags: [files]
-      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
-      responses: { '201': { description: Validated private PDF, content: { application/json: { schema: { $ref: '#/components/schemas/FileObject' } } } }, '400': { $ref: '#/components/responses/ApiError' } }
-  /files/{id}/content:
-    get:
-      tags: [files]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: Range, in: header, schema: { type: string, example: 'bytes=0-1023' } }]
-      responses: { '200': { description: Private PDF content }, '206': { description: Single byte range }, '416': { description: Invalid or unsupported byte range }, '404': { $ref: '#/components/responses/ApiError' } }
-  /files/{id}:
-    delete:
-      tags: [files]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '204': { description: File marked for private object cleanup }, '404': { $ref: '#/components/responses/ApiError' } }
   /notifications:
     get:
       tags: [notifications]
@@ -406,40 +408,25 @@ paths:
   /printers:
     get:
       tags: [printer]
-      responses: { '200': { description: Authorized printers, observed agent state and known capabilities } }
-  /print/jobs:
-    get:
-      tags: [printer]
-      parameters: [{ name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }, { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }]
-      responses: { '200': { description: Caller-owned print jobs } }
-    post:
-      tags: [printer]
-      parameters: [{ name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 160 } }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [printerId, fileId, copies, sides, color], properties: { printerId: { type: string, format: uuid }, fileId: { type: string, format: uuid }, pages: { type: string }, copies: { type: integer }, sides: { type: string, enum: [SIMPLEX, DUPLEX_LONG_EDGE, DUPLEX_SHORT_EDGE] }, color: { type: string, enum: [MONOCHROME, COLOR] } } } } } }
-      responses: { '201': { description: Durable job queued }, '409': { $ref: '#/components/responses/ApiError' } }
-  /print/jobs/{jobId}:
-    get:
-      tags: [printer]
-      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '200': { description: Caller-owned print job }, '404': { $ref: '#/components/responses/ApiError' } }
-  /print/jobs/{jobId}/events:
-    get:
-      tags: [printer]
-      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '200': { description: Print job state history } }
-  /print/jobs/{jobId}/cancel:
-    post:
-      tags: [printer]
-      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IfMatchVersion' }]
-      responses: { '200': { description: Cancel request or terminal queue state }, '409': { $ref: '#/components/responses/ApiError' } }
+      responses:
+        '200':
+          description: Authorized printer records and reported device status
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Printer' } } } }
   /admin/printers:
     get:
       tags: [printer]
-      responses: { '200': { description: All printer records including disabled devices, for administrators }, '403': { $ref: '#/components/responses/ApiError' } }
+      responses:
+        '200':
+          description: All printer records including disabled devices, for administrators
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Printer' } } } }
+        '403': { $ref: '#/components/responses/ApiError' }
     post:
       tags: [printer]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 120 }, location: { type: string, maxLength: 160 } } } } } }
-      responses: { '200': { description: Printer created and plaintext agent token shown exactly once } }
+      responses:
+        '200':
+          description: Printer created and plaintext agent token shown exactly once
+          content: { application/json: { schema: { $ref: '#/components/schemas/AgentCredential' } } }
   /admin/printers/{printerId}/rotate-agent-token:
     post:
       tags: [printer]
@@ -450,7 +437,10 @@ paths:
       tags: [printer]
       parameters: [{ name: printerId, in: path, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } } }
-      responses: { '200': { description: Printer enabled state updated } }
+      responses:
+        '200':
+          description: Printer enabled state updated
+          content: { application/json: { schema: { $ref: '#/components/schemas/Printer' } } }
   /monitor/assets:
     get:
       tags: [monitoring]
@@ -503,36 +493,15 @@ paths:
     post:
       tags: [publication]
       responses: { '200': { description: Latest public snapshot withdrawn }, '404': { $ref: '#/components/responses/ApiError' } }
-  /printer-agent/poll:
-    post:
-      tags: [printer-agent]
-      security: [{ printerAgentToken: [] }]
-      responses: { '200': { description: Fenced job lease and cancellation requests } }
-  /printer-agent/jobs/{jobId}/content:
-    get:
-      tags: [printer-agent]
-      security: [{ printerAgentToken: [] }]
-      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }, { name: fencingToken, in: query, required: true, schema: { type: integer, minimum: 1 } }]
-      responses: { '200': { description: Lease-authorized private PDF with size and SHA-256 verification }, '404': { $ref: '#/components/responses/ApiError' } }
-  /printer-agent/jobs/{jobId}:
-    get:
-      tags: [printer-agent]
-      security: [{ printerAgentToken: [] }]
-      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }, { name: fencingToken, in: query, required: true, schema: { type: integer, minimum: 1 } }]
-      responses: { '200': { description: Current lease state and version } }
-  /printer-agent/jobs/{jobId}/status:
-    post:
-      tags: [printer-agent]
-      security: [{ printerAgentToken: [] }]
-      parameters: [{ name: jobId, in: path, required: true, schema: { type: string, format: uuid } }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [state, fencingToken, version], properties: { state: { type: string }, fencingToken: { type: integer }, version: { type: integer }, detail: { type: object, additionalProperties: true } } } } } }
-      responses: { '200': { description: Versioned state accepted }, '409': { $ref: '#/components/responses/ApiError' } }
   /printer-agent/heartbeat:
     post:
       tags: [printer-agent]
       security: [{ printerAgentToken: [] }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [agentVersion, deviceState, tonerSupported, capabilities], properties: { agentVersion: { type: string }, deviceState: { type: string }, tonerSupported: { type: boolean }, tonerPercent: { type: integer, nullable: true }, capabilities: { type: object, additionalProperties: true } } } } } }
-      responses: { '200': { description: Sanitized device heartbeat saved } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [agentVersion, deviceState, tonerSupported], additionalProperties: false, properties: { agentVersion: { type: string, minLength: 1, maxLength: 80 }, deviceState: { type: string, enum: [READY, BUSY, PAPER_OUT, JAMMED, ERROR, UNKNOWN] }, tonerSupported: { type: boolean }, tonerPercent: { type: integer, nullable: true, minimum: 0, maximum: 100 } } } } } }
+      responses:
+        '200':
+          description: Sanitized device heartbeat saved
+          content: { application/json: { schema: { $ref: '#/components/schemas/HeartbeatResult' } } }
 components:
   securitySchemes:
     sessionCookie:
@@ -549,6 +518,38 @@ components:
       required: true
       schema: { type: integer, minimum: 1 }
   schemas:
+    Printer:
+      type: object
+      required: [id, name, location, status, lastSeenAt, lastReport]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        location: { type: string }
+        status: { type: string, enum: [ONLINE, OFFLINE, DISABLED] }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        lastReport:
+          type: object
+          nullable: true
+          required: [agentVersion, deviceState, tonerSupported, tonerPercent, reportedAt]
+          properties:
+            agentVersion: { type: string }
+            deviceState: { type: string, enum: [READY, BUSY, PAPER_OUT, JAMMED, ERROR, UNKNOWN] }
+            tonerSupported: { type: boolean }
+            tonerPercent: { type: integer, nullable: true, minimum: 0, maximum: 100 }
+            reportedAt: { type: string, format: date-time }
+    AgentCredential:
+      type: object
+      required: [printerId, agentId, token]
+      properties:
+        printerId: { type: string, format: uuid }
+        agentId: { type: string, format: uuid }
+        token: { type: string }
+    HeartbeatResult:
+      type: object
+      required: [serverTime, status]
+      properties:
+        serverTime: { type: string, format: date-time }
+        status: { type: string, enum: [OK] }
     TrainingTerm:
       type: object
       required: [id, name, startsOn, endsOn, active, version]
@@ -576,22 +577,64 @@ components:
               summary: { type: string, maxLength: 500 }
     Session:
       type: object
-      required: [authenticated, memberId, displayName, roles, issuer]
+      required: [authenticated, memberId, displayName, roles, issuer, registrationComplete]
       properties:
         authenticated: { type: boolean, const: true }
         memberId: { type: string, format: uuid }
         displayName: { type: string }
         roles: { type: array, items: { type: string } }
         issuer: { type: string, format: uri }
+        registrationComplete: { type: boolean }
     Profile:
       type: object
-      required: [id, displayName, version]
+      required: [id, displayName, directions, version, registrationComplete]
       properties:
         id: { type: string, format: uuid }
         displayName: { type: string }
+        realName: { type: string, nullable: true }
+        studentNumber: { type: string, nullable: true }
+        className: { type: string, nullable: true, pattern: '^[A-Za-z一-鿿]{2,20}[0-9]{2}-[1-9][0-9]?$' }
+        grade: { type: integer, nullable: true, description: Two-digit admission year parsed from className }
+        directions: { type: array, minItems: 0, maxItems: 8, items: { type: string, minLength: 1, maxLength: 32 } }
         direction: { type: string, nullable: true }
         introduction: { type: string, nullable: true }
         version: { type: integer }
+        registrationComplete: { type: boolean }
+    MemberRegistration:
+      type: object
+      required: [realName, studentNumber, className, directions]
+      properties:
+        realName: { type: string, minLength: 1, maxLength: 80 }
+        studentNumber: { type: string, minLength: 1, maxLength: 32 }
+        className: { type: string, pattern: '^[A-Za-z一-鿿]{2,20}[0-9]{2}-[1-9][0-9]?$' }
+        directions: { type: array, minItems: 1, maxItems: 8, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 32 } }
+    MemberIdentityUpdate:
+      type: object
+      required: [realName, studentNumber]
+      properties:
+        realName: { type: string, minLength: 1, maxLength: 80 }
+        studentNumber: { type: string, minLength: 1, maxLength: 32 }
+    AdminMember:
+      type: object
+      required: [id, displayName, active, version, roles]
+      properties:
+        id: { type: string, format: uuid }
+        accountId: { type: string, nullable: true }
+        displayName: { type: string }
+        realName: { type: string, nullable: true }
+        studentNumber: { type: string, nullable: true }
+        className: { type: string, nullable: true }
+        contact: { type: string, nullable: true }
+        cohort: { type: integer, nullable: true, description: Two-digit admission year parsed from className }
+        active: { type: boolean }
+        version: { type: integer }
+        roles: { type: array, items: { type: string } }
+        ojAdminDesired: { type: boolean, nullable: true }
+        ojSyncVersion: { type: integer, nullable: true }
+        ojConfirmedVersion: { type: integer, nullable: true }
+        ojSyncStatus: { type: string, nullable: true }
+        ojLastError: { type: string, nullable: true }
+        ojConfirmedAt: { type: string, format: date-time, nullable: true }
     Project:
       type: object
       required: [id, title, description, status, leadId, version]
@@ -653,15 +696,6 @@ components:
         reason: { type: string }
         status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
         version: { type: integer }
-    FileObject:
-      type: object
-      required: [id, name, byteSize, pageCount, sha256]
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        byteSize: { type: integer, format: int64 }
-        pageCount: { type: integer }
-        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
     Notification:
       type: object
       required: [id, kind, payload, createdAt]
@@ -681,6 +715,8 @@ components:
         memberId: { type: string, format: uuid, nullable: true }
         displayName: { type: string, nullable: true }
         direction: { type: string, nullable: true }
+        directions: { type: array, items: { type: string } }
+        className: { type: string, nullable: true }
         cohort: { type: integer, nullable: true }
         onLeaveNow: { type: boolean, description: Current approved leave overlaps the present instant }
     Overview:
@@ -703,7 +739,7 @@ components:
         - $ref: '#/components/schemas/PageEnvelopeBase'
         - type: object
           properties:
-            items: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string }, direction: { type: string, nullable: true }, cohort: { type: integer, nullable: true }, studentNumber: { type: string, nullable: true }, contact: { type: string, nullable: true }, version: { type: integer } } } }
+            items: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string }, direction: { type: string, nullable: true }, className: { type: string, nullable: true }, cohort: { type: integer, nullable: true }, studentNumber: { type: string, nullable: true }, contact: { type: string, nullable: true }, version: { type: integer } } } }
     PageEnvelopeBase:
       type: object
       required: [items, total, page, pageSize]
@@ -744,9 +780,10 @@ components:
           properties: { items: { type: array, items: { $ref: '#/components/schemas/Notification' } } }
     ProfileUpdate:
       type: object
+      required: [className, directions]
       properties:
-        displayName: { type: string, minLength: 1, maxLength: 80 }
-        direction: { type: string, maxLength: 160 }
+        className: { type: string, maxLength: 32, pattern: '^[A-Za-z一-鿿]{2,20}[0-9]{2}-[1-9][0-9]?$' }
+        directions: { type: array, minItems: 1, maxItems: 8, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 32 } }
         introduction: { type: string, maxLength: 1000 }
     LabSettings:
       type: object

@@ -37,7 +37,7 @@
 
 - 契约规范身份域为 `auth.icthub.top`，OIDC/Flow 归 Authentik；静态门户不是认证后端。
 - 产品主身份使用经验证的 `iss + sub`，统一 8 位 ID 推荐 claim 为 `icthub_account_id`；email/username 不作归属主键。
-- 未见 LabOS 专属 Provider。新回调、准入组和角色策略需另行设计与验证。
+- 盘点时未见 LabOS 专属 Provider。当前本仓按用户决策实现精确 `@icthub.top` 已验证邮箱准入；生产 Provider、自助注册、验证邮件、OIDC claims 和角色策略尚未配置或验证。
 - 老文档与后续执行记录存在阶段差异；本轮未探测生产身份服务，不用旧故障记录断言当前不可用。
 - 参考文档里的部署/commit/push 授权属于原任务，不自动授权本次修改身份服务。
 

@@ -19,15 +19,10 @@ public class ProductionConfigurationGuard implements ApplicationRunner {
                 throw new IllegalStateException("Production OIDC issuer must be a configured HTTPS identity provider");
             String frontend = environment.getRequiredProperty("lab.frontend-origin");
             if (!frontend.startsWith("https://")) throw new IllegalStateException("Production frontend origin must use HTTPS");
+            if (!"icthub.top".equalsIgnoreCase(environment.getRequiredProperty("lab.registration-domain")))
+                throw new IllegalStateException("Production self-registration is restricted to verified icthub.top email addresses");
             if (!environment.getRequiredProperty("server.servlet.session.cookie.secure", Boolean.class))
                 throw new IllegalStateException("Production session cookies must be Secure");
-            String endpoint=environment.getRequiredProperty("lab.files.s3-endpoint");
-            URI storage=URI.create(endpoint);
-            boolean internalObjectStore="http".equalsIgnoreCase(storage.getScheme()) && "object-store".equalsIgnoreCase(storage.getHost());
-            if (storage.getHost()==null || storage.getHost().equalsIgnoreCase("localhost") || storage.getHost().equals("127.0.0.1") || storage.getHost().endsWith(".invalid") || (!"https".equalsIgnoreCase(storage.getScheme()) && !internalObjectStore))
-                throw new IllegalStateException("Production private file storage must use an explicit secure S3 endpoint");
-            if (environment.getRequiredProperty("lab.files.s3-access-key").isBlank() || environment.getRequiredProperty("lab.files.s3-secret-key").isBlank())
-                throw new IllegalStateException("Production private file storage credentials are required");
             if (environment.getRequiredProperty("lab.approval-token-encryption-key").length()<32)
                 throw new IllegalStateException("Production approval token encryption key must contain at least 32 characters");
             optionalProductionUrl("lab.oj.public-origin", true, false);

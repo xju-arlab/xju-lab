@@ -1,6 +1,6 @@
 # 前端接口占位
 
-当前前端使用演示状态，不会向服务器发送请求。`frontend/src/api/contracts.ts` 集中登记后端接入时的建议路径和 HTTP 方法；这些路径是联调前的占位，不代表已冻结的 API 契约。[完整开发计划 B00](plan/06-backend-completion.md)建立 `contracts/openapi.yaml`，之后按各包冻结、实现并验证；未列出的会话、管理、文件、通知和设备接口按计划补齐。
+本页保留早期演示前端的接口占位记录。当前生产模式按 [`contracts/openapi.yaml`](../contracts/openapi.yaml) 请求真实 API；打印提交及文件接口已删除，只保留打印机状态读取与管理员设备登记。
 
 | 前端模块 | 建议接口 | 当前行为 |
 |---|---|---|
@@ -8,7 +8,7 @@
 | 项目与待办 | GET/POST /api/v1/projects；GET/POST /api/v1/projects/{projectId}/tasks；PATCH /api/v1/tasks/{taskId} | 会话内新增项目、任务和完成状态 |
 | 工位 | GET /api/v1/seats；PUT /api/v1/seats/{seatId}/assignment；GET /api/v1/members；GET/PUT /api/v1/seats/layout | 确认布局固化于项目；标定和示例成员分配分别保存到当前浏览器 xju-lab.seat-layout.v1、xju-lab.seat-assignments.v1，不跨设备；见[工位设计](design/12-seat-layout.md) |
 | 请假 | GET/POST /api/v1/leave-applications；审批和撤回子接口 | 会话内提交、审批、撤回 |
-| 打印 | GET/POST /api/v1/print-jobs；取消子接口 | 仅更新模拟队列，不上传文件、不连接打印机 |
+| 打印机状态 | GET /api/v1/printers；POST /api/v1/printer-agent/heartbeat | 仪表盘展示服务端状态和设备心跳；不接收打印任务 |
 | 会议 | GET /api/v1/meetings；PUT /api/v1/meetings/{meetingId}/minutes | 纪要保留在当前页面会话 |
 | 计算资源 | GET /api/v1/compute/servers；GET /api/v1/compute/metrics | GPU 节点显示演示指标；CPU 部署服务器作为待录入配置的占位节点；接口未调用 |
 | 成长与考核 | GET /api/v1/assessment/acm/contests 及 /{contestId}/ranking；GET /api/v1/assessment/theory/exams 及 /{examId}/ranking；PUT /api/v1/assessment/theory/exams/{examId}/grades/{memberId}；PATCH /api/v1/assessment/member-groups/{memberId} | 前端计算 ACM/理论综合排行；成绩覆盖值和老成员标记存 localStorage 的 xju-lab.assessment.v2，不请求真实服务；详见[设计](design/09-assessment-and-showcase.md) |
@@ -17,4 +17,4 @@
 | 超级管理员联动 | PUT /api/v1/admin/members/{memberId}/roles；GET /api/v1/admin/members/{memberId}/oj-role-sync；POST /api/v1/admin/members/{memberId}/oj-role-sync/retry | 仅登记后端计划与接口占位；真实角色授权和同步尚未实现，见[11 专项](design/11-oj-import-and-admin-sync.md) |
 | 实验室主页 | GET /api/v1/public/lab-profile | 展示静态内容；首版招新只展示联系方式/说明，源码旧 POST applications 占位不在本轮范围，B00 清理 |
 
-路径、权限和字段按 B00–B12 冻结与实现；前端正式模式失败不得回退演示结果。当前后端尚无代码，计算资源页仍使用演示 GPU 数据与 CPU 节点占位。
+路径、权限和字段以 OpenAPI 契约为准；前端正式模式失败不得回退演示结果。计算资源中没有受控采集源的字段明确显示未接入。

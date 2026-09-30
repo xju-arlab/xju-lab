@@ -225,11 +225,57 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Profile"];
+                    };
                 };
+                400: components["responses"]["ApiError"];
                 409: components["responses"]["ApiError"];
             };
         };
+        trace?: never;
+    };
+    "/members/me/registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header: {
+                    "If-Match-Version": components["parameters"]["IfMatchVersion"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MemberRegistration"];
+                };
+            };
+            responses: {
+                /** @description Completed the authenticated member's required real-name registration */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Profile"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/lab/settings": {
@@ -349,7 +395,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["AdminMember"][];
+                    };
                 };
             };
         };
@@ -359,6 +407,53 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/admin/members/{memberId}/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header: {
+                    "If-Match-Version": components["parameters"]["IfMatchVersion"];
+                };
+                path: {
+                    memberId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MemberIdentityUpdate"];
+                };
+            };
+            responses: {
+                /** @description Updated real name and student number */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminMember"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+                404: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+            };
+        };
         trace?: never;
     };
     "/admin/members/{memberId}/roles/{role}": {
@@ -1700,137 +1795,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/files": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "multipart/form-data": {
-                        /** Format: binary */
-                        file: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Validated private PDF */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["FileObject"];
-                    };
-                };
-                400: components["responses"]["ApiError"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/files/{id}/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: {
-                    Range?: string;
-                };
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Private PDF content */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Single byte range */
-                206: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                404: components["responses"]["ApiError"];
-                /** @description Invalid or unsupported byte range */
-                416: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/files/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description File marked for private object cleanup */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                404: components["responses"]["ApiError"];
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/notifications": {
         parameters: {
             query?: never;
@@ -2636,197 +2600,19 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Authorized printers */
+                /** @description Authorized printer records and reported device status */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Printer"][];
+                    };
                 };
             };
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/print/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Caller-owned print jobs */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header: {
-                    "Idempotency-Key": string;
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        printerId: string;
-                        /** Format: uuid */
-                        fileId: string;
-                        pages?: string;
-                        copies: number;
-                        /** @enum {string} */
-                        sides: "SIMPLEX" | "DUPLEX_LONG_EDGE" | "DUPLEX_SHORT_EDGE";
-                        /** @enum {string} */
-                        color: "MONOCHROME" | "COLOR";
-                    };
-                };
-            };
-            responses: {
-                /** @description Durable job queued */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                409: components["responses"]["ApiError"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/print/jobs/{jobId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    jobId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Caller-owned print job */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                404: components["responses"]["ApiError"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/print/jobs/{jobId}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    jobId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Print job state history */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/print/jobs/{jobId}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header: {
-                    "If-Match-Version": components["parameters"]["IfMatchVersion"];
-                };
-                path: {
-                    jobId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Cancel request or terminal queue state */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                409: components["responses"]["ApiError"];
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2849,12 +2635,14 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description All printer records including disabled devices */
+                /** @description All printer records including disabled devices, for administrators */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Printer"][];
+                    };
                 };
                 403: components["responses"]["ApiError"];
             };
@@ -2881,7 +2669,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["AgentCredential"];
+                    };
                 };
             };
         };
@@ -2961,7 +2751,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Printer"];
+                    };
                 };
             };
         };
@@ -3358,161 +3150,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/printer-agent/poll": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Fenced job lease and cancellation requests */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/printer-agent/jobs/{jobId}/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query: {
-                    fencingToken: number;
-                };
-                header?: never;
-                path: {
-                    jobId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Lease-authorized private PDF with size and SHA-256 verification */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                404: components["responses"]["ApiError"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/printer-agent/jobs/{jobId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query: {
-                    fencingToken: number;
-                };
-                header?: never;
-                path: {
-                    jobId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Current lease state and version */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/printer-agent/jobs/{jobId}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    jobId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        state: string;
-                        fencingToken: number;
-                        version: number;
-                        detail?: {
-                            [key: string]: unknown;
-                        };
-                    };
-                };
-            };
-            responses: {
-                /** @description Versioned state accepted */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                409: components["responses"]["ApiError"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/printer-agent/heartbeat": {
         parameters: {
             query?: never;
@@ -3533,12 +3170,10 @@ export interface paths {
                 content: {
                     "application/json": {
                         agentVersion: string;
-                        deviceState: string;
+                        /** @enum {string} */
+                        deviceState: "READY" | "BUSY" | "PAPER_OUT" | "JAMMED" | "ERROR" | "UNKNOWN";
                         tonerSupported: boolean;
                         tonerPercent?: number | null;
-                        capabilities: {
-                            [key: string]: unknown;
-                        };
                     };
                 };
             };
@@ -3548,7 +3183,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["HeartbeatResult"];
+                    };
                 };
             };
         };
@@ -3562,6 +3199,38 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Printer: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            location: string;
+            /** @enum {string} */
+            status: "ONLINE" | "OFFLINE" | "DISABLED";
+            /** Format: date-time */
+            lastSeenAt: string | null;
+            lastReport: {
+                agentVersion: string;
+                /** @enum {string} */
+                deviceState: "READY" | "BUSY" | "PAPER_OUT" | "JAMMED" | "ERROR" | "UNKNOWN";
+                tonerSupported: boolean;
+                tonerPercent: number | null;
+                /** Format: date-time */
+                reportedAt: string;
+            } | null;
+        };
+        AgentCredential: {
+            /** Format: uuid */
+            printerId: string;
+            /** Format: uuid */
+            agentId: string;
+            token: string;
+        };
+        HeartbeatResult: {
+            /** Format: date-time */
+            serverTime: string;
+            /** @enum {string} */
+            status: "OK";
+        };
         TrainingTerm: {
             /** Format: uuid */
             id: string;
@@ -3590,14 +3259,54 @@ export interface components {
             roles: string[];
             /** Format: uri */
             issuer: string;
+            registrationComplete: boolean;
         };
         Profile: {
             /** Format: uuid */
             id: string;
             displayName: string;
+            realName?: string | null;
+            studentNumber?: string | null;
+            className?: string | null;
+            /** @description Two-digit admission year parsed from className */
+            grade?: number | null;
+            directions: string[];
             direction?: string | null;
             introduction?: string | null;
             version: number;
+            registrationComplete: boolean;
+        };
+        MemberRegistration: {
+            realName: string;
+            studentNumber: string;
+            className: string;
+            directions: string[];
+        };
+        MemberIdentityUpdate: {
+            realName: string;
+            studentNumber: string;
+        };
+        AdminMember: {
+            /** Format: uuid */
+            id: string;
+            accountId?: string | null;
+            displayName: string;
+            realName?: string | null;
+            studentNumber?: string | null;
+            className?: string | null;
+            contact?: string | null;
+            /** @description Two-digit admission year parsed from className */
+            cohort?: number | null;
+            active: boolean;
+            version: number;
+            roles: string[];
+            ojAdminDesired?: boolean | null;
+            ojSyncVersion?: number | null;
+            ojConfirmedVersion?: number | null;
+            ojSyncStatus?: string | null;
+            ojLastError?: string | null;
+            /** Format: date-time */
+            ojConfirmedAt?: string | null;
         };
         Project: {
             /** Format: uuid */
@@ -3675,15 +3384,6 @@ export interface components {
             status: "PENDING" | "APPROVED" | "REJECTED";
             version: number;
         };
-        FileObject: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            /** Format: int64 */
-            byteSize: number;
-            pageCount: number;
-            sha256: string;
-        };
         Notification: {
             /** Format: uuid */
             id: string;
@@ -3705,6 +3405,8 @@ export interface components {
             memberId?: string | null;
             displayName?: string | null;
             direction?: string | null;
+            directions?: string[];
+            className?: string | null;
             cohort?: number | null;
             /** @description Current approved leave overlaps the present instant */
             onLeaveNow: boolean;
@@ -3728,6 +3430,7 @@ export interface components {
                 id?: string;
                 displayName?: string;
                 direction?: string | null;
+                className?: string | null;
                 cohort?: number | null;
                 studentNumber?: string | null;
                 contact?: string | null;
@@ -3760,8 +3463,8 @@ export interface components {
             items?: components["schemas"]["Notification"][];
         };
         ProfileUpdate: {
-            displayName?: string;
-            direction?: string;
+            className: string;
+            directions: string[];
             introduction?: string;
         };
         LabSettings: {

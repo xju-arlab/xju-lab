@@ -44,7 +44,7 @@ flowchart TB
 | 会话/缓存 | Spring Session + Redis | 会话可撤销，应用可平滑重启 |
 | 文件/邮件 | S3 兼容接口、MinIO 候选、Spring Mail | MinIO 发行物及维护方式在 B0 核验 |
 | 异步 | PostgreSQL outbox + 后台 worker | 首版不增加消息中间件；保证事务提交后可靠重试 |
-| 打印端 | Python 3 + asyncio/WSS + SQLite journal + CUPS | 建议方案，便于树莓派、IPP/SNMP 接入；独立进程 |
+| 打印机状态端 | Python 3 + HTTPS 心跳 + 只读 CUPS 状态 | 独立进程；不下载文件或提交打印任务 |
 | 监控 | Prometheus、node_exporter、DCGM Exporter | Grafana 可选，LabOS 提供业务摘要 |
 | 部署 | Docker Compose、Nginx；Agent 用 systemd | 云端与硬件进程分开部署 |
 
@@ -61,7 +61,7 @@ identity     OIDC、成员资料、角色、导师关系、OJ 来源角色授权
 workspace    房间、工位、分配历史
 collaboration 项目、里程碑、统一任务、会议
 leave        申请、审批令牌、审批记录
-printing     设备、持久队列、Agent 会话、打印事件
+printer      设备登记、Agent 身份与只读状态报告
 monitoring   服务器资产、固定指标查询、告警映射
 assessment   培养期、OJ 单链接导入、ACM 快照与过滤排名、互斥笔试/机试、当次与综合排行、修订审计
 showcase     公开内容、发布版本、下架

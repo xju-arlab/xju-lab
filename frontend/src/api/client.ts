@@ -41,6 +41,6 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   return response.json() as Promise<T>
 }
 
-export type Session = { authenticated: true; memberId: string; displayName: string; roles: string[]; issuer: string }
+export type Session = { authenticated: true; memberId: string; displayName: string; roles: string[]; issuer: string; registrationComplete: boolean }
 export const getSession = () => apiRequest<Session>('/session')
 export const loginUrl = () => '/oauth2/authorization/lab'

@@ -26,4 +26,4 @@ server:
       cookie:
         secure: false
 lab:
-  admission-group: lab-members
+  registration-domain: example.test

@@ -17,8 +17,10 @@ public class SessionController {
     public SessionController(CurrentMember current,JdbcTemplate jdbc) { this.current = current; this.jdbc=jdbc; }
     @GetMapping("/session") public Map<String,Object> session(Authentication auth) {
         var user = (OidcUser) auth.getPrincipal(); var id = current.id(auth); var roles = current.roles(id);
-        String displayName=jdbc.queryForObject("SELECT display_name FROM member WHERE id=?",String.class,id);
+        var details=jdbc.queryForObject("SELECT display_name,(real_name IS NOT NULL AND student_number IS NOT NULL AND class_name IS NOT NULL AND jsonb_array_length(directions)>0) AS registration_complete FROM member WHERE id=? AND active=true",
+            (rs,row)->Map.entry(rs.getString("display_name"),rs.getBoolean("registration_complete")),id);
+        String displayName=details.getKey();
         return Map.of("authenticated", true, "memberId", id, "displayName", displayName,
-            "roles", roles, "issuer", user.getIdToken().getIssuer().toString());
+            "roles", roles, "issuer", user.getIdToken().getIssuer().toString(), "registrationComplete", details.getValue());
     }
 }

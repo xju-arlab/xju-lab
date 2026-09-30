@@ -1,8 +1,8 @@
 # XJU Lab · 实验室协作平台
 
-面向算法与科研实验室的成员、工位、项目、会议、请假、打印、计算资源和成长考核管理平台，同时提供经审核的公开实验室主页。
+面向算法与科研实验室的成员、工位、项目、会议、请假、计算资源、成长考核和打印机状态管理平台，同时提供经审核的公开实验室主页。
 
-**当前状态：B00–B12 的本地实现与 CI 验收已完成，B10 的 LabOS 连接器等待 OJ 端接口。** CI 验证了 Keycloak OIDC 双用户闭环、13 个内部路由在 375/768/1440 px 的无溢出、键盘/Esc/焦点、静态 Service Worker 缓存、加载/失败/重试反馈、CSV/SVG/PNG 下载，以及打印 Agent、公开快照和隔离数据库/对象恢复。生产身份/邮件/存储/监控/实机打印、生产容量与部署仍待真实环境联调。现有前端设计和确认过的业务规则已保留。逐包证据见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
+**当前状态：B00–B12 的本地实现与既有 CI 验收已完成；打印提交/队列已按最新要求移除，仅保留设备状态。** 新增的 `@icthub.top` 已验证邮箱自助注册、实名学号、班级年级派生和研究方向功能正在等待本轮 CI 验证。Lab 与 OJ 是同级应用，共用身份提供方但角色隔离。既有 CI 验证了 Keycloak OIDC 双用户闭环、前端响应式检查、静态 Service Worker 缓存、CSV/SVG/PNG 下载、公开快照和隔离数据库/对象恢复。生产 Authentik 自助注册/邮箱验证、项目 OIDC client/secret、SMTP、存储/监控、真实成员和设备状态、生产容量与部署仍需目标环境联调。现有前端设计和确认过的业务规则已保留。逐包证据见[进度记录](docs/progress.md)与[集成状态](docs/integration-status.md)。
 
 ## 快速启动
 
@@ -33,10 +33,12 @@ pnpm test:seats
 | 总览、项目、待办、会议 | API 模式、统一任务、项目成员/里程碑、会议行动项 | 真实团队资料和组织策略 |
 | 工位 | 确认布局、版本冲突、服务端分配与历史 | 真实名册导入 |
 | 请假 | 服务端状态机、审批、时区/重叠校验、审计与 outbox | 正式 SMTP 投递 |
-| 文件、打印 | 私有对象存储、持久打印队列、fencing/幂等、Python Agent | 生产对象存储配置、树莓派与实际打印机试打 |
+| 打印机状态 | 管理员登记设备及 Agent 凭据；只读 CUPS 状态采集；仪表盘在线/离线状态 | huawei2 生产 OIDC/SMTP 配置、路由切换和真实设备状态联调 |
 | 计算资源 | 固定指标 API、缺失/过期状态与告警 | 真实 Prometheus、CPU/GPU exporter |
 | 成长与考核 | 服务端计分/双排行/修订/CSV/发布快照；OJ 单链接任务 | OJ 目标端接口与双系统验证 |
 | 成员、设置、展示 | OIDC 会话/API 模式、角色同步 outbox、显式公开快照、PWA | Authentik 生产配置、双账户验收与公开域名/TLS |
+
+Lab 仅接受邮箱已验证的 `@icthub.top` 注册。注册时必须登记真实姓名、唯一学号、规范班级和至少一个研究方向；班级示例为 `计算机24-3`，年级自动解析。成员可自行修改班级/方向，姓名/学号只可由超级管理员更正。生产 Authentik 需要开启自助注册和邮箱验证。
 
 默认实验室名称为“算法与科研实验室”，位置为“信息楼A411”。演示个人资料中的姓名不是管理员身份；后端不得据此授权。
 
@@ -45,13 +47,13 @@ pnpm test:seats
 ```text
 frontend/       React + TypeScript + Vite；Tailwind + shadcn/Radix
 backend/        Java 21 + Spring Boot 模块化单体
-printer-agent/  Python 出站轮询、SQLite 恢复日志与 CUPS 适配器
+printer-agent/  Python 出站心跳与只读 CUPS 状态采集
 deploy/         Compose、Nginx、Keycloak 开发 realm、Prometheus 配置
 docs/           需求、设计、执行计划、验收和交接记录
 AGENTS.md       开发代理的入口、约束与验证要求
 ```
 
-运行配置见 [backend/README](backend/README.md) 和 [`deploy/compose.yaml`](deploy/compose.yaml)；全栈 API 见 [`contracts/openapi.yaml`](contracts/openapi.yaml)。在仓库根目录用 `docker compose --env-file .env.example -f deploy/compose.yaml config --quiet` 校验 Compose 文件，用 [scripts/verify.sh](scripts/verify.sh) 执行本地自动检查。生产启动、备份和回退约束见 [docs/operations.md](docs/operations.md)。
+运行配置见 [backend/README](backend/README.md) 和 [`deploy/compose.yaml`](deploy/compose.yaml)；全栈 API 见 [`contracts/openapi.yaml`](contracts/openapi.yaml)。huawei2 上 `lab.icthub.top` 的本地上游为 `http://127.0.0.1:18080`，生产公开 origin 为 `https://lab.icthub.top`。填写真实 `.env` 后，在仓库根目录执行 `./deploy.sh` 可快进拉取 `main`、构建并启动全栈。备份和回退约束见 [docs/operations.md](docs/operations.md)。
 
 ## 接续开发
 

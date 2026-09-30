@@ -332,7 +332,7 @@ td small.block { display: block; margin-top: 3px; }
 .member-detail h3 { margin: 0; font-size: 14px; font-weight: 600; }
 .member-detail p { margin: 2px 0 0; color: var(--color-text-muted); font-size: 11px; }
 
-/* Meetings and print */
+/* Meetings */
 .meeting-list { display: grid; gap: 10px; }
 .meeting-list-card { display: grid; grid-template-columns: 52px minmax(0,1fr) auto 18px; align-items: center; gap: 14px; width: 100%; padding: 15px; color: var(--color-text); text-align: left; background: white; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); cursor: pointer; transition: border-color var(--transition), transform var(--transition); }
 .meeting-list-card:hover { border-color: #d4d0c8; }
@@ -344,28 +344,6 @@ td small.block { display: block; margin-top: 3px; }
 .meeting-list-main > p { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 7px 0 4px; color: var(--color-text-muted); font-size: 10px; }
 .meeting-list-main > span { display: block; overflow: hidden; color: var(--color-text-faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .meeting-list-people { display: grid; justify-items: center; gap: 4px; color: var(--color-text-muted); font-size: 9px; }
-.print-layout { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(240px,.7fr); align-items: start; gap: 16px; }
-.print-form { display: grid; gap: 14px; padding: 18px; }
-.print-form .section-heading { margin: 0; }
-.upload-zone { position: relative; display: grid; justify-items: center; gap: 7px; min-height: 150px; padding: 20px; text-align: center; background: #faf9f7; border: 1px dashed #cfcbc1; border-radius: 10px; cursor: pointer; }
-.upload-zone:hover,.upload-zone.has-file { background: #f6f8f5; border-color: #78a391; }
-.upload-zone input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.upload-symbol { display: grid; width: 43px; height: 43px; place-items: center; color: #617970; background: #eaf0ec; border-radius: 11px; }
-.upload-zone strong { max-width: 100%; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.upload-zone > span { color: var(--color-text-muted); font-size: 10px; }
-.print-aside { display: grid; justify-items: start; gap: 10px; padding: 18px; background: linear-gradient(160deg,#f8f7f3,#f1f4f0); border: 1px solid #e8e6df; border-radius: var(--radius-lg); }
-.print-aside h3 { margin: 0; font-family: var(--font-serif); font-size: 16px; font-weight: 500; }
-.print-aside > p { margin: -6px 0 3px; color: var(--color-text-muted); font-size: 11px; }
-.printer-illustration { position: relative; width: 126px; height: 112px; justify-self: center; margin: 4px auto 8px; }
-.paper { position: absolute; top: 0; left: 42px; display: grid; gap: 5px; width: 48px; height: 64px; padding: 10px 8px; background: white; border: 1px solid #dedbd2; border-radius: 4px; box-shadow: 0 3px 8px rgba(35,33,29,.06); }
-.paper span { height: 2px; background: #e9e7e1; border-radius: 2px; }
-.printer-body { position: absolute; top: 40px; left: 18px; width: 90px; height: 45px; background: #dfe5df; border: 1px solid #cbd4ce; border-radius: 10px; box-shadow: 0 6px 12px rgba(42,58,48,.08); }
-.printer-body i { position: absolute; top: 9px; left: 11px; width: 42px; height: 5px; background: #aebcb2; border-radius: 99px; }
-.printer-body span { position: absolute; top: 8px; right: 12px; width: 6px; height: 6px; background: #83ab91; border-radius: 50%; }
-.printer-output { position: absolute; top: 82px; left: 35px; width: 56px; height: 9px; background: #c7d2ca; border-radius: 0 0 5px 5px; }
-.supply-row { display: flex; justify-content: space-between; width: 100%; margin-top: 4px; color: var(--color-text-muted); font-size: 11px; }
-.print-aside .progress-track { width: 100%; margin: 0; }
-.print-aside .tag { margin-top: 3px; }
 
 /* Compute resources and assessment */
 .server-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
@@ -542,11 +520,6 @@ td small.block { display: block; margin-top: 3px; }
   .meeting-list-people { display: none; }
   .meeting-list-main h3 { font-size: 14px; }
   .meeting-list-main > span { display: none; }
-  .print-layout { grid-template-columns: minmax(0,1fr); }
-  .print-form { padding: 14px; }
-  .print-aside { grid-template-columns: 90px minmax(0,1fr); align-items: center; gap: 8px 12px; }
-  .printer-illustration { grid-row: span 4; width: 86px; height: 88px; transform: scale(.72); transform-origin: center; }
-  .print-aside h3,.print-aside > p,.print-aside .supply-row,.print-aside .progress-track,.print-aside > .tag { justify-self: stretch; }
   .server-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
   .server-summary > div { padding: 11px 12px; }
   .server-grid { grid-template-columns: minmax(0,1fr); }
@@ -572,7 +545,6 @@ td small.block { display: block; margin-top: 3px; }
   .project-grid { grid-template-columns: minmax(0,1fr); }
   .project-grid .project-card h3 { min-height: 0; }
   .assessment-grid { grid-template-columns: minmax(0,1fr); }
-  .print-form .form-grid { grid-template-columns: minmax(0,1fr); }
   .showcase-hero > .inline-row { align-items: flex-start; flex-direction: column; }
   .showcase-hero > .inline-row > * { width: fit-content; }
   .seat-list-item { gap: 8px; padding-right: 9px; padding-left: 9px; }

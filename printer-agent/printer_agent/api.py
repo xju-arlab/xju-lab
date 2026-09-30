@@ -1,4 +1,4 @@
-"""Small standard-library HTTP client for the printer protocol."""
+"""Small standard-library HTTP client for printer status heartbeats."""
 from __future__ import annotations
 
 import json
@@ -19,13 +19,14 @@ class HttpApi:
         self.token = token
         self.timeout = timeout
 
-    def request(self, method: str, path: str, payload: dict | None = None, raw: bool = False):
-        url = urllib.parse.urljoin(self.base_url + "/", path.lstrip("/"))
-        body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
-        headers = {"Authorization": "Bearer " + self.token, "Accept": "application/json"}
-        if body is not None:
-            headers["Content-Type"] = "application/json"
-        request = urllib.request.Request(url, data=body, headers=headers, method=method)
+    def heartbeat(self, payload: dict) -> dict:
+        url = urllib.parse.urljoin(self.base_url + "/", "/api/v1/printer-agent/heartbeat")
+        body = json.dumps(payload, separators=(",", ":")).encode()
+        request = urllib.request.Request(url, data=body, headers={
+            "Authorization": "Bearer " + self.token,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }, method="POST")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 content = response.read()
@@ -38,25 +39,4 @@ class HttpApi:
             raise ApiError(exc.code, detail or "Printer API request failed") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ApiError(503, "Printer API unavailable") from exc
-        if raw:
-            return content
-        return json.loads(content) if content else None
-
-    def poll(self) -> dict:
-        return self.request("POST", "/api/v1/printer-agent/poll", {})
-
-    def job_status(self, job_id: str, fencing_token: int) -> dict:
-        query = urllib.parse.urlencode({"fencingToken": fencing_token})
-        return self.request("GET", f"/api/v1/printer-agent/jobs/{job_id}?{query}")
-
-    def download(self, content_url: str) -> bytes:
-        return self.request("GET", content_url, raw=True)
-
-    def update_status(self, job_id: str, state: str, fencing_token: int, version: int, detail: dict | None = None) -> dict:
-        payload = {"state": state, "fencingToken": fencing_token, "version": version}
-        if detail:
-            payload["detail"] = detail
-        return self.request("POST", f"/api/v1/printer-agent/jobs/{job_id}/status", payload)
-
-    def heartbeat(self, payload: dict) -> dict:
-        return self.request("POST", "/api/v1/printer-agent/heartbeat", payload)
+        return json.loads(content) if content else {}

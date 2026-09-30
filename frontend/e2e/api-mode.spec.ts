@@ -10,28 +10,6 @@ function percentile(samples: number[], percentileValue: number) {
   return sorted[Math.ceil(sorted.length * percentileValue) - 1]
 }
 
-function onePagePdf() {
-  const stream = 'BT /F1 18 Tf 72 720 Td (Local browser acceptance) Tj ET'
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
-    `<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-  ]
-  let pdf = '%PDF-1.4\n'
-  const offsets = [0]
-  for (const [index, object] of objects.entries()) {
-    offsets.push(Buffer.byteLength(pdf, 'ascii'))
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
-  }
-  const xrefOffset = Buffer.byteLength(pdf, 'ascii')
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
-  pdf += offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
-  return Buffer.from(pdf, 'ascii')
-}
-
 async function signIn(page: Page, user: { username: string; password: string }) {
   await page.goto('/app/dashboard')
   const loginLink = page.getByRole('link', { name: /统一身份登录/ })
@@ -51,6 +29,17 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   const resultText = await page.locator('body').innerText().catch(() => '')
   await expect(platformLink, `OIDC login did not return to the app at ${resultLocation}; page text: ${resultText}`).toBeVisible({ timeout: 30_000 })
   await platformLink.click()
+  const registrationHeading = page.getByRole('heading', { name: '完成成员实名登记' })
+  if (await registrationHeading.isVisible().catch(() => false)) {
+    await page.getByLabel('真实姓名').fill(`${user.username} 实名测试`)
+    const studentNumber = user.username === 'local-admin' ? '20260001' : user.username === 'local-member-a' ? '20260002' : '20260003'
+    await page.getByLabel('学号').fill(studentNumber)
+    await page.getByLabel('班级').fill('计算机24-3')
+    await page.getByRole('button', { name: '深度学习', exact: true }).click()
+    await page.getByLabel('自定义方向').fill('图神经网络')
+    await page.getByRole('button', { name: '添加', exact: true }).click()
+    await page.getByRole('button', { name: '保存并进入实验室' }).click()
+  }
   await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
   await expect(page.getByText('API 实时数据')).toBeVisible()
 }
@@ -87,7 +76,6 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
     ['/app/projects', '项目空间'],
     ['/app/meetings', '会议记录'],
     ['/app/leave', '请假申请'],
-    ['/app/print', '云打印'],
     ['/app/assessment', '成长与考核'],
     ['/app/servers', '计算资源'],
     ['/app/profile', '个人资料'],
@@ -264,7 +252,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await meetingActionForm.getByRole('button', { name: '创建行动项' }).click()
   await expect(adminPage.getByText('会议行动项已加入统一任务')).toBeVisible()
 
-  await adminPage.goto('/app/print')
+  await adminPage.goto('/app/settings')
   const printerName = `浏览器验收虚拟打印机-${Date.now()}`
   const printerForm = adminPage.locator('form').filter({ has: adminPage.locator('input[name="printerName"]') })
   await printerForm.locator('input[name="printerName"]').fill(printerName)
@@ -276,38 +264,21 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   expect(printerId).toBeTruthy()
   expect(agentToken).toBeTruthy()
   await adminPage.getByRole('button', { name: '已安全保存' }).click()
-  await adminPage.locator('select[name="printerId"]').selectOption(printerId!)
-  await adminPage.locator('input[name="file"]').setInputFiles({ name: 'browser-acceptance.pdf', mimeType: 'application/pdf', buffer: onePagePdf() })
-  await adminPage.getByRole('button', { name: '提交打印' }).click()
-  await expect(adminPage.getByText('打印任务已提交到服务端队列。', { exact: true })).toBeVisible()
-  const queuedPrint = await adminPage.evaluate(async () => {
-    const response = await fetch('/api/v1/print/jobs?page=1&pageSize=20')
-    const result = await response.json()
-    return result.items[0] as { id: string; status: string; fileName: string }
-  })
-  expect(queuedPrint).toMatchObject({ status: 'QUEUED', fileName: 'browser-acceptance.pdf' })
-  const printerAgentPoll = await adminPage.evaluate(async ({ token, fileId }) => {
+  const printerStatus = await adminPage.evaluate(async ({ token }) => {
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-    const heartbeat = await fetch('/api/v1/printer-agent/heartbeat', { method: 'POST', headers, body: JSON.stringify({ agentVersion: 'browser-e2e', deviceState: 'READY', tonerSupported: false, tonerPercent: null, capabilities: { known: true, colorSupported: false, duplexSupported: false, maxCopies: 1, paperSizes: ['A4'] } }) })
-    const poll = await fetch('/api/v1/printer-agent/poll', { method: 'POST', headers, body: '{}' })
-    const lease = (await poll.json()).job as { jobId: string; version: number; fencingToken: number; contentUrl: string; byteSize: number }
-    const content = await fetch(lease.contentUrl, { headers: { Authorization: `Bearer ${token}` } })
-    const contentBytes = new Uint8Array(await content.arrayBuffer())
-    const states = ['SUBMITTING', 'SUBMITTED', 'COMPLETED'] as const
-    let version = lease.version
-    const transitions: string[] = []
-    for (const state of states) {
-      const response = await fetch(`/api/v1/printer-agent/jobs/${lease.jobId}/status`, { method: 'POST', headers, body: JSON.stringify({ state, fencingToken: lease.fencingToken, version, detail: { deviceState: 'READY', cupsJobId: 'e2e-1' } }) })
-      const result = await response.json()
-      transitions.push(result.state)
-      version = result.version
-    }
-    return { heartbeatStatus: heartbeat.status, pollStatus: poll.status, leaseJobId: lease.jobId, expectedJobId: fileId, contentStatus: content.status, pdfHeader: String.fromCharCode(...contentBytes.slice(0, 5)), contentByteSize: contentBytes.length, expectedByteSize: lease.byteSize, transitions }
-  }, { token: agentToken!, fileId: queuedPrint.id })
-  expect(printerAgentPoll).toEqual({ heartbeatStatus: 200, pollStatus: 200, leaseJobId: queuedPrint.id, expectedJobId: queuedPrint.id, contentStatus: 200, pdfHeader: '%PDF-', contentByteSize: onePagePdf().length, expectedByteSize: onePagePdf().length, transitions: ['SUBMITTING', 'SUBMITTED', 'COMPLETED'] })
+    const heartbeat = await fetch('/api/v1/printer-agent/heartbeat', { method: 'POST', headers, body: JSON.stringify({ agentVersion: 'browser-e2e', deviceState: 'READY', tonerSupported: false, tonerPercent: null }) })
+    const list = await fetch('/api/v1/printers')
+    const printers = await list.json()
+    const retiredPoll = await fetch('/api/v1/printer-agent/poll', { method: 'POST', headers, body: '{}' })
+    const retiredQueue = await fetch('/api/v1/print/jobs')
+    return { heartbeatStatus: heartbeat.status, listStatus: list.status, status: printers[0]?.status, deviceState: printers[0]?.lastReport?.deviceState, retiredPollStatus: retiredPoll.status, retiredQueueStatus: retiredQueue.status }
+  }, { token: agentToken! })
+  expect(printerStatus).toEqual({ heartbeatStatus: 200, listStatus: 200, status: 'ONLINE', deviceState: 'READY', retiredPollStatus: 404, retiredQueueStatus: 404 })
   await adminPage.reload()
-  await expect(adminPage.locator('.api-print-job').filter({ hasText: 'browser-acceptance.pdf' }).getByText('COMPLETED')).toBeVisible()
-
+  await expect(adminPage.locator('.api-row').filter({ hasText: printerName }).getByText('在线')).toBeVisible()
+  await adminPage.goto('/app/dashboard')
+  await expect(adminPage.locator('.printer-status-panel').getByText('在线')).toBeVisible()
+  await expect(adminPage.getByRole('link', { name: '云打印' })).toHaveCount(0)
   await adminPage.goto('/app/assessment')
   await expect(adminPage.getByLabel('培养期名称')).toBeVisible()
   const termTitle = `浏览器验收培养期-${Date.now()}`

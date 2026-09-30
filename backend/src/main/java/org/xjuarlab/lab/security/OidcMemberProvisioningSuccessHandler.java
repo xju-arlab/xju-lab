@@ -19,24 +19,25 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class OidcMemberProvisioningSuccessHandler implements AuthenticationSuccessHandler {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
-    private final String admissionGroup;
+    private final String registrationDomain;
     private final String bootstrapIssuer;
     private final String bootstrapSubject;
     private final String frontendOrigin;
 
     public OidcMemberProvisioningSuccessHandler(JdbcTemplate jdbc, TransactionTemplate transactions,
-            @Value("${lab.admission-group:lab-members}") String admissionGroup,
+            @Value("${lab.registration-domain:icthub.top}") String registrationDomain,
             @Value("${lab.bootstrap-admin.issuer:}") String bootstrapIssuer,
             @Value("${lab.bootstrap-admin.subject:}") String bootstrapSubject,
             @Value("${lab.frontend-origin:http://localhost:5173}") String frontendOrigin) {
-        this.jdbc = jdbc; this.transactions = transactions; this.admissionGroup = admissionGroup;
+        this.jdbc = jdbc; this.transactions = transactions; this.registrationDomain = registrationDomain.toLowerCase(java.util.Locale.ROOT);
         this.bootstrapIssuer = bootstrapIssuer; this.bootstrapSubject = bootstrapSubject; this.frontendOrigin = frontendOrigin;
     }
 
     @Override public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
         if (!(authentication.getPrincipal() instanceof OidcUser user)) { response.sendError(403); return; }
-        List<String> groups = user.getClaimAsStringList("groups");
-        if (groups == null || groups.stream().noneMatch(g -> g.equals(admissionGroup) || g.endsWith("/" + admissionGroup))) { response.sendError(403, "Product admission group is required"); return; }
+        String email = user.getClaimAsString("email");
+        Boolean emailVerified = user.getClaimAsBoolean("email_verified");
+        if (!Boolean.TRUE.equals(emailVerified) || !isAllowedEmail(email)) { response.sendError(403, "A verified @" + registrationDomain + " email address is required"); return; }
         try {
             UUID memberId = transactions.execute(status -> provision(user, request));
             if (memberId == null) { response.sendError(403, "Member is inactive"); return; }
@@ -45,6 +46,13 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
         } catch (RuntimeException e) {
             response.sendError(403, "Identity could not be linked safely");
         }
+    }
+
+    private boolean isAllowedEmail(String email) {
+        if (email == null || email.isBlank()) return false;
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
+        int at = normalized.lastIndexOf('@');
+        return at > 0 && at == normalized.indexOf('@') && normalized.substring(at + 1).equals(registrationDomain);
     }
 
     private UUID provision(OidcUser user, HttpServletRequest request) {

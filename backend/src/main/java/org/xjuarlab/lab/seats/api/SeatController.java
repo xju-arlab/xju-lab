@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,8 +35,8 @@ public class SeatController {
     @GetMapping public PageEnvelope<SeatView> list(Authentication auth,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="100") int pageSize){
         current.id(auth);
         long offset=PageEnvelope.offset(page,pageSize);
-        List<SeatView> items=jdbc.query("SELECT s.id,s.kind,s.layout_item,a.member_id,m.display_name,m.direction,m.cohort,EXISTS(SELECT 1 FROM leave_application l WHERE l.member_id=m.id AND l.status='APPROVED' AND l.starts_at<=now() AND l.ends_at>now()) AS on_leave_now FROM seat s LEFT JOIN seat_assignment a ON a.seat_id=s.id AND a.released_at IS NULL LEFT JOIN member m ON m.id=a.member_id AND m.active=true ORDER BY s.id LIMIT ? OFFSET ?",
-            (rs,row)->new SeatView(rs.getString("id"),rs.getString("kind"),parse(rs.getString("layout_item")),rs.getObject("member_id",UUID.class),rs.getString("display_name"),rs.getString("direction"),rs.getObject("cohort",Integer.class),rs.getBoolean("on_leave_now")),pageSize,offset);
+        List<SeatView> items=jdbc.query("SELECT s.id,s.kind,s.layout_item,a.member_id,m.display_name,m.direction,m.class_name,m.directions::text AS directions_json,m.cohort,EXISTS(SELECT 1 FROM leave_application l WHERE l.member_id=m.id AND l.status='APPROVED' AND l.starts_at<=now() AND l.ends_at>now()) AS on_leave_now FROM seat s LEFT JOIN seat_assignment a ON a.seat_id=s.id AND a.released_at IS NULL LEFT JOIN member m ON m.id=a.member_id AND m.active=true ORDER BY s.id LIMIT ? OFFSET ?",
+            (rs,row)->new SeatView(rs.getString("id"),rs.getString("kind"),parse(rs.getString("layout_item")),rs.getObject("member_id",UUID.class),rs.getString("display_name"),rs.getString("direction"),rs.getString("class_name"),strings(rs.getString("directions_json")),rs.getObject("cohort",Integer.class),rs.getBoolean("on_leave_now")),pageSize,offset);
         Long total=jdbc.queryForObject("SELECT count(*) FROM seat",Long.class);
         return new PageEnvelope<>(items,total==null?0:total,page,pageSize);
     }
@@ -62,7 +63,7 @@ public class SeatController {
         var seat=jdbc.query("SELECT kind FROM seat WHERE id=?",(rs,row)->rs.getString(1),seatId);
         if(seat.isEmpty())throw new ResponseStatusException(NOT_FOUND,"工位不存在");
         if(!seat.getFirst().equals("seat"))throw new ResponseStatusException(BAD_REQUEST,"设施、打印机不能分配给成员");
-        var member=jdbc.query("SELECT display_name,direction,cohort FROM member WHERE id=? AND active=true",(rs,row)->new AssignmentView(seatId,body.memberId(),rs.getString(1),rs.getString(2),rs.getObject(3,Integer.class)),body.memberId());
+        var member=jdbc.query("SELECT display_name,direction,class_name,directions::text AS directions_json,cohort FROM member WHERE id=? AND active=true",(rs,row)->new AssignmentView(seatId,body.memberId(),rs.getString("display_name"),rs.getString("direction"),rs.getString("class_name"),strings(rs.getString("directions_json")),rs.getObject("cohort",Integer.class)),body.memberId());
         if(member.isEmpty())throw new ResponseStatusException(NOT_FOUND,"有效成员不存在");
         Integer existing=jdbc.query("SELECT 1 FROM seat_assignment WHERE seat_id=? AND member_id=? AND released_at IS NULL",(rs,row)->rs.getInt(1),seatId,body.memberId()).stream().findFirst().orElse(null);
         if(existing!=null)return member.getFirst();
@@ -84,6 +85,7 @@ public class SeatController {
     }
     private LayoutResponse currentLayoutForUpdate(){return jdbc.query("SELECT version,payload FROM layout_revision ORDER BY version DESC LIMIT 1 FOR UPDATE",(rs,row)->new LayoutResponse(rs.getLong(1),parse(rs.getString(2)))).stream().findFirst().orElseThrow(()->new ResponseStatusException(NOT_FOUND,"工位布局尚未初始化"));}
     private JsonNode parse(String value){try{return mapper.readTree(value);}catch(Exception e){throw new IllegalStateException("Persisted JSON is invalid",e);}}
+    private List<String> strings(String value){if(value==null)return List.of();JsonNode node=parse(value);List<String> result=new ArrayList<>();if(node.isArray())node.forEach(item->{if(item.isTextual())result.add(item.asText());});return List.copyOf(result);}
     private void validateLayout(JsonNode layout){
         JsonNode canvas=layout.path("canvas"), desks=layout.path("desks");
         if(!canvas.isObject()||canvas.path("width").asDouble(0)<=0||canvas.path("width").asDouble(4000)>3000||canvas.path("height").asDouble(0)<=0||canvas.path("height").asDouble(4000)>3000||!desks.isArray())throw new ResponseStatusException(BAD_REQUEST,"布局画布或桌位列表无效");
@@ -100,7 +102,7 @@ public class SeatController {
         if(!received.equals(expected))throw new ResponseStatusException(BAD_REQUEST,"不能删除或遗漏已确认布局中的桌位");
     }
     public record LayoutResponse(long version,JsonNode layout){}
-    public record SeatView(String id,String kind,JsonNode layoutItem,UUID memberId,String displayName,String direction,Integer cohort,boolean onLeaveNow){}
+    public record SeatView(String id,String kind,JsonNode layoutItem,UUID memberId,String displayName,String direction,String className,List<String> directions,Integer cohort,boolean onLeaveNow){}
     public record AssignmentRequest(UUID memberId){}
-    public record AssignmentView(String seatId,UUID memberId,String displayName,String direction,Integer cohort){}
+    public record AssignmentView(String seatId,UUID memberId,String displayName,String direction,String className,List<String> directions,Integer cohort){}
 }

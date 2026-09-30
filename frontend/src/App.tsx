@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, Coffee, FileText, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, List, MapPin, Menu, MoreHorizontal, Plus, Printer, Search, Send, Server, Settings2, ShieldCheck, SlidersHorizontal, Users, X, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, Coffee, FolderKanban, GraduationCap, LayoutDashboard, LayoutGrid, List, MapPin, Menu, MoreHorizontal, Plus, Printer, Search, Send, Server, Settings2, ShieldCheck, SlidersHorizontal, Users, X, type LucideIcon } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { ComboBox } from './components/common/ComboBox'
 import { SeatsPage as SeatOverview } from './features/seats/SeatsPage'
@@ -8,13 +8,12 @@ import { readAssignments } from './features/seats/members'
 import { AssessmentPage } from './features/assessment/AssessmentPage'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './components/ui/dialog'
 import { ApiModeApp } from './ApiModeApp'
-import { initialJobs, initialLeaves, initialSeats, initialTasks, meetings, projects as seedProjects, servers, type Leave, type PrintJob, type Project, type Seat, type Task } from './demo'
+import { initialLeaves, initialSeats, initialTasks, meetings, projects as seedProjects, servers, type Leave, type Project, type Seat, type Task } from './demo'
 
 type DemoState = {
   tasks: Task[]; setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   seats: Seat[]; setSeats: React.Dispatch<React.SetStateAction<Seat[]>>;
   leaves: Leave[]; setLeaves: React.Dispatch<React.SetStateAction<Leave[]>>;
-  jobs: PrintJob[]; setJobs: React.Dispatch<React.SetStateAction<PrintJob[]>>;
   projects: Project[]; setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   meetingNotes: Record<string, string>; setMeetingNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   settings: LabSettings; setSettings: React.Dispatch<React.SetStateAction<LabSettings>>;
@@ -44,7 +43,6 @@ const navigation: { path: string; label: string; icon: LucideIcon; badge?: strin
   { path: 'projects', label: '项目空间', icon: FolderKanban },
   { path: 'meetings', label: '会议记录', icon: CalendarDays },
   { path: 'leave', label: '请假申请', icon: Coffee },
-  { path: 'print', label: '云打印', icon: Printer },
   { path: 'assessment', label: '成长与考核', icon: GraduationCap },
   { path: 'servers', label: '计算资源', icon: Server },
 ]
@@ -63,7 +61,6 @@ function DemoApp() {
   const [tasks, setTasks] = useState(initialTasks)
   const [seats, setSeats] = useState(() => readAssignments(initialSeats))
   const [leaves, setLeaves] = useState(initialLeaves)
-  const [jobs, setJobs] = useState(initialJobs)
   const [projects, setProjects] = useState(seedProjects)
   const [meetingNotes, setMeetingNotes] = useState<Record<string, string>>({ m2: '讨论了不同数据分布下模型表现的差异，决定补充两个公开数据集上的对照实验。下次组会共享复现记录。', m3: '确定本学期项目负责人和第一轮里程碑。新成员先完成环境搭建与基线复现。' })
   const [settings, setSettings] = useState<LabSettings>(() => readLocalState('xju-lab.settings', defaultSettings))
@@ -105,7 +102,7 @@ function DemoApp() {
   const title = navigation.find(n => location.pathname.includes(n.path))?.label ?? (location.pathname.includes('showcase') ? '实验室主页' : location.pathname.includes('profile') ? '个人资料' : '实验室设置')
   const searchResults = [...navigation.map(n => ({ title: n.label, path: `/app/${n.path}`, type: '页面' })), ...projects.map(p => ({ title: p.title, path: `/app/projects?q=${encodeURIComponent(p.title)}`, type: '项目' }))].filter(n => n.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  return <DemoContext.Provider value={{ tasks, setTasks, seats, setSeats, leaves, setLeaves, jobs, setJobs, projects, setProjects, meetingNotes, setMeetingNotes, settings, setSettings, profile, setProfile, toast: setMessage }}>
+  return <DemoContext.Provider value={{ tasks, setTasks, seats, setSeats, leaves, setLeaves, projects, setProjects, meetingNotes, setMeetingNotes, settings, setSettings, profile, setProfile, toast: setMessage }}>
     <div className="app-shell">
       {mobileNav && <button className="nav-backdrop" aria-label="关闭导航" onClick={() => setMobileNav(false)} />}
       <aside id="primary-navigation" className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
@@ -129,7 +126,7 @@ function DemoApp() {
             <Route path="/app/projects" element={<ProjectsPage />} />
             <Route path="/app/meetings" element={<MeetingsPage />} />
             <Route path="/app/leave" element={<LeavePage />} />
-            <Route path="/app/print" element={<PrintPage />} />
+            <Route path="/app/print" element={<Navigate to="/app/dashboard" replace />} />
             <Route path="/app/servers" element={<ServersPage />} />
             <Route path="/app/assessment" element={<AssessmentPage onNotice={setMessage} />} />
             <Route path="/app/showcase" element={<ShowcasePage />} />
@@ -141,7 +138,7 @@ function DemoApp() {
       </div>
     </div>
     <Modal open={searchOpen} onOpenChange={setSearchOpen} title="搜索工作空间"><div className="search-input"><Search size={17} /><input autoFocus placeholder="输入页面或项目名称…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div><div className="search-results">{searchResults.map(r => <button key={r.path} onClick={() => { navigate(r.path); setSearchOpen(false) }}><span>{r.title}</span><Tag>{r.type}</Tag><ArrowRight size={14} /></button>)}{!searchResults.length && <Empty title="没有找到相关内容" text="未找到匹配内容。" />}</div></Modal>
-    <Modal open={notifications} onOpenChange={setNotifications} title="通知中心"><div className="notice-list"><div><span className="notice-icon"><CalendarDays size={18} /></span><div><strong>今天 14:30，实验室每周例会</strong><p>研讨室 302</p><small>30 分钟前</small></div></div><div><span className="notice-icon orange"><Printer size={18} /></span><div><strong>打印机黑色耗材余量</strong><p>13%</p><small>1 小时前</small></div></div></div><Button variant="outline" onClick={() => { setNotificationsRead(true); setNotifications(false); setMessage('通知已标为已读') }}><CheckCheck />全部标为已读</Button></Modal>
+    <Modal open={notifications} onOpenChange={setNotifications} title="通知中心"><div className="notice-list"><div><span className="notice-icon"><CalendarDays size={18} /></span><div><strong>今天 14:30，实验室每周例会</strong><p>研讨室 302</p><small>30 分钟前</small></div></div><div><span className="notice-icon orange"><Printer size={18} /></span><div><strong>打印机设备状态</strong><p>接入 Agent 后显示实时设备状态</p><small>状态信息</small></div></div></div><Button variant="outline" onClick={() => { setNotificationsRead(true); setNotifications(false); setMessage('通知已标为已读') }}><CheckCheck />全部标为已读</Button></Modal>
     <Modal open={help} onOpenChange={setHelp} title="版本信息"><div className="integration-list"><span>待接入</span><p>统一登录 · 邮件通知 · 打印服务 · 服务器监控</p></div><Button onClick={() => setHelp(false)}>关闭</Button></Modal>
     {message && <div className="toast" role="status"><Check size={16} /><span>{message}</span><button aria-label="关闭提示" onClick={() => setMessage('')}><X size={14} /></button></div>}
   </DemoContext.Provider>
@@ -163,7 +160,7 @@ function Dashboard() {
     <div className="stats-grid">{stats.map(s => <div className="stat-card" key={s.label}><div className="stat-top"><span>{s.label}</span><s.icon size={17} strokeWidth={1.7} className={`text-${s.tone}`} /></div><div className="stat-value">{s.value}<span>{s.suffix}</span></div></div>)}</div>
     <div className="meeting-banner"><div className="calendar-block"><span>9 月</span><strong>29</strong></div><div className="meeting-banner-copy"><div className="inline-row"><Tag tone="orange">今日安排</Tag><span className="small muted">14:30 – 16:00</span></div><h3>实验室每周例会</h3><p><MapPin size={12} />研讨室 302</p></div><div className="meeting-attendees"><AvatarStack names={['李', '陈', '林', '周']} /><span>共 12 位成员</span></div><Button variant="outline" asChild><Link to="/app/meetings">查看议程<ArrowRight /></Link></Button><div className="banner-orbit" aria-hidden="true"><span /><span /><span /></div></div>
     <div className="dashboard-columns"><section className="projects-section"><SectionHeading title="我的项目" count={projects.length}><Link className="text-link" to="/app/projects">全部项目<ArrowRight size={13} /></Link></SectionHeading><div className="dashboard-project-grid">{projects.slice(0, 4).map(p => <ProjectCard key={p.id} project={p} onClick={() => setProject(p)} compact />)}</div></section><section className="todo-section"><SectionHeading title="待办清单" count={tasks.filter(t => !t.done).length}><button className="icon-button" aria-label={onlyPending ? '显示全部任务' : '仅显示未完成任务'} onClick={() => setOnlyPending(!onlyPending)}><SlidersHorizontal size={16} /></button></SectionHeading><div className="todo-panel"><div className="todo-tabs"><button className={onlyPending ? 'selected' : ''} onClick={() => setOnlyPending(true)}>待完成</button><button className={!onlyPending ? 'selected' : ''} onClick={() => setOnlyPending(false)}>全部任务</button></div>{tasks.filter(t => !onlyPending || !t.done).map(t => <label key={t.id} className={`task-row ${t.done ? 'task-done' : ''}`}><input type="checkbox" checked={t.done} onChange={() => setTasks(prev => prev.map(item => item.id === t.id ? { ...item, done: !item.done } : item))} /><div><strong>{t.title}</strong></div><span className={`task-date ${t.priority ? 'urgent' : ''}`}>{t.date}</span></label>)}{!tasks.some(t => !t.done) && onlyPending && <div className="all-done"><CheckCheck size={26} /><p>今天的任务都完成了，做得不错。</p></div>}<Link className="todo-footer" to="/app/projects"><Plus size={14} />在项目中管理任务</Link></div></section></div>
-    <section className="resource-section"><SectionHeading title="实验室资源"><Link className="text-link" to="/app/servers">查看资源<ArrowRight size={13} /></Link></SectionHeading><div className="resource-grid">{featuredServers.map(server => <Link to="/app/servers" className="resource-card" key={server.id}><div className="resource-icon"><Server size={21} strokeWidth={1.5} /></div><div><strong>{server.name}</strong><p>{server.kind === 'gpu' ? `${server.gpu.filter(value => value > 0).length} / ${server.gpu.length} 块 GPU 使用中` : '部署节点 · 配置待录入'}</p></div><span className={`resource-status ${server.status === '待接入' ? 'resource-status-pending' : ''}`}><i />{server.status === '待接入' ? '待接入' : '正常'}</span><ChevronRight size={15} className="muted" /></Link>)}<Link className="resource-card" to="/app/print"><div className="resource-icon"><Printer size={21} strokeWidth={1.5} /></div><div><strong>实验室打印机</strong></div><Tag tone="orange">耗材 13%</Tag><ChevronRight size={15} className="muted" /></Link></div></section>
+    <section className="resource-section"><SectionHeading title="实验室资源"><Link className="text-link" to="/app/servers">查看资源<ArrowRight size={13} /></Link></SectionHeading><div className="resource-grid">{featuredServers.map(server => <Link to="/app/servers" className="resource-card" key={server.id}><div className="resource-icon"><Server size={21} strokeWidth={1.5} /></div><div><strong>{server.name}</strong><p>{server.kind === 'gpu' ? `${server.gpu.filter(value => value > 0).length} / ${server.gpu.length} 块 GPU 使用中` : '部署节点 · 配置待录入'}</p></div><span className={`resource-status ${server.status === '待接入' ? 'resource-status-pending' : ''}`}><i />{server.status === '待接入' ? '待接入' : '正常'}</span><ChevronRight size={15} className="muted" /></Link>)}<div className="resource-card"><div className="resource-icon"><Printer size={21} strokeWidth={1.5} /></div><div><strong>实验室打印机</strong><p>设备状态</p></div><span className="resource-status resource-status-pending"><i />未接入</span></div></div></section>
     <ProjectDetail project={project} onClose={() => setProject(null)} />
   </>
 }
@@ -236,32 +233,6 @@ function LeavePage() {
   return <><PageHeading eyebrow="请假申请" title="请假申请"><Button onClick={() => { setValidation(''); setCreate(true) }}><Plus />申请请假</Button></PageHeading><div className="toolbar"><div className="filter-tabs">{['我的申请', '审批演示'].map(item => <button className={tab === item ? 'selected' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}</div></div><div className="panel table-wrap"><table><thead><tr><th>申请人 / 类型</th><th>请假时间</th><th>审批人</th><th>状态</th><th>操作</th></tr></thead><tbody>{shown.map(leave => <tr key={leave.id}><td><div className="table-person"><Avatar name={leave.name} small /><div><strong>{leave.name}</strong><small>{leave.type}</small></div></div></td><td>{leave.from}<span className="muted"> 至 </span>{leave.to}</td><td>{leave.approver}</td><td><Tag tone={leave.status === '待审批' ? 'orange' : leave.status === '已通过' ? 'teal' : 'gray'}>{leave.status}</Tag></td><td><button className="text-link" onClick={() => setSelected(leave)}>查看详情<ChevronRight size={13} /></button></td></tr>)}</tbody></table>{!shown.length && <Empty title="没有待审批申请" text="当前列表为空。" />}</div><Modal open={create} onOpenChange={setCreate} title="新建请假申请"><form className="form-stack" onSubmit={submit}><Field label="请假类型"><ComboBox name="type" options={["事假", "病假", "学术活动"].map(label => ({ value: label, label }))} /></Field><div className="form-grid"><Field label="开始日期"><input type="date" name="from" required /></Field><Field label="结束日期（当天不计）"><input type="date" name="to" required /></Field></div><Field label="请假原因"><textarea name="reason" required rows={3} maxLength={1000} placeholder="填写请假原因" /></Field>{validation && <p className="form-error" role="alert">{validation}</p>}<Button type="submit"><Send />提交申请</Button></form></Modal><Modal open={!!selected} onOpenChange={open => { if (!open) setSelected(null) }} title="请假申请详情" description={(selected?.name ?? '') + ' · ' + (selected?.from ?? '') + ' 至 ' + (selected?.to ?? '')}>{selected && <><Tag tone={selected.status === '已通过' ? 'teal' : selected.status === '待审批' ? 'orange' : 'gray'}>{selected.status}</Tag><p className="body-copy">{selected.reason}</p><p className="small muted">审批人：{selected.approver}</p>{selected.status === '待审批' && <div className="dialog-actions">{tab === '审批演示' ? <><Button variant="outline" onClick={() => changeStatus(selected.id, '已驳回')}>驳回申请</Button><Button onClick={() => changeStatus(selected.id, '已通过')}><Check />通过申请</Button></> : <Button variant="outline" onClick={() => changeStatus(selected.id, '已撤回')}>撤回申请</Button>}</div>}</>}</Modal></>
 }
 
-function PrintPage() {
-  const { jobs, setJobs, toast, settings } = useDemo()
-  const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState('')
-  function selectFile(selected?: File) {
-    if (!selected) return
-    if (!selected.name.toLowerCase().endsWith('.pdf')) { setError('请选择 PDF 文件。'); return }
-    if (selected.size > 20 * 1024 * 1024) { setError('文件不能超过 20 MB。'); return }
-    setFile(selected)
-    setError('')
-  }
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!file) { setError('请先选择 PDF 文件。'); return }
-    const form = new FormData(e.currentTarget)
-    setJobs(prev => [{ id: 'PJ-' + crypto.randomUUID().slice(0, 8).toUpperCase(), name: file.name, options: String(form.get('copies')) + ' 份 · ' + String(form.get('color')) + ' · ' + String(form.get('sides')), status: '排队中', time: '刚刚' }, ...prev])
-    setFile(null)
-    setError('')
-    toast('已加入打印队列')
-  }
-  function cancelJob(id: string) {
-    setJobs(prev => prev.map(job => job.id === id ? { ...job, status: '已取消' } : job))
-    toast('打印任务已取消')
-  }
-  return <><PageHeading eyebrow="打印任务" title="云打印"><Tag tone="orange">打印服务待接入</Tag></PageHeading><div className="print-layout"><form className="panel print-form" onSubmit={submit}><SectionHeading title="提交打印" /><label className={'upload-zone ' + (file ? 'has-file' : '')} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); selectFile(e.dataTransfer.files[0]) }}><input type="file" accept="application/pdf,.pdf" onChange={e => { selectFile(e.target.files?.[0]); e.target.value = '' }} /><div className="upload-symbol"><FileText size={28} strokeWidth={1.3} /></div><strong>{file ? file.name : '选择 PDF 文件'}</strong><span>{file ? Math.ceil(file.size / 1024) + ' KB' : 'PDF · 20 MB 以内'}</span></label><div className="form-grid"><Field label="打印机"><ComboBox name="printer" options={[{ value: "实验室打印机 01 · " + settings.location, label: "实验室打印机 01 · " + settings.location }]} /></Field><Field label="份数"><input name="copies" type="number" defaultValue={1} min={1} max={20} required /></Field><Field label="单双面"><ComboBox name="sides" options={["长边双面", "短边双面", "单面"].map(label => ({ value: label, label }))} /></Field><Field label="色彩"><ComboBox name="color" options={["黑白", "彩色"].map(label => ({ value: label, label }))} /></Field></div>{error && <p className="form-error" role="alert">{error}</p>}<Button type="submit" className="w-full"><Printer />加入队列</Button></form><aside className="print-aside"><div className="printer-illustration" aria-hidden="true"><div className="paper"><span /><span /><span /><span /></div><div className="printer-body"><i /><span /></div><div className="printer-output" /></div><h3>实验室打印机 01</h3><p>{settings.location}</p><div className="supply-row"><span>黑色耗材</span><strong>13%</strong></div><Progress value={13} tone="orange" /><Tag tone="orange">耗材偏低</Tag></aside></div><section className="section-spaced"><SectionHeading title="打印记录" count={jobs.length} /><div className="panel table-wrap"><table><thead><tr><th>文档</th><th>打印设置</th><th>状态</th><th>提交时间</th><th /></tr></thead><tbody>{jobs.map(job => <tr key={job.id}><td><div className="inline-row"><FileText size={17} className="muted" /><span>{job.name}</span></div><small className="mono muted">{job.id}</small></td><td>{job.options}</td><td><Tag tone={job.status === '已完成' ? 'teal' : job.status === '排队中' ? 'orange' : 'gray'}>{job.status}</Tag></td><td className="muted">{job.time}</td><td>{job.status === '排队中' && <button className="text-link" onClick={() => cancelJob(job.id)}>取消</button>}</td></tr>)}</tbody></table>{!jobs.length && <Empty title="没有打印记录" text="选择 PDF 后提交打印。" />}</div></section></>
-}
 
 function MeetingsPage() {
   const [selected, setSelected] = useState<(typeof meetings)[number] | null>(null)

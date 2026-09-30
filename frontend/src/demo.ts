@@ -19,7 +19,7 @@ export const initialTasks: Task[] = [
   { id: 't4', title: '阅读并分享视觉语言模型相关论文', project: '轻量化视觉语言模型', date: '10 月 02 日', done: false },
   { id: 't5', title: '更新项目阶段记录', project: '多模态伪造检测', date: '已完成', done: true },
 ]
-export type Seat = { id: string; name?: string; status: 'occupied' | 'empty' | 'leave' | 'maintenance' | 'temporary'; direction?: string; memberId?: string; className?: string; grade?: number; studentId?: string; contact?: string }
+export type Seat = { id: string; name?: string; status: 'occupied' | 'empty' | 'leave' | 'maintenance' | 'temporary'; direction?: string; directions?: string[]; memberId?: string; className?: string; grade?: number; studentId?: string; contact?: string }
 const names = ['赵文彪', '林予宁', '许知远', '周亦辰', '', '苏言', '王清和', '赵一禾', '何书宁', '', '沈念', '唐可', '陆知行', '孟一然', '', '顾望', '程亦', '叶舒', '江序', '', '宋予', '温以', '', '']
 export const initialSeats: Seat[] = workstations.map((position, i) => {
   const name = names[i] || undefined
@@ -29,11 +29,6 @@ export type Leave = { id: string; name: string; type: string; from: string; to: 
 export const initialLeaves: Leave[] = [
   { id: 'l1', name: '赵文彪', type: '事假', from: '2026-10-01', to: '2026-10-04', reason: '国庆期间回家探亲。', status: '待审批', approver: '李老师' },
   { id: 'l2', name: '赵文彪', type: '学术活动', from: '2026-09-18', to: '2026-09-21', reason: '参加校外学术研讨会。', status: '已通过', approver: '李老师' },
-]
-export type PrintJob = { id: string; name: string; options: string; status: string; time: string }
-export const initialJobs: PrintJob[] = [
-  { id: 'PJ-0929-03', name: 'weekly-report.pdf', options: '1 份 · 黑白 · 长边双面', status: '已完成', time: '09:42' },
-  { id: 'PJ-0928-12', name: 'reading-notes.pdf', options: '1 份 · 黑白 · 单面', status: '已完成', time: '昨天 16:20' },
 ]
 export const meetings = [
   { id: 'm1', date: '29', month: '9 月', title: '实验室每周例会', time: '今天 14:30 – 16:00', place: '研讨室 302', tag: '即将开始', people: 12, agenda: ['多模态伪造检测：跨域实验结果', '轻量化模型：论文初稿讨论', '下阶段任务与实验资源安排'] },

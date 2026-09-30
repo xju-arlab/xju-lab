@@ -29,11 +29,6 @@ export const apiPlaceholders = {
     decide: { method: 'POST', path: '/api/v1/leave-applications/{applicationId}/decision' },
     withdraw: { method: 'POST', path: '/api/v1/leave-applications/{applicationId}/withdraw' },
   },
-  printing: {
-    listJobs: { method: 'GET', path: '/api/v1/print-jobs' },
-    submit: { method: 'POST', path: '/api/v1/print-jobs' },
-    cancel: { method: 'POST', path: '/api/v1/print-jobs/{jobId}/cancel' },
-  },
   meetings: {
     list: { method: 'GET', path: '/api/v1/meetings' },
     saveMinutes: { method: 'PUT', path: '/api/v1/meetings/{meetingId}/minutes' },
