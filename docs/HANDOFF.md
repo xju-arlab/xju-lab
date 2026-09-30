@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。B00–B12 本地实现和全栈 CI 已验收；主分支提交 `92e2029` 的 [六个 CI 作业全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36694354217)。仅保留打印机设备状态，打印页面/文件/队列/执行逻辑已删除。Lab 开放已验证 `@icthub.top` 邮箱注册，完成实名、唯一学号、班级派生年级和多选方向；姓名/学号仅超级管理员可更正。huawei2 仓库路径 `/home/winbeau/projects/xju-lab`，部署命令 `cd /home/winbeau/projects/xju-lab && ./deploy.sh`。Compose Web 只绑定服务器回环 `http://127.0.0.1:18080`；生产 `.env` 缺失时脚本停止在预检，公网尚未启动。Authentik 自助注册/验证邮件、项目 OIDC client/secret、SMTP、数据库密钥和域名 TLS 路由待配置联调。
+> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `d69596e` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912)。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V8/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
@@ -20,8 +20,8 @@
 - `backend/` 是 Java 21 / Spring Boot 模块化单体；PostgreSQL/Flyway、Redis 会话、OIDC、权限、审计/outbox、各业务模块和 OpenAPI 契约均已创建。
 - `printer-agent/` 保留独立 Python 状态 Agent、只读 CUPS 状态采集和 systemd 服务文件；不含 SQLite 打印 journal 或打印任务执行代码。
 - `deploy/`、GitHub Actions、Compose、Nginx、开发 Keycloak realm、Prometheus 模板、备份/恢复脚本和运维说明已加入。
-- GitHub Actions [当前主分支全栈 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36694354217) 六个作业全部通过，覆盖前端、PostgreSQL 后端、统一验证、OIDC 浏览器业务闭环、Printer Agent 与隔离备份恢复。具体路由、视口和性能口径见 [`progress.md`](progress.md)。
-- 下一步是补齐生产 `.env` 后在 huawei2 执行 `cd /home/winbeau/projects/xju-lab && ./deploy.sh`，将 `lab.icthub.top` 反向代理指向 `http://127.0.0.1:18080`，并验证 Authentik、SMTP、设备状态、Prometheus 和数据恢复。缺少的配置和值不得用示例凭据代替。详见 [`integration-status.md`](integration-status.md)。
+- GitHub Actions [上线代码全栈 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912) 七个作业全部通过，覆盖前端、PostgreSQL 后端、统一验证、SSH、OIDC 浏览器业务闭环、Printer Agent 与隔离备份恢复。具体路由、视口和性能口径见 [`progress.md`](progress.md)。
+- 下一步由 `winbeau` 完成首次真实登录及实名登记，再验证普通 `@icthub.top` 用户隔离、实际邮件投递和硬件/OJ 接入。部署与 `.env` 已完成，不要重新生成生产数据库/审批密钥。构建代理用 `LAB_BUILD_NETWORK=host`，应用运行仍使用独立网络；详见 [`operations.md`](operations.md) 和 [`integration-status.md`](integration-status.md)。
 
 ## 必须保留
 
@@ -30,7 +30,7 @@
 - 工位确认布局：`frontend/src/features/seats/layout.confirmed.json`；来源：`docs/design/lab-layout-calibrated.json`。31 个可坐人工位，单布局、标定吸附、带箭头成员气泡、两方向/三年级配色、SVG/PNG 等距留白；不得以旧编辑器布局覆盖。
 - ACM / 深度学习两个 Tab、各有本次/历史排行；老成员过滤先作用于各场再重算；同培养期理论笔试/机试混合历史、单场形式互斥；历史 25% + 当次 75%。细则见 [09 专项](design/09-assessment-and-showcase.md)。
 - OJ 导入只有比赛链接一个必填输入；SUPER_ADMIN 同步为同一人 OJ Admin 的独立来源授权，撤销/停用也需同步。现有 OJ 登录覆盖角色的问题须按 [11 专项](design/11-oj-import-and-admin-sync.md)处理。
-- Lab 自助注册只允许邮箱已验证且域名精确为 `icthub.top`；实名、学号、班级和至少一个方向完成前，服务端拒绝其他业务 API。班级由服务端按 `专业简称YY-班号` 解析年级；普通成员不可修改姓名/学号，仅 SUPER_ADMIN 可审计更正。
+- Lab 普通成员自助注册只允许邮箱已验证且域名精确为 `icthub.top`；已获用户授权的确切管理员引导身份可使用已验证外域邮箱。实名、学号、班级和至少一个方向完成前，服务端拒绝其他业务 API。班级由服务端按 `专业简称YY-班号` 解析年级；普通成员不可修改姓名/学号，仅 SUPER_ADMIN 可审计更正。
 - GPU 数据目前为演示；CPU 部署服务器型号、核心数、内存、磁盘及利用率待录入，不能编造。
 - 公开主页只允许显式发布的脱敏快照；内部数据不自动公开。
 
@@ -58,4 +58,4 @@ pnpm test:seats
 
 用户当前要求 → `AGENTS.md` → 完整开发计划与最新决策 → 各专项规则 → 旧 F/A–E 流程。旧版“每轮只做一步、不开发后端”已失效；历史日志保留用于追溯，不恢复其旧限制。
 
-本仓外部缺项见 `docs/integration-status.md`，OJ 双系统契约见 `integrations/xju-oj/contract.md`。其他项目/生产环境未在当前授权范围内；未执行的真实联调必须继续明确标记为待验证。
+本仓外部缺项见 `docs/integration-status.md`，OJ 双系统契约见 `integrations/xju-oj/contract.md`。本次用户授权已用于 Lab 的 huawei2 部署、独立 OIDC 配置和确切管理员引导；没有修改 OJ/登录前端代码或全局身份角色。未执行的真实联调继续明确标记为待验证。

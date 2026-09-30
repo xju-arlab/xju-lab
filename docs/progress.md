@@ -2,13 +2,25 @@
 
 [交接入口](HANDOFF.md) · [完整开发计划](plan/06-backend-completion.md) · [总索引](README.md)
 
-> 更新时间：2026-09-30（B00–B12 与实名注册本地验收通过；打印仅保留状态功能。huawei2 已拉取主线，生产配置缺失时部署预检停止；公网路由、Authentik/SMTP 和设备联调待生产配置）。
+> 更新时间：2026-09-30（B00–B12 与七项 CI 通过；huawei2 已上线 `https://lab.icthub.top`，生产 OIDC/SMTP/数据库已配置，打印仅保留状态；真实完整登录、邮件投递、OJ 和硬件联调待完成）。
 
 ## 当前状态
 
-本仓已有后端、前端真实 API 模式、打印机状态 Agent 和部署基座，并保留确认的视觉与业务规则。已移除打印页、文件提交/任务逻辑，只保留设备登记、心跳和状态展示。2026-09-30 新增已验证 `@icthub.top` OIDC 自助注册、服务端实名档案门禁、班级派生年级、多选方向、学号唯一和 SUPER_ADMIN 实名更正；主分支 [CI 六个作业全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36694354217)。huawei2 的 `lab.icthub.top` 反向代理上游为 `http://127.0.0.1:18080`；部署脚本只允许快进更新 `main` 并在生产配置齐全后启动。当前 huawei2 缺生产 `.env`，脚本已按预期停止在配置预检；Authentik 自助注册/验证邮件、项目 OIDC client/secret、SMTP 与生产数据库密钥仍待配置，不能宣称公网部署完成。性能 smoke 的具体口径见下文；它不是生产 SLO。
+本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `d69596e` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912)。部署脚本只允许快进更新 `main`，生产配置已完成；真实用户完整登录、邮件投递、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
 ## 后端与全栈工作包状态
+
+### 2026-09-30：生产身份配置与飞跃风格修订
+
+- `1a20457` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36702857241)：frontend、backend、verify-script、ssh-onboarding、printer-agent、backup-restore、browser-e2e。新 PostgreSQL 用例确认外域管理员引导必须精确匹配 issuer/subject 且邮箱已验证，身份不符、未验证和停用均拒绝，撤权后登录不再次授予超级管理员。
+- 按 `../xju-feiyue` 的 Dialog、UploadDialog、Progress 和颜色 token 调整服务器弹窗：中性色背景、细分隔线、小尺寸青绿勾选图标、细进度条与淡入；移除大圆形亮绿弹跳效果。保留移动边界、键盘与 reduced-motion。浏览器 SSH 用例 13.4 秒，业务用例 38.0 秒，总计 52.3 秒。375/768/1440 px 截图逐一复核，位于本次 CI 的 `browser-evidence`，本机副本 `C:\Users\genev\AppData\Local\Temp\xju-ssh-evidence-1a20457`。
+- 只读参考 huawei2 的 auth-login 配置及 huawei1 `/home/winbeau/xju-OJ/.env`，从实际运行的 Authentik 读取已配置邮件服务。在 huawei2 新建独立 Lab OIDC 客户端并使用现网邮箱验证与稳定账户 ID 映射；公开 discovery 已返回成功。没有修改 OJ 的客户端、代码或角色。
+- 生产 `.env` 已写入 huawei2 仓库（权限 `600`、Git 忽略），数据库/Redis/审批密钥独立生成，SMTP 为阿里云 465 SSL。首位超级管理员按用户明确授权绑定现有 `winbeau` 的确切身份，需首次真实登录才引导角色。仓库不记录秘密值或该 subject。
+- Windows 隔离依赖目录完成 TypeScript 和 Vite production build（1653 模块）；没有改动 WSL 的依赖目录。Compose 四个生产服务增加重启恢复策略。
+- 首次服务器构建因 Docker 客户端的回环代理在构建容器内不可达而失败。`aad0e92` 增加仅作用于构建阶段的 `LAB_BUILD_NETWORK`，huawei2 使用 `host`，其余环境保持默认；不修改全局 Docker 配置或应用运行网络。修复后的 [七项 CI 再次全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36703509270)。
+- 生产代码 `d69596e` 已部署，最终 `./deploy.sh` 返回成功；修正首次无公开快照时的健康检查（使用 health/ready，不要求公开资料 200）、脚本自更新后重新执行与回环探测绕过代理。最终 [七项 CI 全通过](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912)。
+- huawei2 与公网检查：`/`、`/app/dashboard`、`/api/v1/health`、`/api/v1/ready` 均 200；匿名 session 401；尚未发布的 lab-profile 为预期 404，浏览器显示空状态。公开 OIDC 跳转核对专用 client、HTTPS callback、S256 PKCE、state/nonce 和 Secure/HttpOnly Cookie；数据库为 V8，31 工位。SMTP 465 TLS 与认证成功，没有发送测试邮件。
+- 公网 Chromium 实测首页和登录入口，375/768/1440 px 登录页无横向溢出；截图 `C:\Users\genev\AppData\Local\Temp\xju-lab-production-home.png`、`xju-lab-production-login.png`。生产完整登录需要本人密码/MFA与实名资料，本轮未替代本人登录。服务器私有检查脚本及日志在 `~/.local/state/xju-lab-tools/`，不含打印出的秘密值；生产凭据仅留受限 `.env`。
 
 ### SSH 服务器管理增量（隔离验收通过）
 
@@ -22,18 +34,18 @@
 | 包 | 目标 | 状态 |
 |---|---|---|
 | B00 | 工程、契约、数据库和 CI 基座 | 本地实现；契约漂移、配置、CI 通过 |
-| B01 | OIDC、成员、角色与设置 | 本地 Keycloak 与双用户隔离、`iss + sub`、CSRF、停用/恢复、精确 `icthub.top` 已验证邮箱准入、实名/唯一学号登记、班级年级解析、方向多选、未登记 API 门禁和超级管理员身份更正测试均通过；生产 Authentik/成员核验待接入 |
+| B01 | OIDC、成员、角色与设置 | 本地 Keycloak 与双用户隔离、`iss + sub`、CSRF、停用/恢复、邮箱准入、实名/唯一学号、班级年级、方向多选、业务门禁和管理员更正通过；生产 Authentik/确切管理员引导已配置，真实完整登录与成员核验待完成 |
 | B02 | 工位、布局版本与分配历史 | 确认的 31 可坐位布局保留；并发为同一成员分配两个工位时仅一个成功；导出通过；真实名册待导入 |
 | B03 | 项目、统一任务、会议与总览 | 双成员可见范围通过；会议行动项完成后个人待办、会议和项目视图状态一致，并验证过期版本冲突 |
 | B04 | 站内请假审批 | 非法/重叠、自批、半开区间与竞态通过；审批与撤回并发时仅一项转换成功；生产 SMTP 待验证 |
-| B05 | 通知和邮件 | 通知创建/读取与 outbox 本地验证通过；打印专用文件 API 已移除；生产 SMTP 待接入 |
+| B05 | 通知和邮件 | 通知/outbox 本地验证通过；打印专用文件 API 已移除；生产 SMTP 465 SSL 连接与认证通过，实际邮件投递待验证 |
 | B06 | 服务端考核与管理 | 理论成绩/历史排名/发布通过；计分边界测试通过，OJ 双系统待联调 |
 | B07 | 打印机状态 API | 已按最新要求删除任务提交、队列、文件绑定和打印 API，仅保留登记与状态读取 |
 | B08 | Printer Agent 状态 | Python Agent、浏览器心跳/在线状态、只读 CUPS 状态链路通过；旧打印取件/任务 API 不存在并由隔离 API 检查确认；真实设备待接入 |
 | B09 | 服务器监控与告警 | 安全固定查询与单测通过；生产 Prometheus/exporter 待接入 |
 | B10 | OJ 导入与来源角色同步 | LabOS 连接器/outbox 已实现；OJ 端接口缺失，契约已记录，未改相邻仓库 |
 | B11 | 公开展示、PWA、前端收尾 | 13 路由三视口无溢出、键盘/Esc/焦点、PWA 静态缓存、空/错/加载/无权状态和 CSV/SVG/PNG 浏览器检查通过；屏幕阅读器/真实设备辅助检查待人工 |
-| B12 | 全栈验证、运维和交付 | 2026-09-30 主分支六个 CI job 全通过，含完整 OIDC 浏览器工作流、数据库集成、备份恢复、Agent 和前端检查。huawei2 已更新主线并运行 `./deploy.sh` 预检，缺少生产 `.env` 后安全停止；生产 OIDC/SMTP/数据库密钥待配置 |
+| B12 | 全栈验证、运维和交付 | 2026-09-30 主分支七项 CI 通过；huawei2 已执行部署成功，公网与数据库/Redis健康、OIDC 跳转和 SMTP 认证通过；真实完整登录、邮件投递、硬件/OJ 与生产灾备待验收 |
 
 具体范围和退出条件见 [06 计划](plan/06-backend-completion.md)。以下列明本轮验收证据与尚未完成项；外部待验证项见[集成状态](integration-status.md)。
 

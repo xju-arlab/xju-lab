@@ -34,13 +34,25 @@ chmod 600 .env
 
 首次登录后，新成员必须提交真实姓名、学号、班级和至少一个研究方向；班级格式为专业简称加两位年份和班号，例如 `计算机24-3`、`信安25-1`、`电信26-2`。系统从班级解析年级。成员可修改班级和方向；姓名、学号仅 SUPER_ADMIN 可更改，并会记录审计。
 
+### 当前生产身份与邮件配置
+
+2026-09-30 已在 huawei2 的现有 Authentik 中创建独立 `xju-lab` 应用和机密 OIDC 客户端，issuer 为 `https://auth.icthub.top/application/o/xju-lab/`。沿用现网已验证邮箱、稳定账户 ID 的映射及登录流程，不修改 OJ 客户端或全局权限组。共享注册流程已有邮箱验证，Lab 自身继续限制普通成员为已验证 `@icthub.top`。
+
+用户明确指定现有 `winbeau` 为首位超级管理员。生产配置只对该身份的确切 issuer + subject 允许已验证的外域邮箱；不会按昵称、邮箱相似性或“第一个登录者”授权。首次成功登录才创建 Lab 成员、引导角色及审计记录；撤销角色后再次登录不会恢复引导角色。真实姓名和学号仍由本人首次登记。
+
+生产 `.env` 位于 `/home/winbeau/projects/xju-lab/.env`，权限 `600`，已被 Git 忽略。数据库、Redis 和审批加密密钥独立随机生成；邮件使用现网 Authentik 的阿里云 SMTP 配置（465、`SMTP_SSL=true`、`SMTP_STARTTLS=false`），没有复用 OJ 的客户端密钥。更换服务器时从受控秘密备份恢复 `.env`，不要重新生成已有数据库/审批密钥。`OJ_BASE_URL`/`OJ_SERVICE_TOKEN` 和 Prometheus 配置为空，表示外部连接器尚未联调。
+
+Compose 中 PostgreSQL、Redis、API 和 Web 设置 `restart: unless-stopped`。SSH 专用密钥保存在持久卷中；宿主机重启后 Docker 恢复这些服务，手工停止的服务不会自动启动。
+
+huawei2 的 Docker 构建代理使用宿主机回环地址，因此其 `.env` 设置 `LAB_BUILD_NETWORK=host`，使构建阶段能访问该代理。其他环境默认 `default`。此选项仅作用于镜像构建，不改变生产容器的独立网络和回环端口；部署终端需保持现有代理可用。若日志出现构建容器连接 `127.0.0.1:10808` 被拒绝，应先检查构建网络及宿主机代理，不要改动其他项目或全局 Docker 配置。
+
 部署与后续更新使用同一条命令：
 
 ```bash
 cd /home/winbeau/projects/xju-lab && ./deploy.sh
 ```
 
-脚本只允许 `main` 分支，快进拉取 `origin/main`，拒绝开发占位值，校验 Compose 后构建并启动 API/Web，最后探测本机 Web 和公开 API。发布路由的本地上游填 `http://127.0.0.1:18080`，外部站点是 `https://lab.icthub.top`。路由应转发原始 Host 与 `X-Forwarded-Proto: https`，并确保该域名规则优先于更宽泛的规则。
+脚本只允许 `main` 分支，快进拉取 `origin/main`；若脚本自身更新则重新执行新版。拒绝开发占位值，校验 Compose 后构建并启动 API/Web，最后直接探测本机 Web、health 和 ready（回环请求不经过代理）。公开资料未发布时 lab-profile 返回 404，不作为部署故障。发布路由的本地上游填 `http://127.0.0.1:18080`，外部站点是 `https://lab.icthub.top`。路由应转发原始 Host 与 `X-Forwarded-Proto: https`，并确保该域名规则优先于更宽泛的规则。
 
 ## 备份
 

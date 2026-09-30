@@ -40,7 +40,7 @@
 | 模块 | 模块化单体，同库事务；同仓独立 Python Agent；不新增消息中间件 |
 | 身份 | Authentik Authorization Code/OIDC + 后端会话；`iss + sub` 唯一；`icthub_account_id` 经验证后镜像映射 |
 | 准入 | OIDC 验证后的 `iss + sub` + `email_verified=true` + 精确 `@icthub.top` 邮箱；新成员只获 Lab MEMBER，实名登记完成前限制其他业务 API |
-| 首位管理员 | 可信配置中的确切 issuer/subject 一次性引导，事务记录审计；不采用“首个登录者成为管理员”或默认演示姓名 |
+| 首位管理员 | 可信配置中的确切 issuer/subject 一次性引导，事务记录审计；用户确认的该确切身份可使用已验证外域邮箱，其他成员仍限定 `icthub.top`；不采用“首个登录者成为管理员”或默认演示姓名 |
 | 请假 | 单级指定审批人、不能自批；允许跨天，`startAt < endAt`，默认不补假；PENDING/APPROVED 占用重叠区间；已批准由授权管理员撤销且留理由 |
 | 考核 | 保留现有 25%/75% 和缺失值规则，缺考不自动补零；试卷量规可配置且随场次快照，不硬编码演示量规 |
 | 时区 | 数据保存 UTC；业务默认 Asia/Shanghai，实验室配置可修改；培养期日期与考试发生时间分开 |
