@@ -38,6 +38,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const adminPage = await adminContext.newPage()
   adminPage.on('pageerror', error => pageErrors.push(error.message))
+  adminPage.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()) })
 
   await signIn(adminPage, admin)
   const adminSession = await adminPage.evaluate(async () => (await fetch('/api/v1/session')).json())
@@ -124,7 +125,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await adminPage.goto('/app/seats')
   await expect(adminPage.getByRole('heading', { name: '工位一览' })).toBeVisible()
   const [svgDownload] = await Promise.all([
-    adminPage.waitForEvent('download'),
+    adminPage.waitForEvent('download', { timeout: 15_000 }),
     adminPage.getByRole('button', { name: 'SVG' }).click(),
   ])
   expect(svgDownload.suggestedFilename()).toBe('实验室工位平面图.svg')
@@ -132,11 +133,16 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   expect(svgContents.toString('utf8')).toContain('<svg')
   expect(svgContents.toString('utf8')).toContain('data-seat-id')
 
+  const pngDownloadPromise = adminPage.waitForEvent('download', { timeout: 15_000 }).catch(async error => {
+    const status = await adminPage.getByRole('status').allTextContents().catch(() => [])
+    throw new Error(`${error.message}; status=${status.join(' | ')}; browser errors=${pageErrors.join(' | ')}`)
+  })
   const [pngDownload] = await Promise.all([
-    adminPage.waitForEvent('download'),
+    pngDownloadPromise,
     adminPage.getByRole('button', { name: 'PNG' }).click(),
   ])
   expect(pngDownload.suggestedFilename()).toBe('实验室工位平面图.png')
+  await expect(adminPage.getByText('PNG 平面图已生成')).toBeVisible()
   const pngContents = await readFile((await pngDownload.path())!)
   expect([...pngContents.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
 
