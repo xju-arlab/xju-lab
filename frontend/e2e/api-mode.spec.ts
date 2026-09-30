@@ -1,9 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Locator } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
 const admin = { username: 'local-admin', password: 'local-admin-change-me' }
 const memberA = { username: 'local-member-a', password: 'local-member-a-change-me' }
 const memberB = { username: 'local-member-b', password: 'local-member-b-change-me' }
+
+async function chooseOption(page: Page, trigger: Locator, name: string) {
+  await trigger.click()
+  await page.getByRole('option', { name, exact: true }).click()
+  if (await trigger.getAttribute('aria-expanded') === 'true') await trigger.press('Escape')
+}
 
 function percentile(samples: number[], percentileValue: number) {
   const sorted = [...samples].sort((left, right) => left - right)
@@ -254,12 +260,14 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
     const page = await response.json()
     return page.items.find((item: { title: string }) => item.title === title)
   }, projectTitle)
-  const membershipSelect = adminPage.locator('select[name="memberId"]')
+  const membershipSelect = adminPage.getByLabel('添加成员')
   const projectPageText = await adminPage.locator('main#main-content').innerText().catch(() => '')
   await expect(membershipSelect, `Project management controls missing; session=${JSON.stringify(adminSession)} project=${JSON.stringify(projectDetails)} page=${projectPageText}`).toBeVisible({ timeout: 5_000 })
-  await membershipSelect.selectOption('00000000-0000-4000-8000-000000000102')
-  const membershipForm = adminPage.locator('form').filter({ has: adminPage.locator('select[name="memberId"]') })
-  await membershipForm.getByRole('button', { name: '添加' }).click()
+  await membershipSelect.locator('xpath=ancestor::form').getByRole('button', { name: '添加', exact: true }).click()
+  await expect(membershipSelect).toHaveAttribute('aria-invalid', 'true')
+  await chooseOption(adminPage, membershipSelect, '本地测试成员甲')
+  const membershipForm = adminPage.locator('form').filter({ has: adminPage.getByLabel('添加成员') })
+  await membershipForm.getByRole('button', { name: '添加', exact: true }).click()
   await expect(adminPage.getByText('项目成员已添加')).toBeVisible()
 
   const taskForm = adminPage.locator('form').filter({ has: adminPage.getByPlaceholder('下一步任务') })
@@ -305,6 +313,26 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
 
   await adminPage.goto('/app/seats')
   await expect(adminPage.getByRole('heading', { name: '工位一览' })).toBeVisible()
+  const seatRows = await adminPage.evaluate(async () => (await (await fetch('/api/v1/seats?page=1&pageSize=100')).json()).items as Array<{ id: string; kind: string; memberId: string | null }>)
+  const targetSeat = seatRows.find(seat => seat.memberId === '00000000-0000-4000-8000-000000000102') ?? seatRows.find(seat => seat.kind === 'seat' && !seat.memberId)!
+  const desk = adminPage.locator(`[data-seat-id="${targetSeat.id}"]`)
+  await desk.click()
+  const bubble = adminPage.getByRole('dialog', { name: targetSeat.id + ' 工位信息' })
+  await expect(bubble).toBeVisible()
+  if (!targetSeat.memberId) {
+    await chooseOption(adminPage, bubble.getByLabel('选择成员'), '本地测试成员甲')
+    await bubble.getByRole('button', { name: '分配工位' }).click()
+  }
+  await expect(bubble).toContainText('本地测试成员甲')
+  await expect(bubble).toContainText('班级')
+  await expect(bubble).toContainText('研究方向')
+  await adminPage.reload()
+  await desk.focus()
+  await desk.press('Enter')
+  await expect(bubble).toContainText('本地测试成员甲')
+  await bubble.press('Escape')
+  await expect(bubble).toHaveCount(0)
+  await expect(desk).toBeFocused()
   const [svgDownload] = await Promise.all([
     adminPage.waitForEvent('download', { timeout: 15_000 }),
     adminPage.getByRole('button', { name: 'SVG' }).click(),
@@ -333,7 +361,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await adminPage.getByText('安排会议', { exact: true }).click()
   await adminPage.getByLabel('会议主题').fill(meetingTitle)
   await adminPage.getByLabel('开始时间（北京时间）').fill('2030-05-20T09:00')
-  await adminPage.locator('select[name="participants"]').selectOption('00000000-0000-4000-8000-000000000102')
+  await chooseOption(adminPage, adminPage.getByLabel('参会成员（可多选）'), '本地测试成员甲')
   await adminPage.getByRole('button', { name: '创建会议' }).click()
   await expect(adminPage.getByText('会议已创建', { exact: true })).toBeVisible()
   await adminPage.getByRole('button', { name: new RegExp(meetingTitle) }).click()
@@ -346,7 +374,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await expect(adminPage.getByText('会议纪要已保存', { exact: true })).toBeVisible()
   const meetingActionForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '创建行动项' }) })
   await meetingActionForm.locator('input[name="title"]').fill(meetingAction)
-  await meetingActionForm.locator('select[name="assigneeId"]').selectOption('00000000-0000-4000-8000-000000000102')
+  await chooseOption(adminPage, meetingActionForm.getByLabel('负责人'), '本地测试成员甲')
   await meetingActionForm.getByRole('button', { name: '创建行动项' }).click()
   await expect(adminPage.getByText('会议行动项已加入统一任务')).toBeVisible()
 
@@ -390,13 +418,13 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await termForm.getByRole('button', { name: '创建培养期' }).click()
   await expect(adminPage.getByText('培养期已创建', { exact: true })).toBeVisible()
   const termMemberForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '加入培养期' }) })
-  await termMemberForm.locator('select[name="memberId"]').selectOption('00000000-0000-4000-8000-000000000102')
+  await chooseOption(adminPage, termMemberForm.getByLabel('加入成员'), '本地测试成员甲')
   await termMemberForm.getByRole('button', { name: '加入培养期' }).click()
   await expect(adminPage.getByText('成员已加入培养期', { exact: true })).toBeVisible()
   const examTitle = `浏览器验收理论考试-${Date.now()}`
   const examForm = adminPage.locator('form').filter({ has: adminPage.getByRole('button', { name: '创建理论考试' }) })
   await examForm.locator('input[name="title"]').fill(examTitle)
-  await examForm.locator('select[name="kind"]').selectOption('WRITTEN')
+  await chooseOption(adminPage, examForm.getByLabel('形式'), '笔试')
   await examForm.locator('input[name="startsAt"]').fill('2030-06-01T09:00')
   await examForm.getByRole('button', { name: '创建理论考试' }).click()
   await expect(adminPage.getByText('理论考试已创建', { exact: true })).toBeVisible()
@@ -404,7 +432,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await expect(assessedMemberRow).toBeVisible()
   await assessedMemberRow.locator('details').getByText('录入 / 修订').click()
   const gradeForm = assessedMemberRow.locator('form')
-  await gradeForm.locator('select[name="status"]').selectOption('GRADED')
+  await chooseOption(adminPage, gradeForm.getByLabel('状态'), '已评分')
   await gradeForm.locator('input[name="score"]').fill('86')
   await gradeForm.locator('input[name="reason"]').fill('浏览器验收修订')
   await gradeForm.getByRole('button', { name: '保存修订' }).click()
@@ -481,7 +509,9 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await memberAPage.goto('/app/leave')
   await memberAPage.getByLabel('开始时间（北京时间）').fill('2030-05-21T09:00')
   await memberAPage.getByLabel('结束时间（北京时间）').fill('2030-05-21T10:00')
-  await memberAPage.locator('select[name="approverId"]').selectOption('00000000-0000-4000-8000-000000000101')
+  await memberAPage.getByLabel('审批人').click()
+  const adminChoiceName = await adminPage.evaluate(async () => (await (await fetch('/api/v1/members/me')).json()).displayName)
+  await memberAPage.getByRole('option', { name: adminChoiceName, exact: true }).click()
   await memberAPage.getByLabel('请假原因').fill(leaveReason)
   await memberAPage.getByRole('button', { name: '提交申请' }).click()
   await expect(memberAPage.getByText('申请已提交', { exact: true })).toBeVisible()

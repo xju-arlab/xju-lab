@@ -21,6 +21,13 @@
 .seat-data-note { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 12px; color: #aab19f; font-size: 9px; }
 .seat-info-bubble { position: fixed; z-index: 80; width: 304px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 19px; color: #536249; background: #fffefb; border: 1px solid #d9e2cf; border-radius: 15px; filter: drop-shadow(0 9px 17px #35432b20); outline: none; }
 .seat-info-bubble::before { content: ''; position: absolute; width: 13px; height: 13px; background: #fffefb; z-index: 1; }
+.api-seat-bubble { width: 284px; padding: 16px; border-radius: 8px; }
+.api-seat-bubble-body { max-height: calc(100dvh - 102px); overflow-y: auto; overscroll-behavior: contain; }
+.api-seat-bubble .bubble-avatar { border-radius: 6px; flex-shrink: 0; }
+.api-seat-bubble .bubble-member h3 { overflow-wrap: anywhere; }
+.api-seat-bubble .bubble-directions { margin-bottom: 2px; }
+.bubble-leave-status { padding: 3px 6px; border-radius: 4px; color: #a36b2c; background: #fbefdd; }
+.bubble-release:disabled { opacity: .5; cursor: default; }
 .seat-info-bubble.pointer-left::before { left: -7px; top: var(--pointer-offset); transform: translateY(-50%) rotate(45deg); border-left: 1px solid #d9e2cf; border-bottom: 1px solid #d9e2cf; }
 .seat-info-bubble.pointer-right::before { right: -7px; top: var(--pointer-offset); transform: translateY(-50%) rotate(45deg); border-right: 1px solid #d9e2cf; border-top: 1px solid #d9e2cf; }
 .seat-info-bubble.pointer-top::before { top: -7px; left: var(--pointer-offset); transform: translateX(-50%) rotate(45deg); border-left: 1px solid #d9e2cf; border-top: 1px solid #d9e2cf; }

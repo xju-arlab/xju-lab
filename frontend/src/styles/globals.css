@@ -558,6 +558,10 @@ td small.block { display: block; margin-top: 3px; }
 
 /* Shared custom select control. Options are rendered in a portal so menus do not inherit browser-native styling or get clipped by cards and dialogs. */
 .combobox { position: relative; width: 100%; min-width: 0; }
+.combobox-empty { padding: 10px; color: var(--color-text-muted); font-size: 11px; }
+.combobox .combobox-validation { position: absolute; bottom: 0; left: 0; width: 1px; height: 1px; min-height: 0; padding: 0; opacity: 0; pointer-events: none; }
+.combobox-error { display: block; margin-top: 5px; color: #b54b45; font-size: 11px; }
+.combobox-trigger[aria-invalid=true] { border-color: #b54b45; }
 .combobox-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-width: 0; min-height: 36px; padding: 8px 10px; color: var(--color-text); background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 11px; font-weight: 400; line-height: 1.4; text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
 .combobox-trigger:hover { border-color: #bdb9ae; }
 .combobox-trigger:focus-visible,.combobox-trigger[aria-expanded="true"] { border-color: #568c7e; outline: none; box-shadow: 0 0 0 3px rgba(59,130,106,.13); }

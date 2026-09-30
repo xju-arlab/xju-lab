@@ -13,8 +13,9 @@ export const directionPalette: Record<string, { fill: string; line: string; ink:
   '深度学习': { fill: '#eee1f6', line: '#bea0d1', ink: '#8754a3' },
 }
 export const gradeColors: Record<number, string> = { 2024: '#2f7756', 2025: '#ad641f', 2026: '#ae4267' }
-export function memberForSeat(seat?: Seat): SeatMember | undefined {
+export function memberForSeat(seat?: Seat, demoRoster = true): SeatMember | undefined {
   if (!seat?.name) return
+  if (!demoRoster) return { id: seat.memberId ?? seat.id, name: seat.name, className: seat.className ?? '', grade: seat.grade, studentId: seat.studentId ?? '', contact: seat.contact ?? '', directions: seat.directions ?? [] }
   const member = seatMembers.find(m => m.id === seat.memberId || m.name === seat.name)
   const explicitDirections = seat.directions?.filter(direction => typeof direction === 'string' && direction.trim()).map(direction => direction.trim())
   const savedDirections = explicitDirections?.length ? explicitDirections : seat.direction?.split(/[、,，/]+/).map(d => d.trim()).filter(Boolean) ?? []

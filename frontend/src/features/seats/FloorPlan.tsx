@@ -5,11 +5,11 @@ import { RoomDrawing, RoomHandles } from './RoomDrawing'
 import type { LayoutEditor } from './useLayoutEditor'
 import { memberColors, memberForSeat } from './members'
 
-type FloorPlanProps = { seats: Seat[]; selectedId?: string; matches?: Set<string>; showAssignments: boolean; onSelect: (id: string) => void; layout?: LayoutState; editor?: LayoutEditor }
-function Desk({ position: d, seat, selected, faded, showAssignments, editing, onSelect }: { position: DeskPosition; seat?: Seat; selected: boolean; faded: boolean; showAssignments: boolean; editing: boolean; onSelect: (id: string) => void }) {
+type FloorPlanProps = { demoRoster?: boolean; seats: Seat[]; selectedId?: string; matches?: Set<string>; showAssignments: boolean; onSelect: (id: string) => void; layout?: LayoutState; editor?: LayoutEditor }
+function Desk({ position: d, seat, selected, faded, showAssignments, editing, onSelect, demoRoster }: { position: DeskPosition; seat?: Seat; demoRoster: boolean; selected: boolean; faded: boolean; showAssignments: boolean; editing: boolean; onSelect: (id: string) => void }) {
   const { id, x, y, facing, width, depth } = d
   const printer = d.kind === 'printer', recreation = d.kind === 'recreation', bounds = deskBounds(d)
-  const member = showAssignments ? memberForSeat(seat) : undefined
+  const member = showAssignments ? memberForSeat(seat, demoRoster) : undefined
   const appearance = memberColors(member)
   const gradientId = 'desk-direction-' + useId().replace(/:/g, '')
   const color = printer ? { fill: '#ece7d8', line: '#b4a27c', ink: '#8a7047' } : recreation ? { fill: '#dfecec', line: '#8bafac', ink: '#548e8b' } : showAssignments && seat ? seatColors[seat.status] : { fill: '#eeeee6', line: '#aeb9a2', ink: '#526348' }
@@ -37,7 +37,7 @@ function Desk({ position: d, seat, selected, faded, showAssignments, editing, on
     {label && <text x="0" y="18" textAnchor="middle" fontSize={bounds.width < 90 ? 10 : 12} fontWeight="700" fill={ink} pointerEvents="none">{label}</text>}
   </g>
 }
-export const FloorPlan = forwardRef<SVGSVGElement, FloorPlanProps>(function FloorPlan({ seats, selectedId, matches, showAssignments, onSelect, layout = defaultLayout, editor }, ref) {
+export const FloorPlan = forwardRef<SVGSVGElement, FloorPlanProps>(function FloorPlan({ seats, selectedId, matches, showAssignments, onSelect, layout = defaultLayout, editor, demoRoster = true }, ref) {
   const svg = useRef<SVGSVGElement>(null)
   useImperativeHandle(ref, () => svg.current!, [])
   const patternId = 'floor-tiles-' + useId().replace(/:/g, '')
@@ -119,7 +119,7 @@ export const FloorPlan = forwardRef<SVGSVGElement, FloorPlanProps>(function Floo
     <rect data-plan-background="" width={PLAN_WIDTH} height={PLAN_HEIGHT} fill="#fafbf8" />
     <g data-plan-content="">
       <RoomDrawing room={layout.room} patternId={patternId} editing={editing} selected={selectedStructure} />
-      {layout.desks.map(position => <Desk key={position.id} position={position} seat={seats.find(s => s.id === position.id)} selected={selection.includes(position.id)} faded={!editing && !!matches && !matches.has(position.id)} showAssignments={showAssignments && !editing} editing={editing} onSelect={onSelect} />)}
+      {layout.desks.map(position => <Desk demoRoster={demoRoster} key={position.id} position={position} seat={seats.find(s => s.id === position.id)} selected={selection.includes(position.id)} faded={!editing && !!matches && !matches.has(position.id)} showAssignments={showAssignments && !editing} editing={editing} onSelect={onSelect} />)}
       {editing && <RoomHandles room={layout.room} selected={selectedStructure} />}
     </g>
   </svg>
