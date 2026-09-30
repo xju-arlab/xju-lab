@@ -14,7 +14,9 @@
 
 - GitHub/百度网盘切换默认隐藏，仅展开「新建项目」时以 220 ms 淡入，收起时淡出；隐藏后不可点击或进入键盘焦点。支持减少动画偏好，开合保留已输入草稿。
 - 展开控件复用会议记录的原生 details/summary 和公共样式，统一实心三角箭头、字号与颜色；平台切换仍在标题行右侧。
-- 本地 TypeScript、Vite build（1670 模块）与项目浏览器回归通过，覆盖默认隐藏、Space/Enter 开合、显示/隐藏状态、输入保留、平台字段保存及 375/768/1440 px。已查看桌面截图，位于隔离验证目录 `frontend/test-results-project-disclosure/`。现有完整业务用例同步改用原生展开控件定位；部署结果待补记。
+- 本地 TypeScript、Vite build（1670 模块）与项目浏览器回归通过，覆盖默认隐藏、Space/Enter 开合、显示/隐藏状态、输入保留、平台字段保存及 375/768/1440 px。已查看桌面截图，位于隔离验证目录 `frontend/test-results-project-disclosure/`。现有完整业务用例同步改用原生展开控件定位。
+
+- huawei2 已通过 `./deploy.sh` 部署 `2fcefd6`；项目页和 ready 返回 200，公网资源 `index-Bq4hm8A6.js` / `index-VOfN9SEp.css`。对公网构建使用隔离合成 API 重跑同一浏览器用例通过，无生产项目写入。部署日志 `~/.local/state/xju-lab-tools/deploy-project-disclosure.log`；截图位于隔离验证目录 `frontend/test-results-project-disclosure-production/`。GitHub 前端检查已通过，其余本次全量 CI 仍在运行，未计为全部通过。
 
 ### 2026-09-30：请假附件、项目资料与工位标定恢复
 
