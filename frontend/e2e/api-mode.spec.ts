@@ -40,6 +40,8 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   adminPage.on('pageerror', error => pageErrors.push(error.message))
 
   await signIn(adminPage, admin)
+  const adminSession = await adminPage.evaluate(async () => (await fetch('/api/v1/session')).json())
+  expect(adminSession.roles).toContain('LAB_ADMIN')
   for (const width of [375, 768, 1440]) {
     await adminPage.setViewportSize({ width, height: 900 })
     await adminPage.goto('/app/dashboard')
@@ -72,7 +74,15 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const projectRow = adminPage.getByRole('button', { name: new RegExp(projectTitle) })
   await expect(projectRow).toBeVisible()
   await projectRow.click()
-  await adminPage.locator('select[name="memberId"]').selectOption('00000000-0000-4000-8000-000000000102')
+  const projectDetails = await adminPage.evaluate(async title => {
+    const response = await fetch('/api/v1/projects?page=1&pageSize=100')
+    const page = await response.json()
+    return page.items.find((item: { title: string }) => item.title === title)
+  }, projectTitle)
+  const membershipSelect = adminPage.locator('select[name="memberId"]')
+  const projectPageText = await adminPage.locator('main#main-content').innerText().catch(() => '')
+  await expect(membershipSelect, `Project management controls missing; session=${JSON.stringify(adminSession)} project=${JSON.stringify(projectDetails)} page=${projectPageText}`).toBeVisible({ timeout: 5_000 })
+  await membershipSelect.selectOption('00000000-0000-4000-8000-000000000102')
   const membershipForm = adminPage.locator('form').filter({ has: adminPage.locator('select[name="memberId"]') })
   await membershipForm.getByRole('button', { name: '添加' }).click()
   await expect(adminPage.getByText('项目成员已添加')).toBeVisible()
