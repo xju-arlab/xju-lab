@@ -148,6 +148,10 @@
 .api-auth-card h1 { margin: 12px 0; font: 500 30px var(--font-serif); }
 .api-auth-card p { margin-bottom: 22px; color: var(--color-text-muted); font-size: 12px; line-height: 1.7; }
 .api-auth-public { display: block; margin-top: 18px; color: var(--cat-tools); font-size: 11px; }
+.api-auth-registration { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 18px; color: var(--color-text-muted); font-size: 12px; }
+.api-auth-registration a { display: inline-flex; align-items: center; gap: 6px; color: var(--cat-tools); font-weight: 600; text-underline-offset: 3px; }
+.api-auth-registration a:hover { text-decoration: underline; }
+.api-auth-registration a[aria-busy="true"] { cursor: progress; }
 .button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid transparent; border-radius: var(--radius-md); font: inherit; font-size: 11px; text-decoration: none; cursor: pointer; transition: background var(--transition), border-color var(--transition); }
 .button:disabled { opacity: .55; cursor: not-allowed; }
 .button-primary { color: white; background: #3c6259; }

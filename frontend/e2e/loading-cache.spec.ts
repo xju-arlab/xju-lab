@@ -131,6 +131,35 @@ test('direct login waits for session resolution and the OIDC button signals navi
   await expect(page.getByRole('heading', { name: '测试身份服务' })).toBeVisible()
 })
 
+for (const width of [375, 768, 1440]) {
+  test(`new members can open registration from Lab login at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    const { state } = await fixtures(page)
+    state.authenticated = false
+    let destination: URL | undefined
+    let oidcRequests = 0
+    page.on('request', request => { if (new URL(request.url()).pathname === '/oauth2/authorization/lab') oidcRequests++ })
+    await page.route(url => url.origin === 'https://auth.icthub.top' && url.pathname === '/if/flow/icthub-public-registration/', async route => {
+      destination = new URL(route.request().url())
+      await new Promise(resolve => setTimeout(resolve, 900))
+      await route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<h1>注册算法与科研实验室</h1>' })
+    })
+    await page.goto('/app/dashboard')
+    await expect(page.getByText('正在验证实验室登录状态…')).toBeVisible()
+    const register = page.getByRole('link', { name: '立即注册', exact: true })
+    await expect(register).toBeVisible()
+    await expect(register).toHaveAttribute('referrerpolicy', 'no-referrer')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+    await register.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByText('正在前往注册…')).toBeVisible()
+    await expect(page.getByRole('link', { name: /^统一身份登录/ })).toHaveAttribute('aria-disabled', 'true')
+    await expect(page.getByRole('heading', { name: '注册算法与科研实验室' })).toBeVisible()
+    expect(destination?.searchParams.get('next')).toBe('/application/launch/xju-lab/')
+    expect(oidcRequests).toBe(0)
+  })
+}
+
 test('failed queries show retry and reduced motion removes decorative animation', async ({ page }) => {
   const { state } = await fixtures(page)
   state.failOverview = true

@@ -60,3 +60,10 @@ let sessionRequest: Promise<Session> | undefined
 export const getSession = () => sessionRequest ??= apiRequest<Session>('/session', { signal: AbortSignal.timeout(15_000) }).finally(() => { sessionRequest = undefined })
 export const sessionScope = (session: Session) => JSON.stringify([session.issuer, session.memberId, [...session.roles].sort(), session.registrationComplete])
 export const loginUrl = () => '/oauth2/authorization/lab'
+export const registrationUrl = () => {
+  const url = new URL('https://auth.icthub.top/if/flow/icthub-public-registration/')
+  // Authentik accepts relative return paths. Its Lab application launch entry
+  // returns to the configured Lab URL without keeping an expiring OIDC request.
+  url.searchParams.set('next', '/application/launch/xju-lab/')
+  return url.toString()
+}
