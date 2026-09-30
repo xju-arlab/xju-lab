@@ -37,6 +37,15 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   const registrationNetwork: string[] = []
   if (await registrationHeading.isVisible().catch(() => false)) {
     await page.evaluate(() => {
+      document.addEventListener('click', event => {
+        const target = event.target instanceof Element ? event.target.closest('button') : null
+        if (target?.textContent?.trim() !== '保存并进入实验室') return
+        const form = target.closest('form')
+        sessionStorage.setItem('lab-registration-save-click', JSON.stringify({
+          valid: form?.checkValidity(),
+          values: form ? Array.from(form.querySelectorAll('input')).map(input => ({ name: input.name, value: input.value, valid: input.validity.valid })) : [],
+        }))
+      }, true)
       document.addEventListener('submit', event => {
         const form = event.target
         if (!(form instanceof HTMLFormElement) || !form.querySelector('input[name="realName"]')) return
@@ -81,6 +90,7 @@ async function signIn(page: Page, user: { username: string; password: string }) 
       const path = new URL(request.url()).pathname
       if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`FAILED ${path}: ${request.failure()?.errorText ?? 'unknown'}`)
     })
+    await expect(page.getByRole('button', { name: '保存并进入实验室' })).toBeEnabled()
     const beforeSubmit = await page.evaluate(() => {
       const form = document.querySelector('form')!
       return {
@@ -89,7 +99,6 @@ async function signIn(page: Page, user: { username: string; password: string }) 
       }
     })
     expect(beforeSubmit.valid, `Registration form was invalid before submit: ${JSON.stringify(beforeSubmit)}`).toBe(true)
-    await expect(page.getByRole('button', { name: '保存并进入实验室' })).toBeEnabled()
     await page.getByRole('button', { name: '保存并进入实验室' }).click()
   }
   try {
@@ -105,6 +114,7 @@ async function signIn(page: Page, user: { username: string; password: string }) 
       formValidity: Array.from(document.forms).map(form => form.checkValidity()),
       navigation: performance.getEntriesByType('navigation').map(entry => ({ type: (entry as PerformanceNavigationTiming).type, name: entry.name })),
       registrationSubmit: sessionStorage.getItem('lab-registration-submit'),
+      registrationSaveClick: sessionStorage.getItem('lab-registration-save-click'),
     }))
     throw new Error(`${String(error)}\nRegistration diagnostics: ${JSON.stringify({ ...diagnostics, network: registrationNetwork, browserNavigations })}`)
   }
