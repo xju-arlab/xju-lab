@@ -162,7 +162,7 @@ class BaselineIntegrationTest {
 
     @Test void selfRegistrationDerivesGradeAndDoesNotAllowMembersToEditNameOrStudentNumber() throws Exception {
         UUID id = incompleteMember("registration-self-service");
-        String studentNumber = "student-" + UUID.randomUUID();
+        String studentNumber = "s-" + UUID.randomUUID().toString().substring(0, 8);
         mvc.perform(get("/api/v1/overview").with(login("registration-self-service")))
             .andExpect(status().isForbidden());
         String registration = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
@@ -207,7 +207,7 @@ class BaselineIntegrationTest {
         member("identity-update-lab-admin", "LAB_ADMIN");
         member("identity-update-super-admin", "SUPER_ADMIN");
         String body = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
-                "realName", "管理员修改姓名", "studentNumber", "identity-" + UUID.randomUUID()));
+                "realName", "管理员修改姓名", "studentNumber", "i-" + UUID.randomUUID().toString().substring(0, 8)));
         mvc.perform(patch("/api/v1/admin/members/" + target + "/identity").with(login("identity-update-lab-admin")).with(csrf())
                 .header("If-Match-Version", 1).contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isForbidden());
@@ -434,6 +434,7 @@ class BaselineIntegrationTest {
     }
 
     @Test void lastSuperAdminIsProtectedAndRoleChangesCommitAnOutboxExpectation() throws Exception {
+        jdbc.update("UPDATE role_assignment SET revoked_at=now(),version=version+1 WHERE role='SUPER_ADMIN' AND revoked_at IS NULL");
         UUID only=member("only-super-admin","SUPER_ADMIN");
         mvc.perform(put("/api/v1/admin/members/"+only+"/roles/SUPER_ADMIN").with(login("only-super-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"granted\":false,\"version\":1}"))
             .andExpect(status().isConflict());

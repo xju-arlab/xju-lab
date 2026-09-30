@@ -30,6 +30,7 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   await expect(platformLink, `OIDC login did not return to the app at ${resultLocation}; page text: ${resultText}`).toBeVisible({ timeout: 30_000 })
   await platformLink.click()
   const registrationHeading = page.getByRole('heading', { name: '完成成员实名登记' })
+  const registrationNetwork: string[] = []
   if (await registrationHeading.isVisible().catch(() => false)) {
     await page.getByLabel('真实姓名').fill(`${user.username} 实名测试`)
     const studentNumber = user.username === 'local-admin' ? '20260001' : user.username === 'local-member-a' ? '20260002' : '20260003'
@@ -38,9 +39,34 @@ async function signIn(page: Page, user: { username: string; password: string }) 
     await page.getByRole('button', { name: '深度学习', exact: true }).click()
     await page.getByLabel('自定义方向').fill('图神经网络')
     await page.getByRole('button', { name: '添加', exact: true }).click()
+    page.on('request', request => {
+      const path = new URL(request.url()).pathname
+      if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`${request.method()} ${path}`)
+    })
+    page.on('response', response => {
+      const path = new URL(response.url()).pathname
+      if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`${response.status()} ${path}`)
+    })
+    page.on('requestfailed', request => {
+      const path = new URL(request.url()).pathname
+      if (path.endsWith('/api/v1/csrf') || path.endsWith('/api/v1/members/me/registration')) registrationNetwork.push(`FAILED ${path}: ${request.failure()?.errorText ?? 'unknown'}`)
+    })
     await page.getByRole('button', { name: '保存并进入实验室' }).click()
   }
-  await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
+  try {
+    await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      url: location.href,
+      text: document.body.innerText.slice(0, 1200),
+      inputs: Array.from(document.querySelectorAll('input')).map(input => ({
+        name: input.name, valid: input.checkValidity(), valueLength: input.value.length,
+        readOnly: input.readOnly, disabled: input.disabled, validationMessage: input.validationMessage,
+      })),
+      formValidity: Array.from(document.forms).map(form => form.checkValidity()),
+    }))
+    throw new Error(`${String(error)}\nRegistration diagnostics: ${JSON.stringify({ ...diagnostics, network: registrationNetwork })}`)
+  }
   await expect(page.getByText('API 实时数据')).toBeVisible()
 }
 
