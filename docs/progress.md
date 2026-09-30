@@ -10,10 +10,13 @@
 
 ## 后端与全栈工作包状态
 
-### SSH 服务器管理增量（验收中）
+### SSH 服务器管理增量（隔离验收通过）
 
 - 已实现管理员连接弹窗、服务端 SSH config 自动解析、ProxyJump、按主机请求密码、专用公钥安装与重新认证、硬件快照、鲜绿色成功动画、保存和版本化删除。服务器页拆至 `features/servers`，复用 ComboBox 与 Radix Dialog。
-- Windows 隔离依赖目录中的 OpenAPI 生成、TypeScript 检查和 Vite 构建通过，Python 语法检查通过。真实 SSH / PostgreSQL / 浏览器等待本次提交 CI，不计为已通过。
+- `5702a17` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36700248167)：frontend / backend / verify-script / printer-agent / backup-restore / ssh-onboarding / browser-e2e。前端类型生成无漂移、考核 17 项和工位回归通过；数据库真实 PostgreSQL 迁移至 V8，新增权限/归属、密码不落库、取消、重启恢复、并发幂等保存与删除版本检查通过。
+- SSH worker 5 项测试通过：含真实 OpenSSH 两台隔离容器，错误密码、跳板/目标指纹、首次公钥安装、独立进程重启后免密和重复安装无重复公钥；GPU 型号分支使用受控探测输出测试，真实 GPU 尚未联调。
+- 浏览器两个端到端用例通过，共 52.2 秒；其中 SSH 连接/保存/刷新/删除/再次免密添加 13.5 秒。375/768/1440 px 弹窗边界、内部无横向裁切、ComboBox 模态交互和成功截图通过，截图已逐一人工查看。CI `browser-evidence` artifact 下 `api-mode-administrator-SSH-cc293--password-free-reconnection/ssh-success-{375,768,1440}.png` 可复查（保留 7 天）；本机复核目录 `C:\Users\genev\AppData\Local\Temp\xju-ssh-evidence-5702a17`。此前发现的密码辅助说明混入字段标签、窄屏尺寸过渡裁切与测试临时目录错误均已修复后重跑。
+- Windows 隔离依赖目录也完成 TypeScript、Vite 构建、考核/工位回归及 Python 语法检查；本机 WSL 命令挂起，未改动 Linux 依赖目录，数据库和 SSH 系统验收使用上述 Linux CI。
 - 部署配置、密钥持久化/撤销与生产缺项见 [SSH 接入说明](ssh-server-onboarding.md)。
 
 | 包 | 目标 | 状态 |

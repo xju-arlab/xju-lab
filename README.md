@@ -6,7 +6,7 @@
 
 ## 快速启动
 
-管理员可通过 SSH config 和跳板连接添加服务器，自动安装专用公钥并识别硬件，连接成功后保存；支持版本化删除。[配置、密钥与生产边界](docs/ssh-server-onboarding.md)；本次增量验收状态见进度记录。
+管理员可通过 SSH config 和跳板连接添加服务器，自动安装专用公钥并识别硬件，连接成功后保存；支持版本化删除。[七项 CI 与三视口浏览器验收通过](https://github.com/xju-arlab/xju-lab/actions/runs/36700248167)，[配置、密钥与生产边界](docs/ssh-server-onboarding.md)见接入说明。
 
 已验证环境：Node.js 24.16.0、pnpm 10.17.1。使用仓库锁文件安装，不混用 npm/yarn。
 
@@ -36,7 +36,7 @@ pnpm test:seats
 | 工位 | 确认布局、版本冲突、服务端分配与历史 | 真实名册导入 |
 | 请假 | 服务端状态机、审批、时区/重叠校验、审计与 outbox | 正式 SMTP 投递 |
 | 打印机状态 | 管理员登记设备及 Agent 凭据；只读 CUPS 状态采集；仪表盘在线/离线状态；无打印页或任务接口 | huawei2 生产配置、反向代理路由和真实设备状态联调 |
-| 计算资源 | 固定指标 API、缺失/过期状态与告警 | 真实 Prometheus、CPU/GPU exporter |
+| 计算资源 | 管理员 SSH 添加/删除、跳板与公钥免密、硬件识别、固定指标 API、缺失/过期状态与告警 | 实验室 SSH 网络/账号/指纹与真实 GPU、Prometheus/exporter |
 | 成长与考核 | 服务端计分/双排行/修订/CSV/发布快照；OJ 单链接任务 | OJ 目标端接口与双系统验证 |
 | 成员、设置、展示 | OIDC 会话/API 模式、角色同步 outbox、显式公开快照、PWA | Authentik 生产配置、双账户验收与公开域名/TLS |
 

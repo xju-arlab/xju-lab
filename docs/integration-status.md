@@ -4,7 +4,8 @@
 
 | 系统 | 本仓状态 | 已有受控验证证据 | 仍需完成 |
 |---|---|---|---|
-| PostgreSQL / Redis | 完成服务配置、Flyway 迁移、会话/业务存储 | GitHub Actions 启动 PostgreSQL 17.6、Redis 7.4.3、RustFS；6 个迁移、后端集成测试和 Compose 配置检查通过。隔离恢复 job 验证探针行及关联对象字节 | 生产容量、完整应用库恢复、RTO/RPO 与异地灾备 |
+| SSH 服务器接入 | 管理员配置解析、最多三层 ProxyJump、主机指纹校验、密码认证后安装专用公钥、硬件快照与资产删除；密码不持久化 | 隔离 OpenSSH 跳板/目标的密码与免密连接、公钥幂等；PostgreSQL 权限/并发/取消/重启恢复；真实浏览器连接和保存/删除。最终截图复验与 CI 链接见 progress.md | huawei2 网络到目标/跳板、真实指纹与账户策略、GPU 型号/驱动识别、SSH 配置挂载和专用密钥卷的加密备份/撤销 |
+| PostgreSQL / Redis | 完成服务配置、Flyway 迁移、会话/业务存储 | GitHub Actions 启动 PostgreSQL 17.6、Redis 7.4.3、RustFS；截至 V8 的迁移、后端集成测试和 Compose 配置检查通过。隔离恢复 job 验证探针行及关联对象字节 | 生产容量、完整应用库恢复、RTO/RPO 与异地灾备 |
 | 身份提供方 | OIDC 会话仍以 `iss + sub` 映射；Lab 开放自助注册仅接受邮箱已验证的精确 `@icthub.top`，新成员仅获 MEMBER。Lab/OJ 为同级应用，角色产品隔离，既有超级管理员来源同步规则保留 | 2026-09-30 主分支 CI 通过：邮箱域名拒绝/接受、成员准入权限、实名注册/业务 API 门禁、资料更新和 OIDC 浏览器登录闭环 | 生产 Authentik issuer/client、自助注册和验证邮件策略、确保返回 `email_verified=true`，首位管理员确切 subject，真实用户隔离/撤权/CSRF 验收 |
 | 成员名册 | 增加一次性真实姓名/学号登记、唯一学号约束、本人班级/方向更新、班级派生年级和仅 SUPER_ADMIN 修改实名字段；姓名不从 OIDC 昵称推断 | PostgreSQL 注册 API 集成测试、班级格式单测和 OIDC 浏览器自助登记通过；用户名/学号真实性不由 CI 验证 | 真实成员资料逐人核对；班级简称/年级约定确认；SUPER_ADMIN 审计更正流程实测 |
 | 对象存储 | S3 兼容对象存储用于数据库备份/恢复演练；打印 PDF 上传和私有文件 API 已删除 | 隔离恢复检查备份对象 key/字节与目标桶陈旧对象清理 | 生产备份 bucket、TLS、最小权限凭据、生命周期和完整业务数据库/对象一致性恢复演练 |
