@@ -14,6 +14,7 @@
 
 - 按用户追加要求，工位气泡取消内部高度限制和滚动容器，内容自然展开；三角指示角增加 3px 圆角，卡片仍为 8px 小圆角。
 - Vite production build 通过（1655 模块）。复用隔离 Chromium 检查，在 375/768/1440 px 核对气泡内容、边界、无内部滚动区与圆润指示角，并复查键盘/关闭和下拉表单流程；手机截图已查看。未增加纯样式镜像单元测试。
+- 代码 `197bc5d` 已在 huawei2 通过 `./deploy.sh` 发布；公网工位页与 ready 均 200，新 CSS `index-BqORo1wJ.css` 确认包含 `overflow:visible` 和指示角 `border-radius:3px`。日志 `~/.local/state/xju-lab-tools/deploy-seat-bubble-polish.log`；[本次全量 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36711149383) 在发布检查时仍运行中，此处不将其记为已通过。
 
 ### 2026-09-30：恢复统一下拉与工位三角气泡
 
