@@ -759,7 +759,7 @@ class BaselineIntegrationTest {
                 assertThat(jdbc.queryForObject("SELECT count(*) FROM server_metric_sample WHERE asset_id=?",Integer.class,id)).isEqualTo(2);
             });
             verify(sshWorker,org.mockito.Mockito.times(2)).run(any());
-            jdbc.update("UPDATE server_metric_sample SET sampled_at=now()-interval '26 hours' WHERE asset_id=?",id);
+            jdbc.update("UPDATE server_metric_sample SET sampled_at=sampled_at-interval '26 hours' WHERE asset_id=?",id);
             onDemand.cleanup();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM server_metric_sample WHERE asset_id=?",Integer.class,id)).isZero();
             verify(sshWorker,org.mockito.Mockito.times(2)).run(any());
