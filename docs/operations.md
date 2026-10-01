@@ -30,13 +30,13 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-在 `.env` 中填写 PostgreSQL/Redis 密码、Authentik OIDC client、邮件 SMTP、首位超级管理员的确切 OIDC `sub`、审批令牌加密密钥和 `https://lab.icthub.top` origin；`PRODUCT_REGISTRATION_DOMAIN` 固定为 `icthub.top`。Authentik 需开放自助注册、验证邮箱所有权，并在 OIDC ID/UserInfo 返回 `email` 与布尔型 `email_verified=true`。Lab 只接受该域名的已验证邮箱，新注册账户仅获得 Lab MEMBER。Authentik Provider 回调地址为 `https://lab.icthub.top/login/oauth2/code/lab`。Lab 与 OJ 是同级应用，共用身份提供方；角色分别归属各产品，已确认的 Lab SUPER_ADMIN→OJ Admin 授权仍作为独立来源同步。不要把 `.env` 提交到 Git。
+在 `.env` 中填写 PostgreSQL/Redis 密码、Authentik OIDC client、邮件 SMTP、首位超级管理员的确切 OIDC `sub`、审批令牌加密密钥和 `https://lab.icthub.top` origin；`PRODUCT_REGISTRATION_DOMAIN=*` 表示允许任意已验证邮箱（`icthub.top` 值仅保留为可选的严格域名模式）。Authentik 需开放自助注册、验证邮箱所有权，并在 OIDC ID/UserInfo 返回 `email` 与布尔型 `email_verified=true`。Lab 接受 163、QQ、Gmail 等任意已验证邮箱，新注册账户仅获得 Lab MEMBER。Authentik Provider 回调地址为 `https://lab.icthub.top/login/oauth2/code/lab`。Lab 与 OJ 是同级应用，共用身份提供方；角色分别归属各产品，已确认的 Lab SUPER_ADMIN→OJ Admin 授权仍作为独立来源同步。不要把 `.env` 提交到 Git。
 
 首次登录后，新成员必须提交真实姓名、学号、班级和至少一个研究方向；班级格式为专业简称加两位年份和班号，例如 `计算机24-3`、`信安25-1`、`电信26-2`。系统从班级解析年级。成员可修改班级和方向；姓名、学号仅 SUPER_ADMIN 可更改，并会记录审计。
 
 ### 当前生产身份与邮件配置
 
-2026-09-30 已在 huawei2 的现有 Authentik 中创建独立 `xju-lab` 应用和机密 OIDC 客户端，issuer 为 `https://auth.icthub.top/application/o/xju-lab/`。沿用现网已验证邮箱、稳定账户 ID 的映射及登录流程，不修改 OJ 客户端或全局权限组。共享注册流程已有邮箱验证，Lab 自身继续限制普通成员为已验证 `@icthub.top`。
+2026-09-30 已在 huawei2 的现有 Authentik 中创建独立 `xju-lab` 应用和机密 OIDC 客户端，issuer 为 `https://auth.icthub.top/application/o/xju-lab/`。沿用现网已验证邮箱、稳定账户 ID 的映射及登录流程，不修改 OJ 客户端或全局权限组。共享注册流程已有邮箱验证。2026-10-01 用户澄清统一平台域名不应限制邮箱后缀，Lab 改为任意已验证邮箱准入；现有 OJ 统一身份直接复用，无需再次注册。
 
 用户明确指定现有 `winbeau` 为首位超级管理员。生产配置只对该身份的确切 issuer + subject 允许已验证的外域邮箱；不会按昵称、邮箱相似性或“第一个登录者”授权。首次成功登录才创建 Lab 成员、引导角色及审计记录；撤销角色后再次登录不会恢复引导角色。真实姓名和学号仍由本人首次登记。
 

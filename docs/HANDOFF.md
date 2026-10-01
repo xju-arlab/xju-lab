@@ -2,13 +2,13 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `2d9fe00` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36744319059)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，已验证外域邮箱仅对该身份例外，首次真实登录才创建角色；普通成员仍限定 `@icthub.top`。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
+> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `2d9fe00` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36744319059)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，仅该确切身份可一次性引导管理员角色；2026-10-01 已澄清普通成员允许任意已验证邮箱，已有 OJ 统一账号直接复用。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
 在本仓库目录新开 Luna 对话，发送下面这一句：
 
-> 保持 `main` 分支。读取 AGENTS.md、docs/HANDOFF.md 和 docs/plan/06-backend-completion.md，保留现有产品设计；仅保留打印机状态；Lab 开放已验证 `@icthub.top` 邮箱注册，Lab/OJ 使用同一身份提供方但产品角色隔离；完成实名姓名/学号、班级解析年级、多选方向及管理员更正。继续 huawei2 部署与验证。使用 GitHub CLI 核对 xju-arlab/xju-lab，提交并推送到 main。生产外部配置缺项需记录并继续所有可本地完成事项。
+> 保持 `main` 分支。读取 AGENTS.md、docs/HANDOFF.md 和 docs/plan/06-backend-completion.md，保留现有产品设计；仅保留打印机状态；Lab 开放任意已验证邮箱注册（`PRODUCT_REGISTRATION_DOMAIN=*`），已有 OJ 统一账号直接登录，Lab/OJ 使用同一身份提供方但产品角色隔离；完成实名姓名/学号、班级解析年级、多选方向及管理员更正。继续 huawei2 部署与验证。使用 GitHub CLI 核对 xju-arlab/xju-lab，提交并推送到 main。生产外部配置缺项需记录并继续所有可本地完成事项。
 
 该提示词授权持续开发与本仓提交推送；不把缺少的生产凭据、真实设备或其他项目的变更当作已存在。开发与外部验收的边界见计划第 1、6 节。
 
@@ -52,7 +52,7 @@
 - 工位确认布局：`frontend/src/features/seats/layout.confirmed.json`；来源：`docs/design/lab-layout-calibrated.json`。31 个可坐人工位，单布局、标定吸附、带箭头成员气泡、两方向/三年级配色、SVG/PNG 等距留白；不得以旧编辑器布局覆盖。
 - ACM / 深度学习两个 Tab、各有本次/历史排行；老成员过滤先作用于各场再重算；同培养期理论笔试/机试混合历史、单场形式互斥；历史 25% + 当次 75%。细则见 [09 专项](design/09-assessment-and-showcase.md)。
 - OJ 导入只有比赛链接一个必填输入；SUPER_ADMIN 同步为同一人 OJ Admin 的独立来源授权，撤销/停用也需同步。现有 OJ 登录覆盖角色的问题须按 [11 专项](design/11-oj-import-and-admin-sync.md)处理。
-- Lab 普通成员自助注册只允许邮箱已验证且域名精确为 `icthub.top`；已获用户授权的确切管理员引导身份可使用已验证外域邮箱。实名、学号、班级和至少一个方向完成前，服务端拒绝其他业务 API。班级由服务端按 `专业简称YY-班号` 解析年级；普通成员不可修改姓名/学号，仅 SUPER_ADMIN 可审计更正。
+- Lab 普通成员允许任意已验证邮箱（163、QQ、Gmail 等）；`icthub.top` 是平台域名，不限制邮箱后缀。已有 OJ 统一账号直接登录，新账号只获 MEMBER；超级管理员仍仅由已授权的确切 issuer + subject 一次性引导。实名、学号、班级和至少一个方向完成前，服务端拒绝其他业务 API。班级由服务端按 `专业简称YY-班号` 解析年级；普通成员不可修改姓名/学号，仅 SUPER_ADMIN 可审计更正。
 - 演示模式的 GPU 数据仅用于原型；正式计算资源读取真实 SSH / Prometheus 数据。未识别硬件与未采集指标继续明确标记，不编造。
 - 公开主页只允许显式发布的脱敏快照；内部数据不自动公开。
 

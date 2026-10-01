@@ -62,7 +62,7 @@ lab:
   timezone: ${LAB_TIMEZONE:Asia/Shanghai}
   printer:
     hp-status-enabled: ${HP_PRINTER_STATUS_ENABLED:false}
-  registration-domain: ${PRODUCT_REGISTRATION_DOMAIN:icthub.top}
+  registration-domain: ${PRODUCT_REGISTRATION_DOMAIN:*}
   frontend-origin: ${LAB_FRONTEND_ORIGIN:http://localhost:5173}
   bootstrap-admin:
     issuer: ${BOOTSTRAP_ADMIN_ISSUER:}

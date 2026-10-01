@@ -19,8 +19,9 @@ public class ProductionConfigurationGuard implements ApplicationRunner {
                 throw new IllegalStateException("Production OIDC issuer must be a configured HTTPS identity provider");
             String frontend = environment.getRequiredProperty("lab.frontend-origin");
             if (!frontend.startsWith("https://")) throw new IllegalStateException("Production frontend origin must use HTTPS");
-            if (!"icthub.top".equalsIgnoreCase(environment.getRequiredProperty("lab.registration-domain")))
-                throw new IllegalStateException("Production self-registration is restricted to verified icthub.top email addresses");
+            String registrationDomain = environment.getRequiredProperty("lab.registration-domain");
+            if (!"*".equals(registrationDomain) && !"icthub.top".equalsIgnoreCase(registrationDomain))
+                throw new IllegalStateException("Production registration domain must be * (any verified email) or icthub.top");
             if (!environment.getRequiredProperty("server.servlet.session.cookie.secure", Boolean.class))
                 throw new IllegalStateException("Production session cookies must be Secure");
             if (environment.getRequiredProperty("lab.approval-token-encryption-key").length()<32)

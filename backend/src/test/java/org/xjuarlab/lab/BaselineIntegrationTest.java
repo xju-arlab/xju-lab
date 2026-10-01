@@ -62,7 +62,7 @@ import java.util.UUID;
 import org.springframework.http.MediaType;
 
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test", "lab.monitor.ssh-enabled=false"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test", "lab.monitor.ssh-enabled=false", "lab.registration-domain=icthub.top"})
 @Import(BaselineIntegrationTest.TestOidcConfiguration.class)
 @AutoConfigureMockMvc
 class BaselineIntegrationTest {
@@ -197,6 +197,52 @@ class BaselineIntegrationTest {
         var disabled = new MockHttpServletResponse();
         handler.onAuthenticationSuccess(new MockHttpServletRequest(), disabled, verified);
         assertThat(disabled.getRedirectedUrl()).endsWith("?authError=member_inactive");
+    }
+
+    @Test void anyVerifiedEmailCanJoinWithoutRegisteringAnotherIdentityAndOnlyReceivesMember() throws Exception {
+        var handler = new OidcMemberProvisioningSuccessHandler(jdbc,
+            new org.springframework.transaction.support.TransactionTemplate(transactionManager),
+            "*", "", "", "http://lab.invalid", new OidcLoginFailureHandler("http://lab.invalid"));
+        for (String email : List.of("oj-user@qq.com", "member@gmail.com", "member@163.com", "member@university.edu", "member@icthub.top")) {
+            String subject = "open-signup-" + UUID.randomUUID();
+            var auth = oidcAuthentication(email, true, subject);
+            var request = new MockHttpServletRequest();
+            var response = new MockHttpServletResponse();
+            handler.onAuthenticationSuccess(request, response, auth);
+            assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid");
+            String memberId = (String) request.getSession().getAttribute("lab.memberId");
+            var second = new MockHttpServletRequest();
+            handler.onAuthenticationSuccess(second, new MockHttpServletResponse(), auth);
+            assertThat(second.getSession().getAttribute("lab.memberId")).isEqualTo(memberId);
+            assertThat(jdbc.queryForList("SELECT role FROM role_assignment WHERE member_id=? AND revoked_at IS NULL", String.class, UUID.fromString(memberId))).containsExactly("MEMBER");
+            assertThat(jdbc.queryForObject("SELECT real_name FROM member WHERE id=?", String.class, UUID.fromString(memberId))).isNull();
+            mvc.perform(get("/api/v1/overview").with(login(subject))).andExpect(status().isForbidden());
+        }
+        for (var auth : List.of(oidcAuthentication("unverified@qq.com", false, "open-unverified"),
+                oidcAuthentication("", true, "open-missing-email"), oidcAuthentication("not-an-email", true, "open-invalid-email"))) {
+            var response = new MockHttpServletResponse();
+            handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, auth);
+            assertThat(response.getRedirectedUrl()).contains("/app/dashboard?authError=email_");
+        }
+    }
+
+    @Test void existingTrustedAccountIdReusesMemberButEqualEmailDoesNotLinkIdentities() throws Exception {
+        var handler = new OidcMemberProvisioningSuccessHandler(jdbc,
+            new org.springframework.transaction.support.TransactionTemplate(transactionManager),
+            "*", "", "", "http://lab.invalid", new OidcLoginFailureHandler("http://lab.invalid"));
+        UUID existing = incompleteMember("existing-shared-account");
+        jdbc.update("UPDATE member SET account_id='87000001',notification_email='shared@qq.com',notification_email_verified=true WHERE id=?", existing);
+        var auth = oidcAuthentication("shared@qq.com", true, "new-lab-subject");
+        var claims = new java.util.HashMap<>(((DefaultOidcUser) auth.getPrincipal()).getClaims());
+        claims.put("icthub_account_id", "87000001");
+        var now = Instant.now();
+        var user = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("ROLE_USER")), new OidcIdToken("test-shared-token", now.minusSeconds(30), now.plusSeconds(300), claims));
+        var request = new MockHttpServletRequest();
+        handler.onAuthenticationSuccess(request, new MockHttpServletResponse(), new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
+        assertThat(request.getSession().getAttribute("lab.memberId")).isEqualTo(existing.toString());
+        var unrelated = new MockHttpServletRequest();
+        handler.onAuthenticationSuccess(unrelated, new MockHttpServletResponse(), oidcAuthentication("shared@qq.com", true, "unrelated-same-email"));
+        assertThat(unrelated.getSession().getAttribute("lab.memberId")).isNotEqualTo(existing.toString());
     }
 
     @Test void rejectedOidcLoginClearsAuthenticatedSessionAndExpiredCallbacksReturnToLogin() throws Exception {

@@ -26,7 +26,7 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
     private final OidcLoginFailureHandler failures;
 
     public OidcMemberProvisioningSuccessHandler(JdbcTemplate jdbc, TransactionTemplate transactions,
-            @Value("${lab.registration-domain:icthub.top}") String registrationDomain,
+            @Value("${lab.registration-domain:*}") String registrationDomain,
             @Value("${lab.bootstrap-admin.issuer:}") String bootstrapIssuer,
             @Value("${lab.bootstrap-admin.subject:}") String bootstrapSubject,
             @Value("${lab.frontend-origin:http://localhost:5173}") String frontendOrigin,
@@ -66,7 +66,9 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
         if (email == null || email.isBlank()) return false;
         String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
         int at = normalized.lastIndexOf('@');
-        return at > 0 && at == normalized.indexOf('@') && normalized.substring(at + 1).equals(registrationDomain);
+        if (at <= 0 || at != normalized.indexOf('@') || at == normalized.length() - 1
+                || normalized.chars().anyMatch(c -> Character.isWhitespace(c) || Character.isISOControl(c))) return false;
+        return registrationDomain.equals("*") || normalized.substring(at + 1).equals(registrationDomain);
     }
 
     private UUID provision(OidcUser user, HttpServletRequest request) {

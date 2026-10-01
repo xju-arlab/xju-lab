@@ -6,7 +6,7 @@
 |---|---|---|---|
 | SSH 服务器接入 | 管理员配置解析、最多三层 ProxyJump、主机指纹校验、密码认证后安装专用公钥、硬件快照与资产删除；密码不持久化 | 隔离 OpenSSH 跳板/目标的密码与免密连接、公钥幂等；PostgreSQL 权限/并发/取消/重启恢复；真实浏览器连接和保存/删除。最终截图复验与 CI 链接见 progress.md | huawei2 上三台已保存资产的 SSH CPU/内存/磁盘/负载采样已通过，GPU 资产的 NVIDIA 利用率也已通过；新增目标、密钥卷加密备份/撤销仍需逐项确认 |
 | PostgreSQL / Redis | 完成服务配置、Flyway 迁移、会话/业务存储 | GitHub Actions 启动 PostgreSQL 17.6、Redis 7.4.3、RustFS；截至 V10 的迁移、后端集成测试和 Compose 配置检查通过。隔离恢复 job 验证探针行及关联对象字节 | 生产容量、完整应用库恢复、RTO/RPO 与异地灾备 |
-| 身份提供方 | 独立 Authentik `xju-lab` 客户端已创建；普通成员仅接受已验证 `@icthub.top`。用户指定现有 `winbeau`，其确切 issuer/subject 可用已验证外域邮箱引导超级管理员，角色撤销后不会重新引导 | 七项 CI 含邮箱准入、确切引导/未验证/停用/撤权测试；生产 discovery、HTTPS callback、PKCE、state/nonce、Secure/HttpOnly 会话 Cookie 与稳定账户 ID 映射已核对；沿用现网邮箱验证和 MFA 流程 | 本人首次完整登录与实名登记、真实双用户隔离/撤权/CSRF、注册验证邮件投递 |
+| 身份提供方 | 独立 Authentik `xju-lab` 客户端已创建；普通成员接受任意已验证邮箱，已有 OJ 统一身份直接复用。用户指定现有 `winbeau`，仅其确切 issuer/subject 可引导超级管理员，角色撤销后不会重新引导 | 七项 CI 含邮箱准入、确切引导/未验证/停用/撤权测试；生产 discovery、HTTPS callback、PKCE、state/nonce、Secure/HttpOnly 会话 Cookie 与稳定账户 ID 映射已核对；沿用现网邮箱验证和 MFA 流程 | 本人首次完整登录与实名登记、真实双用户隔离/撤权/CSRF、注册验证邮件投递 |
 | 成员名册 | 增加一次性真实姓名/学号登记、唯一学号约束、本人班级/方向更新、班级派生年级和仅 SUPER_ADMIN 修改实名字段；姓名不从 OIDC 昵称推断 | PostgreSQL 注册 API 集成测试、班级格式单测和 OIDC 浏览器自助登记通过；用户名/学号真实性不由 CI 验证 | 真实成员资料逐人核对；班级简称/年级约定确认；SUPER_ADMIN 审计更正流程实测 |
 | 对象存储 | S3 兼容对象存储用于数据库备份/恢复演练；打印 PDF 上传 API 已删除；请假附件限量保存在 PostgreSQL V11，沿用申请权限下载，无生产 S3 依赖 | 隔离恢复检查备份对象 key/字节与目标桶陈旧对象清理 | 生产备份 bucket、TLS、最小权限凭据、生命周期和完整业务数据库/对象一致性恢复演练 |
 | SMTP / 通知 | 数据库 outbox、失败重试、生产阿里云 SMTP 465 SSL 已配置，凭据从现网 Authentik 受控读取；增加 SSL 与超时支持 | CI 通知/outbox 用例通过；生产 API 容器内 TLS 连接和 SMTP 认证成功；未发送真实测试邮件 | 实际收件人投递、退信/限流/告警及邮件端到端确认 |

@@ -70,8 +70,9 @@ if [[ "$(env_value LAB_FRONTEND_ORIGIN)" != "https://lab.icthub.top" ]]; then
   echo "LAB_FRONTEND_ORIGIN must be https://lab.icthub.top." >&2
   exit 2
 fi
-if [[ "$(env_value PRODUCT_REGISTRATION_DOMAIN | tr '[:upper:]' '[:lower:]')" != "icthub.top" ]]; then
-  echo "PRODUCT_REGISTRATION_DOMAIN must be icthub.top." >&2
+registration_domain="$(env_value PRODUCT_REGISTRATION_DOMAIN | tr '[:upper:]' '[:lower:]')"
+if [[ "$registration_domain" != '*' && "$registration_domain" != "icthub.top" ]]; then
+  echo "PRODUCT_REGISTRATION_DOMAIN must be * (any verified email) or icthub.top." >&2
   exit 2
 fi
 if [[ "$(env_value OIDC_ISSUER_URI)" != https://* ]]; then

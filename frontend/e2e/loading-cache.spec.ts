@@ -196,6 +196,6 @@ test('login rejection explains the reason and never renders arbitrary callback t
     }
   }
   await page.goto('/app/dashboard?authError=%3Cscript%3Euntrusted%3C/script%3E')
-  await expect(page.getByText('请使用实验室统一身份登录。', { exact: true })).toBeVisible()
+  await expect(page.getByText('已有 OJ 账号可直接登录，无需重新注册。', { exact: true })).toBeVisible()
   await expect(page.getByText('untrusted')).toHaveCount(0)
 })
