@@ -21,7 +21,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mail.MailSendException;
-import org.springframework.mail.SimpleMailMessage;
+import jakarta.mail.internet.MimeMessage;
 import org.xjuarlab.lab.notifications.OutboxWorker;
 import org.xjuarlab.lab.security.OidcMemberProvisioningSuccessHandler;
 import org.xjuarlab.lab.security.OidcLoginFailureHandler;
@@ -102,6 +102,7 @@ class BaselineIntegrationTest {
         jdbc.update("DELETE FROM notification");
         jdbc.update("UPDATE lab_setting SET mail_enabled=false WHERE singleton=true");
         reset(mailSender);
+        org.mockito.Mockito.when(mailSender.createMimeMessage()).thenAnswer(call -> new MimeMessage(jakarta.mail.Session.getInstance(new java.util.Properties())));
         reset(sshWorker);
         reset(hpPrinterStatusClient);
         jdbc.update("DELETE FROM printer WHERE status_source='HP_STATUS'");
@@ -566,7 +567,7 @@ class BaselineIntegrationTest {
     }
 
     @Test void leaveApprovalEnforcesOverlapPrivacyAndVersionedTransitions() throws Exception {
-        UUID applicant=member("leave-applicant","MEMBER"); UUID approver=member("leave-approver","TEACHER"); member("leave-outsider","MEMBER");
+        UUID applicant=member("leave-applicant","MEMBER"); UUID approver=member("leave-approver","LAB_ADMIN"); member("leave-outsider","MEMBER");
         String start=Instant.now().plusSeconds(3600).toString(); String end=Instant.now().plusSeconds(7200).toString();
         var created=mvc.perform(post("/api/v1/leaves").with(login("leave-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"startsAt\":\""+start+"\",\"endsAt\":\""+end+"\",\"approverId\":\""+approver+"\",\"reason\":\"Appointment\"}"))
@@ -577,7 +578,7 @@ class BaselineIntegrationTest {
             .andExpect(status().isConflict());
         mvc.perform(get("/api/v1/leaves/"+application).with(login("leave-outsider"))).andExpect(status().isNotFound());
         mvc.perform(post("/api/v1/leaves/"+application+"/decision").with(login("leave-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVED\",\"version\":1}"))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/leaves/"+application+"/decision").with(login("leave-approver")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVED\",\"version\":1}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED")).andExpect(jsonPath("$.version").value(2));
         mvc.perform(post("/api/v1/leaves/"+application+"/withdraw").with(login("leave-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"version\":1}"))
@@ -588,7 +589,7 @@ class BaselineIntegrationTest {
     }
 
     @Test void leaveRequestsRejectSelfApprovalAndInvalidIntervalsButAllowHalfOpenAdjacency() throws Exception {
-        UUID applicant=member("leave-boundary-applicant","MEMBER"); UUID approver=member("leave-boundary-approver","TEACHER");
+        UUID applicant=member("leave-boundary-applicant","MEMBER"); UUID approver=member("leave-boundary-approver","LAB_ADMIN");
         String now=Instant.now().plusSeconds(3600).toString(); String later=Instant.now().plusSeconds(7200).toString(); String later2=Instant.now().plusSeconds(10800).toString();
         String self="{\"startsAt\":\""+now+"\",\"endsAt\":\""+later+"\",\"approverId\":\""+applicant+"\",\"reason\":\"Self\"}";
         mvc.perform(post("/api/v1/leaves").with(login("leave-boundary-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(self)).andExpect(status().isBadRequest());
@@ -602,7 +603,7 @@ class BaselineIntegrationTest {
 
     @Test void concurrentLeaveApprovalAndWithdrawalAllowOnlyOneTransition() throws Exception {
         member("leave-race-applicant","MEMBER");
-        UUID approver=member("leave-race-approver","TEACHER");
+        UUID approver=member("leave-race-approver","LAB_ADMIN");
         String starts=Instant.now().plusSeconds(3600).toString(), ends=Instant.now().plusSeconds(7200).toString();
         var created=mvc.perform(post("/api/v1/leaves").with(login("leave-race-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"startsAt\":\""+starts+"\",\"endsAt\":\""+ends+"\",\"approverId\":\""+approver+"\",\"reason\":\"Concurrent decision test\"}"))
@@ -621,28 +622,79 @@ class BaselineIntegrationTest {
     }
 
 
-    @Test void emailApprovalGetDoesNotMutateAndPostConsumesOnlyForTheAssignedApprover() throws Exception {
-        UUID approver=member("email-approval-approver","TEACHER"); member("email-approval-applicant","MEMBER"); member("email-approval-outsider","MEMBER");
-        String starts=Instant.now().plusSeconds(3600).toString(), ends=Instant.now().plusSeconds(7200).toString();
-        var created=mvc.perform(post("/api/v1/leaves").with(login("email-approval-applicant")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"startsAt\":\""+starts+"\",\"endsAt\":\""+ends+"\",\"approverId\":\""+approver+"\",\"reason\":\"Email token test\"}"))
-            .andExpect(status().isCreated()).andReturn();
-        String application=new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString()).get("id").asText();
-        String cipher=jdbc.queryForObject("SELECT payload->>'approvalTokenCiphertext' FROM outbox_event WHERE aggregate_id=? AND event_type='NOTIFICATION_EMAIL'",String.class,approver);
-        assertThat(cipher).isNotBlank();
-        String token=tokenCrypto.decrypt(cipher);
-        assertThat(jdbc.queryForObject("SELECT token_hash FROM approval_token WHERE application_id=?",String.class,UUID.fromString(application))).isEqualTo(tokenCrypto.hash(token)).isNotEqualTo(token);
-        mvc.perform(get("/api/v1/leaves/email-action").param("token",token).with(login("email-approval-approver")))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"));
-        assertThat(jdbc.queryForObject("SELECT consumed_at FROM approval_token WHERE application_id=?",java.time.OffsetDateTime.class,UUID.fromString(application))).isNull();
-        mvc.perform(post("/api/v1/leaves/email-action").with(login("email-approval-outsider")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"token\":\""+token+"\",\"decision\":\"APPROVED\"}" )).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/leaves/email-action").with(login("email-approval-approver")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"token\":\""+token+"\",\"decision\":\"APPROVED\"}" ))
+    @Test void emailCapabilityPreviewsAreReadOnlyAndAnonymousConfirmationIsSingleUse() throws Exception {
+        UUID approver=member("email-approval-approver","LAB_ADMIN"); member("email-approval-applicant","MEMBER");
+        var application=emailApplication(approver,"email-approval-applicant");
+        UUID id=application.id(); String token=application.token();
+        assertThat(jdbc.queryForObject("SELECT token_hash FROM approval_token WHERE application_id=?",String.class,id)).isEqualTo(tokenCrypto.hash(token)).isNotEqualTo(token);
+        for(int scan=0;scan<3;scan++) mvc.perform(get("/api/v1/leaves/email-action").param("token",token))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control","private, no-store"));
+        assertThat(jdbc.queryForObject("SELECT consumed_at FROM approval_token WHERE application_id=?",java.time.OffsetDateTime.class,id)).isNull();
+        mvc.perform(post("/api/v1/leaves/email-action").contentType(MediaType.APPLICATION_JSON).content("{\"token\":\""+token+"\",\"decision\":\"APPROVED\"}")).andExpect(status().isForbidden());
+        var context=mvc.perform(post("/api/v1/leaves/email-action/context").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"token\":\""+token+"\"}"))
+            .andExpect(status().isNoContent()).andReturn();
+        var session=(org.springframework.mock.web.MockHttpSession)context.getRequest().getSession(false);
+        assertThat(session.getAttribute("lab.leaveApprovalHash")).isEqualTo(tokenCrypto.hash(token));
+        mvc.perform(get("/api/v1/leaves/email-action").session(session)).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/leaves/email-action").session(session).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"applicationId\":\""+UUID.randomUUID()+"\",\"version\":1,\"decision\":\"APPROVED\"}")).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/leaves/email-action").session(session).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"applicationId\":\""+id+"\",\"version\":1,\"decision\":\"REJECTED\"}")).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/leaves/email-action").session(session).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"applicationId\":\""+id+"\",\"version\":1,\"decision\":\"APPROVED\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED"));
-        assertThat(jdbc.queryForObject("SELECT consumed_at FROM approval_token WHERE application_id=?",java.time.OffsetDateTime.class,UUID.fromString(application))).isNotNull();
-        mvc.perform(post("/api/v1/leaves/email-action").with(login("email-approval-approver")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"token\":\""+token+"\",\"decision\":\"APPROVED\"}" )).andExpect(status().isNotFound());
+        assertThat(session.getAttribute("lab.leaveApprovalHash")).isNull();
+        mvc.perform(get("/api/v1/leaves/email-action").param("token",token)).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/leaves/email-action").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"token\":\""+token+"\",\"decision\":\"APPROVED\"}")).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification WHERE kind='LEAVE_APPROVED'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT actor_id FROM leave_decision WHERE application_id=? AND decision='APPROVED'",UUID.class,id)).isEqualTo(approver);
+    }
+
+    @Test void onlyActiveAdministratorsCanReceiveAndExerciseLeaveApproval() throws Exception {
+        UUID admin=member("restricted-admin","LAB_ADMIN"), student=member("restricted-student","MEMBER"), teacher=member("restricted-teacher","TEACHER");
+        UUID disabled=member("restricted-disabled","LAB_ADMIN");jdbc.update("UPDATE member SET active=false WHERE id=?",disabled);
+        var list=mvc.perform(get("/api/v1/leaves/approvers").with(login("restricted-student"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(list).contains(admin.toString()).doesNotContain(student.toString(),teacher.toString(),disabled.toString());
+        mvc.perform(get("/api/v1/leaves/approvers").with(login("restricted-admin"))).andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id == '"+admin+"')]").isEmpty());
+        mvc.perform(get("/api/v1/leaves/inbox").with(login("restricted-teacher"))).andExpect(status().isForbidden());
+        for(UUID invalid:List.of(student,teacher,disabled)) mvc.perform(post("/api/v1/leaves").with(login("restricted-student")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"startsAt\":\"2032-01-01T01:00:00Z\",\"endsAt\":\"2032-01-01T02:00:00Z\",\"approverId\":\""+invalid+"\",\"reason\":\"invalid approver\"}")).andExpect(status().isBadRequest());
+        var application=emailApplication(admin,"restricted-student");
+        jdbc.update("UPDATE role_assignment SET revoked_at=now() WHERE member_id=?",admin);
+        mvc.perform(get("/api/v1/leaves/email-action").param("token",application.token())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/leaves/"+application.id()+"/decision").with(login("restricted-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVED\",\"version\":1}")).andExpect(status().isForbidden());
+        jdbc.update("UPDATE member SET notification_email='admin@example.invalid',notification_email_verified=true WHERE id=?",admin);
+        jdbc.update("UPDATE lab_setting SET mail_enabled=true WHERE singleton=true");outboxWorker.dispatch();
+        verify(mailSender,org.mockito.Mockito.never()).send(any(MimeMessage.class));
+        assertThat(jdbc.queryForObject("SELECT last_error FROM outbox_event WHERE aggregate_id=? AND event_type='NOTIFICATION_EMAIL'",String.class,admin)).isEqualTo("SUPPRESSED_STALE_APPROVAL");
+    }
+
+    @Test void expiredTransferredAndConcurrentEmailApprovalsCannotProduceExtraDecisions() throws Exception {
+        UUID admin=member("cap-admin","LAB_ADMIN"), next=member("cap-next","SUPER_ADMIN");member("cap-student","MEMBER");
+        var application=emailApplication(admin,"cap-student");
+        jdbc.update("UPDATE approval_token SET expires_at=now()-interval '1 second' WHERE application_id=?",application.id());
+        mvc.perform(get("/api/v1/leaves/email-action").param("token",application.token())).andExpect(status().isNotFound());
+        jdbc.update("UPDATE approval_token SET expires_at=now()+interval '1 hour' WHERE application_id=?",application.id());
+        mvc.perform(post("/api/v1/leaves/"+application.id()+"/transfer").with(login("cap-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"approverId\":\""+next+"\",\"version\":1,\"reason\":\"transfer\"}")).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/leaves/email-action").param("token",application.token())).andExpect(status().isNotFound());
+        String token=tokenCrypto.decrypt(jdbc.queryForObject("SELECT payload->>'approvalTokenCiphertext' FROM outbox_event WHERE aggregate_id=? AND event_type='NOTIFICATION_EMAIL'",String.class,next));
+        var outcomes=runConcurrently(
+            () -> mvc.perform(post("/api/v1/leaves/email-action").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"token\":\""+token+"\",\"decision\":\"APPROVED\"}")).andReturn().getResponse().getStatus(),
+            () -> mvc.perform(post("/api/v1/leaves/"+application.id()+"/withdraw").with(login("cap-student")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"version\":2}")).andReturn().getResponse().getStatus());
+        assertThat(outcomes.stream().filter(code->code==200).count()).isEqualTo(1);
+        assertThat(outcomes).allMatch(code->code==200||code==404||code==409);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM leave_decision WHERE application_id=? AND decision IN ('APPROVED','WITHDRAWN')",Integer.class,application.id())).isEqualTo(1);
+    }
+    private record EmailFixture(UUID id,String token) {}
+    private EmailFixture emailApplication(UUID approver,String applicant) throws Exception {
+        var response=mvc.perform(post("/api/v1/leaves").with(login(applicant)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"startsAt\":\"2032-01-01T01:00:00Z\",\"endsAt\":\"2032-01-01T02:00:00Z\",\"approverId\":\""+approver+"\",\"reason\":\"Email approval fixture\"}"))
+            .andExpect(status().isCreated()).andReturn();
+        UUID id=UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.getResponse().getContentAsString()).path("id").asText());
+        String cipher=jdbc.queryForObject("SELECT payload->>'approvalTokenCiphertext' FROM outbox_event WHERE aggregate_id=? AND event_type='NOTIFICATION_EMAIL'",String.class,approver);
+        return new EmailFixture(id,tokenCrypto.decrypt(cipher));
     }
 
     @Test void outboxRecoversExpiredLeasesAndRetriesMailAfterTransientFailure() {
@@ -651,17 +703,18 @@ class BaselineIntegrationTest {
         jdbc.update("UPDATE lab_setting SET mail_enabled=true WHERE singleton=true");
         UUID notification=jdbc.queryForObject("INSERT INTO notification(recipient_id,kind,payload) VALUES (?,'MANUAL_TEST','{}') RETURNING id",UUID.class,recipient);
         UUID event=jdbc.queryForObject("INSERT INTO outbox_event(event_type,aggregate_id,payload,lease_owner,lease_until) VALUES ('NOTIFICATION_EMAIL',?,jsonb_build_object('notificationId',?::text,'kind','MANUAL_TEST'),'crashed-worker',now()-interval '1 second') RETURNING id",UUID.class,recipient,notification.toString());
-        doThrow(new MailSendException("simulated transient SMTP failure")).when(mailSender).send(any(SimpleMailMessage.class));
+        doThrow(new MailSendException("simulated transient SMTP failure")).when(mailSender).send(any(MimeMessage.class));
         outboxWorker.dispatch();
         assertThat(jdbc.queryForObject("SELECT attempts FROM outbox_event WHERE id=?",Integer.class,event)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT delivered_at FROM outbox_event WHERE id=?",java.time.OffsetDateTime.class,event)).isNull();
         assertThat(jdbc.queryForObject("SELECT last_error FROM outbox_event WHERE id=?",String.class,event)).isEqualTo("MailSendException");
         assertThat(jdbc.queryForObject("SELECT lease_owner FROM outbox_event WHERE id=?",String.class,event)).isNull();
         reset(mailSender);
+        org.mockito.Mockito.when(mailSender.createMimeMessage()).thenAnswer(call -> new MimeMessage(jakarta.mail.Session.getInstance(new java.util.Properties())));
         jdbc.update("UPDATE outbox_event SET available_at=now()-interval '1 second' WHERE id=?",event);
         outboxWorker.dispatch();
         assertThat(jdbc.queryForObject("SELECT delivered_at FROM outbox_event WHERE id=?",java.time.OffsetDateTime.class,event)).isNotNull();
-        verify(mailSender).send(any(SimpleMailMessage.class));
+        verify(mailSender).send(any(MimeMessage.class));
     }
 
     @Test void assessmentHistoryVeteranFilteringVersioningAndPublishedPrivacyWorkTogether() throws Exception {
@@ -756,8 +809,8 @@ class BaselineIntegrationTest {
     }
 
     @Test void leaveAttachmentsAreAtomicPrivateAndFollowTheCurrentApprover() throws Exception {
-        member("attachment-owner","MEMBER");UUID reviewer=member("attachment-reviewer","MEMBER");
-        UUID nextReviewer=member("attachment-next","MEMBER");member("attachment-stranger","MEMBER");member("attachment-admin","LAB_ADMIN");
+        member("attachment-owner","MEMBER");UUID reviewer=member("attachment-reviewer","LAB_ADMIN");
+        UUID nextReviewer=member("attachment-next","LAB_ADMIN");member("attachment-stranger","MEMBER");member("attachment-admin","LAB_ADMIN");
         var application=new MockMultipartFile("application","application.json","application/json",("{\"startsAt\":\"2031-01-01T01:00:00Z\",\"endsAt\":\"2031-01-01T09:00:00Z\",\"reason\":\"附件隔离验收\",\"approverId\":\""+reviewer+"\"}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         byte[] bytes="%PDF-1.7\nprivate-fixture".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         var file=new MockMultipartFile("files","证明.pdf","application/pdf",bytes);
@@ -780,6 +833,7 @@ class BaselineIntegrationTest {
         mvc.perform(get("/api/v1/leaves/"+UUID.randomUUID()+"/attachments/"+fileId).with(login("attachment-owner"))).andExpect(status().isNotFound());
         mvc.perform(post("/api/v1/leaves/"+id+"/transfer").with(login("attachment-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"approverId\":\""+nextReviewer+"\",\"version\":1,\"reason\":\"转交验收\"}")).andExpect(status().isOk());
+        jdbc.update("UPDATE role_assignment SET revoked_at=now() WHERE member_id=?",reviewer);
         mvc.perform(get(path).with(login("attachment-reviewer"))).andExpect(status().isNotFound());
         mvc.perform(get(path).with(login("attachment-next"))).andExpect(status().isOk()).andExpect(content().bytes(bytes));
         mvc.perform(get("/api/v1/leaves/mine").with(login("attachment-owner"))).andExpect(jsonPath("$.items[0].attachments.length()").value(2));

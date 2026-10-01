@@ -1474,6 +1474,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leaves/approvers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Active LAB_ADMIN or SUPER_ADMIN members, excluding the applicant. Ordinary members and teachers cannot approve. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Eligible administrators */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            displayName: string;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leaves/mine": {
         parameters: {
             query?: never;
@@ -1531,7 +1571,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Applications assigned to the current approver */
+                /** @description Applications assigned to the current active LAB_ADMIN or SUPER_ADMIN */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1766,6 +1806,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leaves/email-action/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description CSRF protected. Stores only the 72-hour email capability hash in the HttpOnly session. Does not consume the capability or change the application. No SSO required. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Capability remembered */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leaves/email-action": {
         parameters: {
             query?: never;
@@ -1773,10 +1855,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Possession of the email capability authorizes a read-only preview, without SSO. Rechecks active administrator, current assignee, expiry and pending status. Never consumes the capability; private no-store. New mail uses fragment then context endpoint, not a token in server URLs. */
         get: {
             parameters: {
-                query: {
-                    token: string;
+                query?: {
+                    /** @description Legacy raw capability. Omit to use the stored session hash. */
+                    token?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1784,7 +1868,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Read-only preview; does not consume the token or approve the application */
+                /** @description Read-only application preview */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1797,6 +1881,7 @@ export interface paths {
             };
         };
         put?: never;
+        /** @description CSRF protected explicit confirmation. Uses the bound administrator identity without SSO. The session flow requires applicationId and version from the preview to reject stale tabs. Rejection requires a reason. Atomically consumes all tokens and enqueues applicant notification. Replayed or invalid capabilities return 404. */
         post: {
             parameters: {
                 query?: never;
@@ -1807,7 +1892,11 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        token: string;
+                        /** @description Legacy raw capability; omit when using the session context */
+                        token?: string;
+                        /** Format: uuid */
+                        applicationId?: string;
+                        version?: number;
                         /** @enum {string} */
                         decision: "APPROVED" | "REJECTED";
                         reason?: string;
@@ -1815,13 +1904,17 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Token consumed by the authenticated assigned approver */
+                /** @description Decision saved once */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["EmailApprovalPreview"];
+                    };
                 };
+                400: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
                 404: components["responses"]["ApiError"];
                 409: components["responses"]["ApiError"];
             };

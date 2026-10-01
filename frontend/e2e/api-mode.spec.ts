@@ -149,7 +149,7 @@ test('administrator SSH onboarding uses a jump host and survives password-free r
 })
 
 test('OIDC API mode keeps project data scoped across users and viewports', async ({ browser }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
   const pageErrors: string[] = []
   const failedResponses: string[] = []
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
@@ -517,6 +517,13 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await memberAPage.getByRole('button', { name: new RegExp(meetingTitle) }).click()
   await expect(memberAPage.getByText(meetingAction)).toBeVisible()
 
+  // Enable delivery only to the isolated Mailpit service in this test stack.
+  const mailEnabledStatus = await adminPage.evaluate(async () => {
+    const csrf = await (await fetch('/api/v1/csrf')).json()
+    const settings = await (await fetch('/api/v1/lab/settings')).json()
+    return (await fetch('/api/v1/lab/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token, 'If-Match-Version': String(settings.version) }, body: JSON.stringify({ ...settings, mailEnabled: true }) })).status
+  })
+  expect(mailEnabledStatus).toBe(200)
   const leaveReason = `PRIVATE_LEAVE_REASON_DO_NOT_PUBLISH-${Date.now()}`
   await memberAPage.goto('/app/leave')
   await memberAPage.getByLabel('开始时间（北京时间）').fill('2030-05-21T09:00')
@@ -537,7 +544,35 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const attachmentResponse = await adminContext.request.get(new URL(attachmentPath!, adminPage.url()).href)
   expect(attachmentResponse.status()).toBe(200)
   expect((await attachmentResponse.body()).toString()).toBe('%PDF-1.7\nPrivate attachment fixture')
-  await pendingLeave.getByRole('button', { name: '批准' }).click()
+  const mailpit = 'http://127.0.0.1:8025'
+  let approvalMail = ''
+  await expect.poll(async () => {
+    const response = await adminContext.request.get(`${mailpit}/view/latest.txt?query=${encodeURIComponent('subject:实验室请假申请待处理')}`)
+    approvalMail = response.ok() ? await response.text() : ''
+    return approvalMail.includes('/app/leave/email-action#token=')
+  }, { timeout: 30_000 }).toBe(true)
+  expect(approvalMail).not.toContain(leaveReason)
+  const mailLink = approvalMail.match(/http:\/\/localhost:18080\/app\/leave\/email-action#token=[A-Za-z0-9_-]{43}/)?.[0]
+  expect(mailLink).toBeTruthy()
+  const approvalContext = await browser.newContext()
+  const approvalPage = await approvalContext.newPage()
+  await approvalPage.goto(mailLink!)
+  await expect(approvalPage.getByText(leaveReason, { exact: true })).toBeVisible()
+  await expect(approvalPage.getByRole('link', { name: /统一身份登录/ })).toHaveCount(0)
+  await approvalPage.reload()
+  await expect(approvalPage.getByRole('button', { name: '确认批准' })).toBeVisible()
+  await adminPage.reload()
+  await expect(adminPage.locator('.api-leave-card').filter({ hasText: leaveReason }).getByText('PENDING')).toBeVisible()
+  await approvalPage.getByRole('button', { name: '确认批准' }).click()
+  await expect(approvalPage.getByRole('heading', { name: '申请已批准' })).toBeVisible()
+  await expect.poll(async () => {
+    const response = await adminContext.request.get(`${mailpit}/view/latest.txt?query=${encodeURIComponent('subject:实验室请假申请已批准')}`)
+    return response.ok() ? response.text() : ''
+  }, { timeout: 30_000 }).toContain('您的请假申请已批准')
+  await approvalPage.goto(mailLink!)
+  await expect(approvalPage.getByRole('alert')).toContainText('审批链接已失效')
+  await approvalContext.close()
+  await adminPage.reload()
   await expect(adminPage.locator('.api-leave-card').filter({ hasText: leaveReason }).getByText('APPROVED')).toBeVisible()
   await memberAPage.goto('/app/leave')
   await expect(memberAPage.locator('.api-leave-card').filter({ hasText: leaveReason }).getByText('APPROVED')).toBeVisible()

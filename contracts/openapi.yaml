@@ -273,6 +273,23 @@ paths:
           content: { application/octet-stream: { schema: { type: string, format: binary } } }
         '401': { $ref: '#/components/responses/ApiError' }
         '404': { $ref: '#/components/responses/ApiError' }
+  /leaves/approvers:
+    get:
+      tags: [leaves]
+      description: Active LAB_ADMIN or SUPER_ADMIN members, excluding the applicant. Ordinary members and teachers cannot approve.
+      responses:
+        '200':
+          description: Eligible administrators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, displayName]
+                  properties:
+                    id: { type: string, format: uuid }
+                    displayName: { type: string }
   /leaves/mine:
     get:
       tags: [leaves]
@@ -286,7 +303,7 @@ paths:
       parameters:
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
-      responses: { '200': { description: Applications assigned to the current approver, content: { application/json: { schema: { $ref: '#/components/schemas/LeavePage' } } } } }
+      responses: { '200': { description: Applications assigned to the current active LAB_ADMIN or SUPER_ADMIN, content: { application/json: { schema: { $ref: '#/components/schemas/LeavePage' } } } } }
   /leaves/{id}:
     get:
       tags: [leaves]
@@ -316,15 +333,26 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, reason], properties: { version: { type: integer, minimum: 1 }, reason: { type: string, maxLength: 1000 } } } } } }
       responses: { '200': { description: Approved leave revoked by an administrator }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/email-action/context:
+    post:
+      tags: [leaves]
+      security: []
+      description: CSRF protected. Stores only the 72-hour email capability hash in the HttpOnly session. Does not consume the capability or change the application. No SSO required.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' } } } } } }
+      responses: { '204': { description: Capability remembered }, '400': { $ref: '#/components/responses/ApiError' }, '403': { $ref: '#/components/responses/ApiError' } }
   /leaves/email-action:
     get:
       tags: [leaves]
-      parameters: [{ name: token, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 100 } }]
-      responses: { '200': { description: Read-only preview; does not consume the token or approve the application, content: { application/json: { schema: { $ref: '#/components/schemas/EmailApprovalPreview' } } } }, '404': { $ref: '#/components/responses/ApiError' } }
+      security: []
+      description: Possession of the email capability authorizes a read-only preview, without SSO. Rechecks active administrator, current assignee, expiry and pending status. Never consumes the capability; private no-store. New mail uses fragment then context endpoint, not a token in server URLs.
+      parameters: [{ name: token, in: query, required: false, description: Legacy raw capability. Omit to use the stored session hash., schema: { type: string, minLength: 43, maxLength: 43 } }]
+      responses: { '200': { description: Read-only application preview, content: { application/json: { schema: { $ref: '#/components/schemas/EmailApprovalPreview' } } } }, '404': { $ref: '#/components/responses/ApiError' } }
     post:
       tags: [leaves]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token, decision], properties: { token: { type: string }, decision: { type: string, enum: [APPROVED, REJECTED] }, reason: { type: string, maxLength: 1000 } } } } } }
-      responses: { '200': { description: Token consumed by the authenticated assigned approver }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+      security: []
+      description: CSRF protected explicit confirmation. Uses the bound administrator identity without SSO. The session flow requires applicationId and version from the preview to reject stale tabs. Rejection requires a reason. Atomically consumes all tokens and enqueues applicant notification. Replayed or invalid capabilities return 404.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [decision], properties: { token: { type: string, maxLength: 100, description: Legacy raw capability; omit when using the session context }, applicationId: { type: string, format: uuid }, version: { type: integer, minimum: 1 }, decision: { type: string, enum: [APPROVED, REJECTED] }, reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { '200': { description: Decision saved once, content: { application/json: { schema: { $ref: '#/components/schemas/EmailApprovalPreview' } } } }, '400': { $ref: '#/components/responses/ApiError' }, '403': { $ref: '#/components/responses/ApiError' }, '404': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
   /notifications:
     get:
       tags: [notifications]

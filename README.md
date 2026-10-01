@@ -98,3 +98,5 @@ cd /home/winbeau/projects/xju-lab && ./deploy.sh
 ## 复用与公开内容
 
 前端部分基础组件、样式和配置来自 `xju-feiyue`，MIT 许可副本与修改范围见[第三方说明](frontend/THIRD_PARTY_NOTICES.md)。本仓库尚未为其余代码指定独立开源许可证；公开可见不等同于为所有内容授予 MIT 许可。配置只提交示例，不提交真实凭据、成员资料、成绩导出、数据库备份或设备密钥。
+
+请假审批：仅实验室管理员可担任审批人，支持邮件免登录打开申请、确认一次完成处理并向申请人发送结果。[流程与运维](docs/leave-email-approval.md)。

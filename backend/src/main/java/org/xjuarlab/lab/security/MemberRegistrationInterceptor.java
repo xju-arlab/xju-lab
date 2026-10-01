@@ -16,7 +16,7 @@ import static org.springframework.http.HttpStatus.FORBIDDEN;
 public class MemberRegistrationInterceptor implements HandlerInterceptor {
     private static final Set<String> ALLOWED_WHILE_INCOMPLETE = Set.of(
             "/api/v1/health", "/api/v1/ready", "/api/v1/csrf", "/api/v1/session",
-            "/api/v1/logout", "/api/v1/members/me", "/api/v1/members/me/registration");
+            "/api/v1/logout", "/api/v1/members/me", "/api/v1/members/me/registration", "/api/v1/leaves/email-action/context", "/api/v1/leaves/email-action");
     private final JdbcTemplate jdbc;
     private final CurrentMember current;
 

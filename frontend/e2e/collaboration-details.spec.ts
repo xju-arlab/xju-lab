@@ -25,6 +25,7 @@ async function fixture(page: Page) {
       '/session': { authenticated: true, memberId: 'fixture', displayName: '页面验收成员', roles: ['SUPER_ADMIN'], issuer: 'fixture', registrationComplete: true },
       '/members/me': { registrationComplete: true, directions: ['算法'] },
       '/members': { items: [{ id: 'reviewer', displayName: '验收审批人' }], total: 1 },
+      '/leaves/approvers': [{ id: 'reviewer', displayName: '验收审批人' }],
       '/csrf': { headerName: 'X-CSRF-TOKEN', token: 'fixture-only' },
       '/projects': { items: state.projects, total: state.projects.length }, '/meetings': { items: state.meetings, total: state.meetings.length },
       '/seats/layout': { version: state.version, layout: state.layout },

@@ -26,6 +26,8 @@ public class SecurityConfiguration {
             clients, OAuth2AuthorizationRequestRedirectFilter.DEFAULT_AUTHORIZATION_REQUEST_BASE_URI);
         authorizationRequestResolver.setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce());
         http.authorizeHttpRequests(auth -> auth
+            .requestMatchers(HttpMethod.POST, "/api/v1/leaves/email-action/context").permitAll()
+            .requestMatchers("/api/v1/leaves/email-action").permitAll()
             .requestMatchers("/actuator/health", "/actuator/health/**", "/api/v1/health", "/api/v1/ready", "/api/v1/csrf", "/oauth2/**", "/login/**", "/api/v1/public/**", "/api/v1/printer-agent/**").permitAll()
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             .anyRequest().authenticated())

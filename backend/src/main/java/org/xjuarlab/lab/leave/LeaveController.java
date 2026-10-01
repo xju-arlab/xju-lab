@@ -46,7 +46,7 @@ public class LeaveController {
     public LeaveView create(Authentication auth, @Valid @RequestBody CreateLeave input) {
         UUID actor = current.id(auth);
         if (!input.startsAt().isBefore(input.endsAt())) throw new ResponseStatusException(BAD_REQUEST, "结束时间必须晚于开始时间");
-        requireActiveMember(input.approverId());
+        requireApprover(input.approverId());
         if (actor.equals(input.approverId())) throw new ResponseStatusException(BAD_REQUEST, "申请人不能审批自己的请假申请");
         UUID id = jdbc.queryForObject("INSERT INTO leave_application(member_id,approver_id,starts_at,ends_at,reason) VALUES (?,?,?,?,?) RETURNING id",
             UUID.class, actor, input.approverId(), input.startsAt(), input.endsAt(), input.reason().trim());
@@ -90,21 +90,36 @@ public class LeaveController {
     @GetMapping("/inbox")
     public PageEnvelope<LeaveView> inbox(Authentication auth, @RequestParam(defaultValue="1") int page, @RequestParam(defaultValue="20") int pageSize) {
         UUID actor = current.id(auth);
+        current.requireRole(actor, "LAB_ADMIN", "SUPER_ADMIN");
         return page("approver_id", actor, page, pageSize);
+    }
+
+    @GetMapping("/approvers")
+    public List<Approver> approvers(Authentication auth) {
+        UUID actor = current.id(auth);
+        return jdbc.query("SELECT m.id,m.display_name FROM member m WHERE m.active=true AND m.id<>? AND EXISTS (SELECT 1 FROM role_assignment r WHERE r.member_id=m.id AND r.role IN ('LAB_ADMIN','SUPER_ADMIN') AND r.revoked_at IS NULL) ORDER BY m.display_name,m.id",
+            (rs, row) -> new Approver(rs.getObject("id", UUID.class), rs.getString("display_name")), actor);
     }
 
     @GetMapping("/{id}")
     public LeaveView get(Authentication auth, @PathVariable UUID id) {
         UUID actor = current.id(auth);
         LeaveView leave = load(id);
-        if (!leave.memberId().equals(actor) && !leave.approverId().equals(actor) && !isAdmin(actor)) throw hidden();
+        if (!leave.memberId().equals(actor) && !isAdmin(actor)) throw hidden();
         return leave;
     }
 
     @PostMapping("/{id}/decision")
     @Transactional
     public LeaveView decide(Authentication auth, @PathVariable UUID id, @Valid @RequestBody Decision input) {
-        UUID actor = current.id(auth);
+        return decideAs(current.id(auth), id, input);
+    }
+
+    /** Called only with a session identity or an unexpired administrator email capability. */
+    @Transactional
+    public LeaveView decideAs(UUID actor, UUID id, Decision input) {
+        current.requireRole(actor, "LAB_ADMIN", "SUPER_ADMIN");
+        requireApprover(actor);
         LeaveView leave = lock(id);
         if (!"APPROVED".equals(input.decision()) && !"REJECTED".equals(input.decision())) throw new ResponseStatusException(BAD_REQUEST, "审批结果无效");
         if (!leave.approverId().equals(actor) || leave.memberId().equals(actor)) throw hidden();
@@ -137,7 +152,7 @@ public class LeaveController {
         LeaveView leave = lock(id);
         expectVersion(leave, input.version());
         if (!leave.status().equals("PENDING")) throw new ResponseStatusException(CONFLICT, "仅待审批申请可转交");
-        requireActiveMember(input.approverId());
+        requireApprover(input.approverId());
         if (leave.memberId().equals(input.approverId())) throw new ResponseStatusException(BAD_REQUEST, "申请人不能审批自己的请假申请");
         jdbc.update("UPDATE leave_application SET approver_id=?,version=version+1,updated_at=now() WHERE id=? AND version=?", input.approverId(), id, input.version());
         jdbc.update("INSERT INTO leave_decision(application_id,actor_id,decision,reason) VALUES (?,?,'TRANSFERRED',?)", id, actor, input.reason());
@@ -188,6 +203,7 @@ public class LeaveController {
     private void transition(LeaveView leave, UUID actor, String status, String reason) {
         int changed = jdbc.update("UPDATE leave_application SET status=?,version=version+1,updated_at=now() WHERE id=? AND version=? AND status=?", status, leave.id(), leave.version(), leave.status());
         if (changed == 0) throw new ResponseStatusException(CONFLICT, "申请状态已变化，请刷新后重试");
+        jdbc.update("UPDATE approval_token SET consumed_at=now() WHERE application_id=? AND consumed_at IS NULL", leave.id());
         jdbc.update("INSERT INTO leave_decision(application_id,actor_id,decision,reason) VALUES (?,?,?,?)", leave.id(), actor, status, reason);
         audit(actor, "LEAVE_" + status, leave.id(), leave.status(), status);
     }
@@ -216,7 +232,7 @@ public class LeaveController {
     }
 
     private void expectVersion(LeaveView leave, long expected) { if (leave.version() != expected) throw new ResponseStatusException(CONFLICT, "申请版本已变化，请刷新后重试"); }
-    private void requireActiveMember(UUID id) { if (jdbc.query("SELECT 1 FROM member WHERE id=? AND active=true", (rs, row) -> rs.getInt(1), id).isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "审批人不存在或已停用"); }
+    private void requireApprover(UUID id) { if (jdbc.query("SELECT 1 FROM member m WHERE m.id=? AND m.active=true AND EXISTS (SELECT 1 FROM role_assignment r WHERE r.member_id=m.id AND r.role IN ('LAB_ADMIN','SUPER_ADMIN') AND r.revoked_at IS NULL)", (rs, row) -> rs.getInt(1), id).isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "审批人必须是有效的实验室管理员"); }
     private boolean isAdmin(UUID id) { return current.roles(id).stream().anyMatch(r -> r.equals("LAB_ADMIN") || r.equals("SUPER_ADMIN")); }
     private static ResponseStatusException hidden() { return new ResponseStatusException(NOT_FOUND, "申请不存在或无权访问"); }
 
@@ -226,4 +242,5 @@ public class LeaveController {
     public record VersionInput(@NotNull Long version) {}
     public record Transfer(@NotNull UUID approverId, @NotNull Long version, @NotBlank @Size(max=1000) String reason) {}
     public record Revoke(@NotNull Long version, @NotBlank @Size(max=1000) String reason) {}
+    public record Approver(UUID id, String displayName) {}
 }
