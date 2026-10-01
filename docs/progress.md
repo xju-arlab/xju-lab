@@ -15,7 +15,11 @@
 - 拒绝准入时清除 Spring Security 上下文并作废会话，避免保留已认证但没有 Lab 成员的半完成登录。日志只含错误类别和请求编号，不输出个人声明或数据库异常内容。
 - 用户已明确：`icthub.top` 是统一账号平台域名，163、QQ、Gmail 等任意已验证邮箱均可注册/登录。生产和默认配置改为 `PRODUCT_REGISTRATION_DOMAIN=*`，部署校验同步更新；保留邮箱所有权验证、实名必填、普通 MEMBER 与确切管理员引导边界。
 - 只读核对现网 Lab 与 OJ Provider：共用默认认证流程、profile/verified-email 映射与稳定 `icthub_account_id`；不需要新增账号或迁移密码。登录页提示已有 OJ 账号直接登录，新用户仍可进入共用注册页。新增 PostgreSQL 回归覆盖多邮箱域、拒绝未验证/缺失邮箱、重复登录复用同一成员、可信账户 ID 关联及禁止仅凭同邮箱关联。
-- 本机隔离副本 TypeScript/Vite 构建通过，8 项加载/缓存/登录浏览器检查通过，包括 375/768/1440 px 的五种失败提示与恶意未知代码。新增真实 PostgreSQL 回归覆盖失败会话清理、过期回调、唯一约束冲突回滚；后端 CI 与生产部署待本次提交后执行。
+- 本机隔离副本 TypeScript/Vite 构建通过，8 项加载/缓存/登录浏览器检查通过，包括 375/768/1440 px 的五种失败提示与恶意未知代码。回调失败仅提供有效的重新登录/注册操作，保留查询故障的“重新检查”；错误提示支持屏幕阅读器。
+- `6377fd8` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36811146674)，包括 54 项后端检查（真实 PostgreSQL/Redis）及 19 项浏览器检查，覆盖失败会话清理、过期回调、唯一约束冲突回滚、开放邮箱准入与身份复用。
+- huawei2 已通过 `./deploy.sh` 从 GitHub main 拉取并部署 `6377fd8`；运行容器确认 `PRODUCT_REGISTRATION_DOMAIN=*`，原配置有权限 600 的私有备份，未提交秘密。首页、health、ready 均 200，匿名 session 401；无效 OIDC 回调返回固定 Lab 登录页的 302，无白页。部署日志 `~/.local/state/xju-lab-tools/deploy-login-email.log`。
+- 公网真实浏览器已走通：首页进入平台 → 匿名登录卡片 → Authentik 邮箱/用户名和密码表单 → 页内注册；Lab 直接注册链接 → 实验室注册表单且固定返回 Lab；无效回调 → 中文过期提示。原生共用注册流程本就允许任意有效邮箱，无需修改其他产品账号或密码。
+- 公网失败页 375/768/1440 px 无横向溢出，截图与只读检查脚本位于本机隔离验证目录 `frontend/lab-login-failure-public-*.png` / `verify-public-login-fix.cjs`；源站登录表单截图为 `lab-auth-login-origin.png`。未代替真实用户输入账号密码、提交注册或发送邮件；真实用户重新登录与新注册验证邮件完整闭环仍需本人确认。Python 公网 health 探针收到 HTTP 错误，但同轮实际公网浏览器入口与跳转成功，未将该探针误记为通过。
 
 ## 2026-09-30：工作区整理与登录页注册入口
 

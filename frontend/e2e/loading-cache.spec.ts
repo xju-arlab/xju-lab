@@ -190,6 +190,8 @@ test('login rejection explains the reason and never renders arbitrary callback t
     })) {
       await page.goto(`/app/dashboard?authError=${code}`)
       await expect(page.getByText(message, { exact: true })).toBeVisible()
+      await expect(page.getByRole('alert')).toHaveText(message)
+      await expect(page.getByRole('button', { name: '重新检查', exact: true })).toHaveCount(0)
       await expect(page.getByRole('link', { name: /^统一身份登录/ })).toBeVisible()
       await expect(page.getByRole('link', { name: '立即注册', exact: true })).toBeVisible()
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)

@@ -38,7 +38,7 @@ chmod 600 .env
 
 2026-09-30 已在 huawei2 的现有 Authentik 中创建独立 `xju-lab` 应用和机密 OIDC 客户端，issuer 为 `https://auth.icthub.top/application/o/xju-lab/`。沿用现网已验证邮箱、稳定账户 ID 的映射及登录流程，不修改 OJ 客户端或全局权限组。共享注册流程已有邮箱验证。2026-10-01 用户澄清统一平台域名不应限制邮箱后缀，Lab 改为任意已验证邮箱准入；现有 OJ 统一身份直接复用，无需再次注册。
 
-用户明确指定现有 `winbeau` 为首位超级管理员。生产配置只对该身份的确切 issuer + subject 允许已验证的外域邮箱；不会按昵称、邮箱相似性或“第一个登录者”授权。首次成功登录才创建 Lab 成员、引导角色及审计记录；撤销角色后再次登录不会恢复引导角色。真实姓名和学号仍由本人首次登记。
+用户明确指定现有 `winbeau` 为首位超级管理员。生产配置只对该身份的确切 issuer + subject 引导超级管理员角色；不会按昵称、邮箱相似性或“第一个登录者”授权。首次成功登录才创建 Lab 成员、引导角色及审计记录；撤销角色后再次登录不会恢复引导角色。真实姓名和学号仍由本人首次登记。
 
 生产 `.env` 位于 `/home/winbeau/projects/xju-lab/.env`，权限 `600`，已被 Git 忽略。数据库、Redis 和审批加密密钥独立随机生成；邮件使用现网 Authentik 的阿里云 SMTP 配置（465、`SMTP_SSL=true`、`SMTP_STARTTLS=false`），没有复用 OJ 的客户端密钥。更换服务器时从受控秘密备份恢复 `.env`，不要重新生成已有数据库/审批密钥。`OJ_BASE_URL`/`OJ_SERVICE_TOKEN` 和 Prometheus 配置为空，表示外部连接器尚未联调。
 
