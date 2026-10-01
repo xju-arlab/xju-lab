@@ -24,3 +24,4 @@ services:
       BOOTSTRAP_ADMIN_SUBJECT: 00000000-0000-4000-8000-000000000101
       LAB_FRONTEND_ORIGIN: http://localhost:18080
       SESSION_COOKIE_SECURE: "false"
+      MAIL_FROM: "ICTHub <no-reply@example.test>"

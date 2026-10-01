@@ -556,6 +556,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const emails = await (await adminContext.request.get(`${mailpit}/api/v1/messages`)).json()
   const delivered = emails.messages.find((message: { Subject: string }) => message.Subject === '实验室请假申请待处理')
   expect(delivered.To.map((to: { Address: string }) => to.Address)).toEqual(['local-admin@example.test'])
+  expect(delivered.From).toMatchObject({ Address: 'no-reply@example.test', Name: '算法与科研实验室' })
   expect(delivered.Attachments).toBe(2)
   const mailLink = approvalMail.match(/http:\/\/localhost:18080\/app\/leave\/email-action#token=[A-Za-z0-9_-]{43}/)?.[0]
   expect(mailLink).toBeTruthy()

@@ -4,6 +4,16 @@ import org.springframework.web.util.HtmlUtils;
 
 public final class LabMailTemplate {
     private LabMailTemplate() {}
+    public static jakarta.mail.internet.InternetAddress sender(String configured) throws jakarta.mail.internet.AddressException, java.io.UnsupportedEncodingException {
+        // MAIL_FROM may be a bare mailbox or an existing "Display name <mailbox>".
+        // The two-argument InternetAddress constructor does not parse that syntax.
+        var addresses=jakarta.mail.internet.InternetAddress.parse(configured,true);
+        if(addresses.length!=1 || addresses[0].isGroup()) throw new jakarta.mail.internet.AddressException("Exactly one sender mailbox is required");
+        var address=addresses[0];
+        address.validate();
+        address.setPersonal("算法与科研实验室","UTF-8");
+        return address;
+    }
     public record Content(String text, String html) {}
     public static Content render(String origin, String title, String recipient, String body, String summary, String link, boolean approval) {
         String action = approval ? "查看并审批申请" : "查看申请";

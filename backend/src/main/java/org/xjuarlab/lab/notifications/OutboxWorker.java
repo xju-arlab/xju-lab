@@ -76,7 +76,7 @@ public class OutboxWorker {
         var content = LabMailTemplate.render(frontendOrigin, subject(data.kind()), data.displayName(), body(data.kind()), summary, link, data.kind().equals("LEAVE_PENDING"));
         var mime = sender.createMimeMessage();
         var message = new MimeMessageHelper(mime, true, "UTF-8");
-        message.setFrom(from, "算法与科研实验室"); message.setTo(data.email()); message.setSubject(subject(data.kind()));
+        message.setFrom(LabMailTemplate.sender(from)); message.setTo(data.email()); message.setSubject(subject(data.kind()));
         message.setText(content.text(), content.html());
         if(data.kind().equals("LEAVE_PENDING")) {
             UUID application=UUID.fromString(payload.path("applicationId").asText());
