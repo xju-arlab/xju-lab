@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-09-30。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `2d9fe00` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36744319059)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，仅该确切身份可一次性引导管理员角色；2026-10-01 已澄清普通成员允许任意已验证邮箱，已有 OJ 统一账号直接复用。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
+> 2026-10-01。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `ce7c25c` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36816940429)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，仅该确切身份可一次性引导管理员角色；2026-10-01 已澄清普通成员允许任意已验证邮箱，已有 OJ 统一账号直接复用。真实完整登录、邮件投递、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
@@ -14,7 +14,7 @@
 
 ## 当前实现与待复验
 
-- 当前增量：管理员限定的请假审批与邮件通知。用户确认采用“邮件打开详情 → 免登录点一次确认 → 申请人收到结果”；读取、扫描和刷新均不消费令牌，只有 CSRF 保护的 POST 才修改状态。实际验证/部署记录见 progress.md 首条，设计与运维见 leave-email-approval.md。
+- 已部署 `ce7c25c`：管理员限定的请假审批与邮件通知，生产邮件开关已启用。用户确认采用“邮件打开详情 → 免登录点一次确认 → 申请人收到结果”；读取、扫描和刷新均不消费令牌，只有 CSRF 保护的 POST 才修改状态。邮件含原始附件，详情图片可点开预览，凭证失效后文件接口同步失效。58 项后端与 22 项浏览器检查通过；实际收件仍需真实申请确认。详细记录见 progress.md 首条，设计与运维见 leave-email-approval.md。
 
 - 2026-10-01 已排查并修复登录回调 403：原先误把统一账号域名当作邮箱后缀限制，现允许任意已验证邮箱（163/QQ/Gmail 等），生产 `PRODUCT_REGISTRATION_DOMAIN=*`。已有 OJ 统一账号直接登录，新用户可从 Lab 或身份登录页进入注册；首次进入 Lab 仍填写实名资料。`309f089` 已部署，七项 CI 全通过，公网匿名登录、两条注册入口及过期回调中文反馈实际通过。真实账号提交登录/新注册邮件验证仍需实际用户重试确认；详见 `progress.md`。
 
