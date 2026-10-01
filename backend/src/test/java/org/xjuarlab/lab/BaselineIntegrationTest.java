@@ -188,7 +188,7 @@ class BaselineIntegrationTest {
         var response = new MockHttpServletResponse();
         var verified = oidcAuthentication("operator@external.invalid", true, "operator-bootstrap");
         handler.onAuthenticationSuccess(request, response, verified);
-        assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid");
+        assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid/app/dashboard");
         UUID id = UUID.fromString((String) request.getSession().getAttribute("lab.memberId"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM role_assignment WHERE member_id=? AND role='SUPER_ADMIN' AND revoked_at IS NULL", Integer.class, id)).isEqualTo(1);
         jdbc.update("UPDATE role_assignment SET revoked_at=now() WHERE member_id=? AND role='SUPER_ADMIN'", id);
@@ -210,7 +210,7 @@ class BaselineIntegrationTest {
             var request = new MockHttpServletRequest();
             var response = new MockHttpServletResponse();
             handler.onAuthenticationSuccess(request, response, auth);
-            assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid");
+            assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid/app/dashboard");
             String memberId = (String) request.getSession().getAttribute("lab.memberId");
             var second = new MockHttpServletRequest();
             handler.onAuthenticationSuccess(second, new MockHttpServletResponse(), auth);
@@ -224,6 +224,29 @@ class BaselineIntegrationTest {
             var response = new MockHttpServletResponse();
             handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, auth);
             assertThat(response.getRedirectedUrl()).contains("/app/dashboard?authError=email_");
+        }
+    }
+
+    @Test void successfulLoginAlwaysReturnsToPlatformOnTrustedOrigin() throws Exception {
+        for (String origin : List.of("http://lab.invalid", "http://lab.invalid/")) {
+            var handler = new OidcMemberProvisioningSuccessHandler(jdbc,
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager),
+                "*", "", "", origin, new OidcLoginFailureHandler(origin));
+            var authentication = oidcAuthentication("member@example.test", true, "platform-return-" + UUID.randomUUID());
+            String memberId = null;
+            for (int login = 0; login < 2; login++) {
+                var request = new MockHttpServletRequest();
+                request.addHeader("Referer", "https://untrusted.invalid/");
+                request.addParameter("next", "https://untrusted.invalid/");
+                request.addParameter("redirect_uri", "//untrusted.invalid/");
+                var response = new MockHttpServletResponse();
+                handler.onAuthenticationSuccess(request, response, authentication);
+                assertThat(response.getRedirectedUrl()).isEqualTo("http://lab.invalid/app/dashboard");
+                String currentId = (String) request.getSession().getAttribute("lab.memberId");
+                assertThat(currentId).isNotBlank();
+                if (memberId != null) assertThat(currentId).isEqualTo(memberId);
+                memberId = currentId;
+            }
         }
     }
 

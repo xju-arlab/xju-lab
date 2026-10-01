@@ -16,8 +16,10 @@ function percentile(samples: number[], percentileValue: number) {
   return sorted[Math.ceil(sorted.length * percentileValue) - 1]
 }
 
-async function signIn(page: Page, user: { username: string; password: string }) {
-  await page.goto('/app/dashboard')
+async function signIn(page: Page, user: { username: string; password: string }, fromHomepage = false) {
+  await page.goto(fromHomepage ? '/' : '/app/dashboard')
+  const platformUrl = new URL('/app/dashboard', page.url()).href
+  if (fromHomepage) await page.getByRole('link', { name: '进入实验室平台' }).click()
   const loginLink = page.getByRole('link', { name: /统一身份登录/ })
   await expect(loginLink).toBeVisible()
   await loginLink.click()
@@ -28,13 +30,11 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   await expect(username, `Expected the local IdP login form at ${locationLabel}; page text: ${pageText}`).toBeVisible({ timeout: 30_000 })
   await username.fill(user.username)
   await page.locator('#password').fill(user.password)
+  const callback = page.waitForResponse(response => new URL(response.url()).pathname === '/login/oauth2/code/lab')
   await page.locator('#kc-login').click()
-  const platformLink = page.getByRole('link', { name: '进入实验室平台' })
-  const resultUrl = new URL(page.url())
-  const resultLocation = `${resultUrl.origin}${resultUrl.pathname}`
-  const resultText = await page.locator('body').innerText().catch(() => '')
-  await expect(platformLink, `OIDC login did not return to the app at ${resultLocation}; page text: ${resultText}`).toBeVisible({ timeout: 30_000 })
-  await platformLink.click()
+  expect((await callback).headers().location).toBe(platformUrl)
+  await expect(page).toHaveURL(platformUrl)
+  await expect(page.getByRole('link', { name: '进入实验室平台' })).toHaveCount(0)
   const registrationHeading = page.getByRole('heading', { name: '完成成员实名登记' })
   const dashboardHeading = page.getByRole('heading', { name: '总览' })
   await expect(registrationHeading.or(dashboardHeading), `OIDC session did not resolve for ${user.username}; page text: ${await page.locator('body').innerText().catch(() => '')}`).toBeVisible({ timeout: 30_000 })
@@ -86,6 +86,26 @@ async function signIn(page: Page, user: { username: string; password: string }) 
   await expect(dashboardHeading, `Lab dashboard did not load for ${user.username}; registration API activity: ${registrationNetwork.join(' | ')}`).toBeVisible()
   await expect(page.getByText('API 实时数据')).toBeVisible()
 }
+
+test('homepage login enters the platform directly for password and existing SSO sessions', async ({ page }) => {
+  await signIn(page, admin, true)
+  await page.goto('/')
+  await page.getByRole('link', { name: '进入实验室平台' }).click()
+  await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^统一身份登录/ })).toHaveCount(0)
+
+  // Lab logout leaves the isolated IdP session available for an SSO-only return.
+  await page.getByRole('button', { name: '退出登录', exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await page.getByRole('link', { name: '进入实验室平台' }).click()
+  const platformUrl = new URL('/app/dashboard', page.url()).href
+  const callback = page.waitForResponse(response => new URL(response.url()).pathname === '/login/oauth2/code/lab')
+  await page.getByRole('link', { name: /^统一身份登录/ }).click()
+  expect((await callback).headers().location).toBe(platformUrl)
+  await expect(page).toHaveURL(platformUrl)
+  await expect(page.getByRole('heading', { name: '总览' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '进入实验室平台' })).toHaveCount(0)
+})
 
 test('administrator SSH onboarding uses a jump host and survives password-free reconnection', async ({ page }, testInfo) => {
   test.setTimeout(180_000)

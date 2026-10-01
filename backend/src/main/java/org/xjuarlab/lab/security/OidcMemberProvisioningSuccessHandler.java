@@ -32,7 +32,7 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
             @Value("${lab.frontend-origin:http://localhost:5173}") String frontendOrigin,
             OidcLoginFailureHandler failures) {
         this.jdbc = jdbc; this.transactions = transactions; this.registrationDomain = registrationDomain.toLowerCase(java.util.Locale.ROOT);
-        this.bootstrapIssuer = bootstrapIssuer; this.bootstrapSubject = bootstrapSubject; this.frontendOrigin = frontendOrigin;
+        this.bootstrapIssuer = bootstrapIssuer; this.bootstrapSubject = bootstrapSubject; this.frontendOrigin = frontendOrigin.replaceAll("/+$", "");
         this.failures = failures;
     }
 
@@ -53,7 +53,8 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
             UUID memberId = transactions.execute(status -> provision(user, request));
             if (memberId == null) { failures.reject(request, response, OidcLoginFailureHandler.Reason.MEMBER_INACTIVE); return; }
             request.getSession(true).setAttribute("lab.memberId", memberId.toString());
-            response.sendRedirect(frontendOrigin);
+            // Authentication enters the private platform; the public homepage remains a separate route.
+            response.sendRedirect(frontendOrigin + "/app/dashboard");
         } catch (RuntimeException e) {
             // Do not log exception messages: database errors can contain personal claims.
             org.slf4j.LoggerFactory.getLogger(getClass()).error("OIDC member provisioning failed type={} requestId={}",
