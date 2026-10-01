@@ -28,6 +28,8 @@ public class SecurityConfiguration {
         http.authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.POST, "/api/v1/leaves/email-action/context").permitAll()
             .requestMatchers("/api/v1/leaves/email-action").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/v1/leaves/email-action/attachments/*/*").permitAll()
+            .requestMatchers(HttpMethod.HEAD, "/api/v1/leaves/email-action/attachments/*/*").permitAll()
             .requestMatchers("/actuator/health", "/actuator/health/**", "/api/v1/health", "/api/v1/ready", "/api/v1/csrf", "/oauth2/**", "/login/**", "/api/v1/public/**", "/api/v1/printer-agent/**").permitAll()
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             .anyRequest().authenticated())

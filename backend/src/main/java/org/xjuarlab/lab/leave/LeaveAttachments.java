@@ -50,6 +50,29 @@ public class LeaveAttachments {
         return jdbc.query("SELECT filename,content FROM leave_attachment WHERE application_id=? AND id=?",(rs,row)->new Upload(rs.getString(1),rs.getBytes(2)),application,attachment)
             .stream().findFirst().orElseThrow(()->new ResponseStatusException(NOT_FOUND,"附件不存在或无权访问"));
     }
+    public org.springframework.http.ResponseEntity<byte[]> response(UUID application, UUID attachment, boolean preview) {
+        var file=read(application,attachment);
+        String imageType=preview ? rasterType(file.content()) : null;
+        var disposition=imageType == null ? org.springframework.http.ContentDisposition.attachment() : org.springframework.http.ContentDisposition.inline();
+        return org.springframework.http.ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType(imageType == null ? "application/octet-stream" : imageType))
+            .header("Content-Disposition",disposition.filename(file.filename(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
+            .header("Cache-Control","private, no-store").header("X-Content-Type-Options","nosniff")
+            .header("Content-Security-Policy","default-src 'none'; sandbox")
+            .contentLength(file.content().length).body(file.content());
+    }
+    // Only known raster signatures may be rendered inline, never user-supplied MIME or HTML/SVG.
+    private static String rasterType(byte[] bytes) {
+        if(bytes.length<12) return null;
+        if(bytes[0]==(byte)0x89 && bytes[1]==80 && bytes[2]==78 && bytes[3]==71 && bytes[4]==13 && bytes[5]==10 && bytes[6]==26 && bytes[7]==10) return "image/png";
+        if(bytes[0]==(byte)0xff && bytes[1]==(byte)0xd8 && bytes[2]==(byte)0xff) return "image/jpeg";
+        String first=new String(bytes,0,12,java.nio.charset.StandardCharsets.ISO_8859_1);
+        if(first.startsWith("GIF87a")||first.startsWith("GIF89a")) return "image/gif";
+        if(first.startsWith("RIFF")&&first.substring(8).equals("WEBP")) return "image/webp";
+        if(first.startsWith("BM")) return "image/bmp";
+        if(first.substring(4,8).equals("ftyp") && first.substring(8).equals("avif")) return "image/avif";
+        return null;
+    }
     public record Upload(String filename,byte[] content){}
     public record AttachmentView(UUID id,String filename,int byteSize){}
 }

@@ -267,6 +267,7 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: attachmentId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: preview, in: query, schema: { type: boolean, default: false }, description: Inline only recognized raster image signatures; all other files remain downloads. }
       responses:
         '200':
           description: Private attachment
@@ -333,6 +334,27 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, reason], properties: { version: { type: integer, minimum: 1 }, reason: { type: string, maxLength: 1000 } } } } } }
       responses: { '200': { description: Approved leave revoked by an administrator }, '403': { $ref: '#/components/responses/ApiError' }, '409': { $ref: '#/components/responses/ApiError' } }
+  /leaves/email-action/attachments/{applicationId}/{attachmentId}:
+    get:
+      tags: [leaves]
+      security: []
+      description: Attachment scoped to the unexpired administrator email capability stored in the HttpOnly session. Every request rechecks current permission, pending status and application ownership. Returns no-store and nosniff. Does not consume the capability.
+      parameters:
+        - { name: applicationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachmentId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: preview, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: Download or inline recognized raster image when preview is true
+          content:
+            application/octet-stream: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/gif: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            image/bmp: { schema: { type: string, format: binary } }
+            image/avif: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/ApiError' }
   /leaves/email-action/context:
     post:
       tags: [leaves]
@@ -886,7 +908,7 @@ components:
         attachments: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/LeaveAttachment' } }
     EmailApprovalPreview:
       type: object
-      required: [applicationId, memberId, memberName, startsAt, endsAt, reason, status, version]
+      required: [applicationId, memberId, memberName, startsAt, endsAt, reason, status, version, attachments]
       properties:
         applicationId: { type: string, format: uuid }
         memberId: { type: string, format: uuid }
@@ -896,6 +918,7 @@ components:
         reason: { type: string }
         status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
         version: { type: integer }
+        attachments: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/LeaveAttachment' } }
     Notification:
       type: object
       required: [id, kind, payload, createdAt]

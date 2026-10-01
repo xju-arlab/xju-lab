@@ -1443,7 +1443,10 @@ export interface paths {
         /** @description Applicant, current approver or lab administrator only; permission changes take effect immediately. Private no-store, attachment disposition and nosniff. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Inline only recognized raster image signatures; all other files remain downloads. */
+                    preview?: boolean;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -1800,6 +1803,54 @@ export interface paths {
                 409: components["responses"]["ApiError"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leaves/email-action/attachments/{applicationId}/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Attachment scoped to the unexpired administrator email capability stored in the HttpOnly session. Every request rechecks current permission, pending status and application ownership. Returns no-store and nosniff. Does not consume the capability. */
+        get: {
+            parameters: {
+                query?: {
+                    preview?: boolean;
+                };
+                header?: never;
+                path: {
+                    applicationId: string;
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Download or inline recognized raster image when preview is true */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/octet-stream": string;
+                        "image/png": string;
+                        "image/jpeg": string;
+                        "image/gif": string;
+                        "image/webp": string;
+                        "image/bmp": string;
+                        "image/avif": string;
+                    };
+                };
+                404: components["responses"]["ApiError"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3906,6 +3957,7 @@ export interface components {
             /** @enum {string} */
             status: "PENDING" | "APPROVED" | "REJECTED";
             version: number;
+            attachments: components["schemas"]["LeaveAttachment"][];
         };
         Notification: {
             /** Format: uuid */

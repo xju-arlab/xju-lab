@@ -20,8 +20,9 @@ public class EmailApprovalController {
     private final JdbcTemplate jdbc;
     private final ApprovalTokenCryptography crypto;
     private final LeaveController leaves;
-    public EmailApprovalController(JdbcTemplate jdbc, ApprovalTokenCryptography crypto, LeaveController leaves) {
-        this.jdbc=jdbc; this.crypto=crypto; this.leaves=leaves;
+    private final LeaveAttachments attachments;
+    public EmailApprovalController(JdbcTemplate jdbc, ApprovalTokenCryptography crypto, LeaveController leaves, LeaveAttachments attachments) {
+        this.jdbc=jdbc; this.crypto=crypto; this.leaves=leaves; this.attachments=attachments;
     }
     @ModelAttribute public void privateResponse(HttpServletResponse response) {
         response.setHeader("Cache-Control", "private, no-store");
@@ -45,7 +46,14 @@ public class EmailApprovalController {
             throw new ResponseStatusException(CONFLICT, "申请或邮件链接已变化，请重新打开邮件");
         var leave = leaves.decideAs(capability.approverId(), before.applicationId(), new LeaveController.Decision(input.decision(), input.reason(), before.version()));
         if (request.getSession(false) != null) request.getSession().removeAttribute(EmailApprovalContextController.SESSION_KEY);
-        return new EmailApprovalPreview(leave.id(), leave.memberId(), leave.memberName(), leave.startsAt(), leave.endsAt(), leave.reason(), leave.status(), leave.version());
+        return new EmailApprovalPreview(leave.id(), leave.memberId(), leave.memberName(), leave.startsAt(), leave.endsAt(), leave.reason(), leave.status(), leave.version(), leave.attachments());
+    }
+    @GetMapping("/attachments/{applicationId}/{attachmentId}")
+    public org.springframework.http.ResponseEntity<byte[]> download(@PathVariable UUID applicationId, @PathVariable UUID attachmentId,
+            @RequestParam(defaultValue="false") boolean preview, HttpServletRequest request) {
+        var capability=readCapability(hash(null,request));
+        if(!capability.preview().applicationId().equals(applicationId)) throw hidden();
+        return attachments.response(applicationId,attachmentId,preview);
     }
     private String hash(String raw, HttpServletRequest request) {
         if (raw != null && raw.matches("[A-Za-z0-9_-]{43}")) return crypto.hash(raw);
@@ -55,11 +63,11 @@ public class EmailApprovalController {
     }
     private Capability readCapability(String hash) {
         return jdbc.query("SELECT t.approver_id,t.application_id,l.member_id,m.display_name,l.starts_at,l.ends_at,l.reason,l.status,l.version FROM approval_token t JOIN leave_application l ON l.id=t.application_id JOIN member m ON m.id=l.member_id JOIN member a ON a.id=t.approver_id WHERE t.token_hash=? AND a.active=true AND EXISTS (SELECT 1 FROM role_assignment r WHERE r.member_id=a.id AND r.role IN ('LAB_ADMIN','SUPER_ADMIN') AND r.revoked_at IS NULL) AND l.approver_id=t.approver_id AND l.member_id<>t.approver_id AND l.status='PENDING' AND t.consumed_at IS NULL AND t.expires_at>now()",
-            (rs,row) -> new Capability(rs.getObject("approver_id",UUID.class), new EmailApprovalPreview(rs.getObject("application_id",UUID.class),rs.getObject("member_id",UUID.class),rs.getString("display_name"),rs.getObject("starts_at",OffsetDateTime.class),rs.getObject("ends_at",OffsetDateTime.class),rs.getString("reason"),rs.getString("status"),rs.getLong("version"))), hash)
+            (rs,row) -> new Capability(rs.getObject("approver_id",UUID.class), new EmailApprovalPreview(rs.getObject("application_id",UUID.class),rs.getObject("member_id",UUID.class),rs.getString("display_name"),rs.getObject("starts_at",OffsetDateTime.class),rs.getObject("ends_at",OffsetDateTime.class),rs.getString("reason"),rs.getString("status"),rs.getLong("version"),attachments.list(rs.getObject("application_id",UUID.class)))), hash)
             .stream().findFirst().orElseThrow(EmailApprovalController::hidden);
     }
     private static ResponseStatusException hidden() { return new ResponseStatusException(NOT_FOUND,"审批链接已失效、申请已处理或审批权限已变更，请打开最新邮件或前往请假页面"); }
     private record Capability(UUID approverId, EmailApprovalPreview preview) {}
-    public record EmailApprovalPreview(UUID applicationId, UUID memberId, String memberName, OffsetDateTime startsAt, OffsetDateTime endsAt, String reason, String status, long version) {}
+    public record EmailApprovalPreview(UUID applicationId, UUID memberId, String memberName, OffsetDateTime startsAt, OffsetDateTime endsAt, String reason, String status, long version, java.util.List<LeaveAttachments.AttachmentView> attachments) {}
     public record EmailDecision(@Size(max=100) String token, @NotBlank String decision, @Size(max=1000) String reason, UUID applicationId, Long version) {}
 }

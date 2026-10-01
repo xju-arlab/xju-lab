@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { FileText, Paperclip, UploadCloud, X } from 'lucide-react'
+import { FileText, Paperclip, UploadCloud, X, Image as ImageIcon, LoaderCircle } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../components/ui/dialog'
 import './leave-attachments.css'
 
 const extensions = 'jpg jpeg png gif webp bmp tif tiff heic heif avif pdf doc docx xls xlsx ppt pptx odt ods odp rtf wps et dps txt csv md zip 7z rar'.split(' ')
@@ -34,7 +35,17 @@ export function LeaveAttachmentPicker({ files, onChange, disabled }: { files: Fi
   </div>
 }
 
-export function LeaveAttachmentLinks({ leaveId, attachments }: { leaveId: string; attachments?: LeaveAttachment[] }) {
+export function LeaveAttachmentLinks({ leaveId, attachments, basePath }: { leaveId: string; attachments?: LeaveAttachment[]; basePath?: string }) {
+  const [selected, setSelected] = useState<LeaveAttachment | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const url = (file: LeaveAttachment) => `${basePath ?? `/api/v1/leaves/${encodeURIComponent(leaveId)}/attachments`}/${encodeURIComponent(file.id)}`
+  const isImage = (name: string) => /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif|tiff?)$/i.test(name)
   if (!attachments?.length) return null
-  return <ul className="leave-saved-attachments" aria-label="申请附件">{attachments.map(file => <li key={file.id}><a href={`/api/v1/leaves/${encodeURIComponent(leaveId)}/attachments/${encodeURIComponent(file.id)}`} download={file.filename}><Paperclip size={14} /><span>{file.filename}</span><small>{sizeText(file.byteSize)}</small></a></li>)}</ul>
+  return <><ul className="leave-saved-attachments" aria-label="申请附件">{attachments.map(file => <li key={file.id}>
+    {isImage(file.filename) ? <div className="leave-image-file"><button type="button" onClick={() => { setSelected(file); setLoading(true); setFailed(false) }} aria-label={`查看图片 ${file.filename}`}><ImageIcon size={15} /><span>{file.filename}</span><small>{sizeText(file.byteSize)}</small></button><a href={url(file)} download={file.filename} aria-label={`下载 ${file.filename}`}>下载</a></div> : <a href={url(file)} download={file.filename}><Paperclip size={14} /><span>{file.filename}</span><small>{sizeText(file.byteSize)}</small></a>}
+  </li>)}</ul><Dialog open={selected !== null} onOpenChange={open => { if (!open) setSelected(null) }}><DialogContent className="leave-image-dialog" overlayClassName="leave-image-overlay">
+    <DialogTitle>{selected?.filename}</DialogTitle><DialogDescription>图片预览</DialogDescription>
+    {selected && <><div className="leave-image-preview">{loading && <span role="status"><LoaderCircle size={20} className="api-loading-spinner" />正在读取图片…</span>}{failed ? <p role="alert">暂时无法预览此图片，请下载查看或重新打开有效的审批链接。</p> : <img key={selected.id} src={`${url(selected)}?preview=true`} alt={selected.filename} onLoad={() => setLoading(false)} onError={() => { setLoading(false); setFailed(true) }} />}</div><a className="button button-outline" href={url(selected)} download={selected.filename}>下载原图</a></>}
+  </DialogContent></Dialog></>
 }

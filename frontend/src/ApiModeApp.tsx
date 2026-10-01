@@ -583,7 +583,7 @@ export function ApiModeApp() {
     } catch (reason) { setEnterError(messageOf(reason)) }
     finally { enteringRef.current = false; setEntering(false) }
   }
-  if (location.pathname === '/app/leave/email-action') return <EmailApprovalPage />
+  if (location.pathname === '/app/leave/email-action') return <EmailApprovalPage key={location.key} />
   if (location.pathname === '/') return <PublicPage entering={entering} enterError={enterError} onEnter={event => void enter(event)} />
   return <SessionGate takeInitial={takeInitial}>{session => <SignedInApp key={sessionScope(session)} session={session} />}</SessionGate>
 }

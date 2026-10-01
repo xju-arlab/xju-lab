@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Check, LoaderCircle } from 'lucide-react'
 import { apiRequest } from '../../api/client'
 import { dateText } from '../../lib/date'
 import type { components } from '../../api/openapi'
+import { LeaveAttachmentLinks } from './LeaveAttachments'
 import './email-approval.css'
 
 type Preview = components['schemas']['EmailApprovalPreview']
 export function EmailApprovalPage() {
+  const navigate = useNavigate()
   const opening = useRef<Promise<Preview>>()
   const [preview, setPreview] = useState<Preview>()
   const [error, setError] = useState('')
@@ -24,7 +26,7 @@ export function EmailApprovalPage() {
       const token = fragment.get('token') ?? query.get('token')
       if (token) {
         await apiRequest('/leaves/email-action/context', { method: 'POST', body: { token } })
-        window.history.replaceState(window.history.state, '', window.location.pathname)
+        navigate(window.location.pathname, { replace: true })
       }
       // Opening and reloading only preview; a deliberate submit is required below.
       return apiRequest<Preview>('/leaves/email-action', { cache: 'no-store' })
@@ -50,6 +52,7 @@ export function EmailApprovalPage() {
     {loading && <p role="status"><LoaderCircle size={16} className="api-loading-spinner" /> 正在读取申请…</p>}
     {result ? <div className="email-approval-result" role="status"><Check size={28} /><h2>{result}</h2><p>处理结果已保存，申请人将收到结果通知。</p></div> : preview && <>
       <dl className="email-approval-details"><div><dt>申请人</dt><dd>{preview.memberName}</dd></div><div><dt>请假时间</dt><dd>{dateText(preview.startsAt)}<br />至 {dateText(preview.endsAt)}</dd></div><div><dt>请假原因</dt><dd>{preview.reason}</dd></div></dl>
+      <LeaveAttachmentLinks leaveId={preview.applicationId} attachments={preview.attachments} basePath={`/api/v1/leaves/email-action/attachments/${encodeURIComponent(preview.applicationId)}`} />
       <form onSubmit={confirm}>
         <fieldset disabled={busy}><legend>处理结果</legend><div className="email-approval-choices"><label><input type="radio" name="decision" checked={decision === 'APPROVED'} onChange={() => setDecision('APPROVED')} />批准</label><label><input type="radio" name="decision" checked={decision === 'REJECTED'} onChange={() => setDecision('REJECTED')} />驳回</label></div>
           {decision === 'REJECTED' && <label className="field"><span>驳回原因 <span aria-hidden="true">*</span></span><textarea required maxLength={1000} rows={3} value={reason} onChange={event => setReason(event.target.value)} /></label>}

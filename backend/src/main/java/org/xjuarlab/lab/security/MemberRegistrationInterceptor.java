@@ -26,7 +26,7 @@ public class MemberRegistrationInterceptor implements HandlerInterceptor {
 
     @Override public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String path = request.getRequestURI();
-        if (ALLOWED_WHILE_INCOMPLETE.contains(path) || path.startsWith("/api/v1/public/") || !path.startsWith("/api/v1/")) return true;
+        if (ALLOWED_WHILE_INCOMPLETE.contains(path) || path.startsWith("/api/v1/leaves/email-action/attachments/") || path.startsWith("/api/v1/public/") || !path.startsWith("/api/v1/")) return true;
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof OidcUser)) return true;
         var memberId = current.id(auth);

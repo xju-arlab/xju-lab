@@ -533,6 +533,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await memberAPage.getByRole('option', { name: adminChoiceName, exact: true }).click()
   await memberAPage.getByLabel('请假原因').fill(leaveReason)
   await memberAPage.getByLabel('选择请假附件').setInputFiles({ name: '请假证明.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\nPrivate attachment fixture') })
+  await memberAPage.getByLabel('选择请假附件').setInputFiles({ name: '请假图片.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFfoAAAAASUVORK5CYII=', 'base64') })
   await memberAPage.getByRole('button', { name: '提交申请' }).click()
   await expect(memberAPage.getByText('申请已提交', { exact: true })).toBeVisible()
   await adminPage.goto('/app/leave')
@@ -547,11 +548,15 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   const mailpit = 'http://127.0.0.1:8025'
   let approvalMail = ''
   await expect.poll(async () => {
-    const response = await adminContext.request.get(`${mailpit}/view/latest.txt?query=${encodeURIComponent('subject:实验室请假申请待处理')}`)
+    const response = await adminContext.request.get(`${mailpit}/view/latest.txt?query=${encodeURIComponent('subject:实验室请假申请待处理 to:local-admin@example.test')}`)
     approvalMail = response.ok() ? await response.text() : ''
     return approvalMail.includes('/app/leave/email-action#token=')
   }, { timeout: 30_000 }).toBe(true)
   expect(approvalMail).not.toContain(leaveReason)
+  const emails = await (await adminContext.request.get(`${mailpit}/api/v1/messages`)).json()
+  const delivered = emails.messages.find((message: { Subject: string }) => message.Subject === '实验室请假申请待处理')
+  expect(delivered.To.map((to: { Address: string }) => to.Address)).toEqual(['local-admin@example.test'])
+  expect(delivered.Attachments).toBe(2)
   const mailLink = approvalMail.match(/http:\/\/localhost:18080\/app\/leave\/email-action#token=[A-Za-z0-9_-]{43}/)?.[0]
   expect(mailLink).toBeTruthy()
   const approvalContext = await browser.newContext()
@@ -559,6 +564,14 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await approvalPage.goto(mailLink!)
   await expect(approvalPage.getByText(leaveReason, { exact: true })).toBeVisible()
   await expect(approvalPage.getByRole('link', { name: /统一身份登录/ })).toHaveCount(0)
+  const emailAttachment = approvalPage.getByRole('link', { name: /请假证明.pdf/ })
+  const emailFilePath = await emailAttachment.getAttribute('href')
+  const emailFile = await approvalContext.request.get(new URL(emailFilePath!, approvalPage.url()).href)
+  expect(emailFile.ok()).toBe(true)
+  expect((await emailFile.body()).toString()).toBe('%PDF-1.7\nPrivate attachment fixture')
+  await approvalPage.getByRole('button', { name: '查看图片 请假图片.png' }).click()
+  await expect(approvalPage.getByRole('dialog').getByRole('img')).toHaveJSProperty('naturalWidth', 1)
+  await approvalPage.keyboard.press('Escape')
   await approvalPage.reload()
   await expect(approvalPage.getByRole('button', { name: '确认批准' })).toBeVisible()
   await adminPage.reload()
@@ -566,9 +579,10 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   await approvalPage.getByRole('button', { name: '确认批准' }).click()
   await expect(approvalPage.getByRole('heading', { name: '申请已批准' })).toBeVisible()
   await expect.poll(async () => {
-    const response = await adminContext.request.get(`${mailpit}/view/latest.txt?query=${encodeURIComponent('subject:实验室请假申请已批准')}`)
+    const response = await adminContext.request.get(`${mailpit}/view/latest.txt?query=${encodeURIComponent('subject:实验室请假申请已批准 to:local-member-a@example.test')}`)
     return response.ok() ? response.text() : ''
   }, { timeout: 30_000 }).toContain('您的请假申请已批准')
+  expect((await approvalContext.request.get(new URL(emailFilePath!, approvalPage.url()).href)).status()).toBe(404)
   await approvalPage.goto(mailLink!)
   await expect(approvalPage.getByRole('alert')).toContainText('审批链接已失效')
   await approvalContext.close()

@@ -26,11 +26,13 @@ public class OutboxWorker {
     private final String from;
     private final String frontendOrigin;
     private final int leaseSeconds;
+    private final org.xjuarlab.lab.leave.LeaveAttachments attachments;
 
     public OutboxWorker(JdbcTemplate jdbc, ObjectMapper mapper, ApprovalTokenCryptography tokenCrypto, ObjectProvider<JavaMailSender> mailSender,
         @Value("${lab.mail.from:no-reply@localhost}") String from, @Value("${lab.frontend-origin}") String frontendOrigin,
-        @Value("${lab.outbox.lease-seconds:60}") int leaseSeconds) {
+        @Value("${lab.outbox.lease-seconds:60}") int leaseSeconds, org.xjuarlab.lab.leave.LeaveAttachments attachments) {
         this.jdbc=jdbc; this.mapper=mapper; this.tokenCrypto=tokenCrypto; this.mailSender=mailSender; this.from=from; this.frontendOrigin=frontendOrigin; this.leaseSeconds=leaseSeconds;
+        this.attachments=attachments;
     }
 
     @Scheduled(fixedDelayString="${lab.outbox.poll-ms:5000}")
@@ -76,6 +78,13 @@ public class OutboxWorker {
         var message = new MimeMessageHelper(mime, true, "UTF-8");
         message.setFrom(from, "算法与科研实验室"); message.setTo(data.email()); message.setSubject(subject(data.kind()));
         message.setText(content.text(), content.html());
+        if(data.kind().equals("LEAVE_PENDING")) {
+            UUID application=UUID.fromString(payload.path("applicationId").asText());
+            for(var item:attachments.list(application)) {
+                var file=attachments.read(application,item.id());
+                message.addAttachment(file.filename(), new org.springframework.core.io.ByteArrayResource(file.content()));
+            }
+        }
         sender.send(mime);
         return null;
     }

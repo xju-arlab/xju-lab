@@ -15,3 +15,14 @@
 .leave-saved-attachments a { color: #3e685d; text-decoration: none; }
 .leave-saved-attachments a:hover { text-decoration: underline; }
 .leave-saved-attachments small { color: var(--color-text-muted); flex-shrink: 0; }
+.leave-image-file, .leave-image-file button { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.leave-image-file button { flex: 1; padding: 8px 0; border: 0; background: transparent; color: #3e685d; text-align: left; font-size: 12px; cursor: pointer; }
+.leave-image-file button span { flex: 1; overflow-wrap: anywhere; }
+.leave-image-file button:hover span { text-decoration: underline; }
+.leave-image-overlay { background: rgb(33 38 35 / .35); backdrop-filter: blur(3px); }
+.leave-image-dialog { width: min(900px, calc(100vw - 32px)); max-width: 900px; max-height: calc(100dvh - 32px); overflow-y: auto; border-radius: 12px; background: #fffefa; }
+.leave-image-dialog h2 { padding-right: 24px; overflow-wrap: anywhere; }
+.leave-image-preview { display: grid; place-items: center; min-height: 100px; }
+.leave-image-preview img { display: block; max-width: 100%; max-height: 65dvh; object-fit: contain; }
+.leave-image-preview [role=status] { display: flex; gap: 8px; align-items: center; }
+.leave-image-preview [role=alert] { line-height: 1.7; }

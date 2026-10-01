@@ -688,6 +688,39 @@ class BaselineIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM leave_decision WHERE application_id=? AND decision IN ('APPROVED','WITHDRAWN')",Integer.class,application.id())).isEqualTo(1);
     }
     private record EmailFixture(UUID id,String token) {}
+    @Test void emailAttachmentsStayScopedAndSafeAndAreIncludedInOutgoingMail() throws Exception {
+        UUID admin=member("files-mail-admin","LAB_ADMIN");member("files-mail-student","MEMBER");
+        jdbc.update("UPDATE member SET notification_email='admin@example.invalid',notification_email_verified=true WHERE id=?",admin);
+        var fixture=emailApplication(admin,"files-mail-student");
+        byte[] png=java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFfoAAAAASUVORK5CYII=");
+        UUID image=jdbc.queryForObject("INSERT INTO leave_attachment(application_id,filename,byte_size,content) VALUES (?,'证明.png',?,?) RETURNING id",UUID.class,fixture.id(),png.length,png);
+        byte[] html="<html><script>alert(1)</script></html>".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        UUID fake=jdbc.queryForObject("INSERT INTO leave_attachment(application_id,filename,byte_size,content) VALUES (?,'伪装.png',?,?) RETURNING id",UUID.class,fixture.id(),html.length,html);
+        String path="/api/v1/leaves/email-action/attachments/"+fixture.id()+"/"+image;
+        mvc.perform(get(path)).andExpect(status().isNotFound());
+        var context=mvc.perform(post("/api/v1/leaves/email-action/context").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"token\":\""+fixture.token()+"\"}"))
+            .andExpect(status().isNoContent()).andReturn();
+        var session=(org.springframework.mock.web.MockHttpSession)context.getRequest().getSession(false);
+        mvc.perform(get("/api/v1/leaves/email-action").session(session)).andExpect(jsonPath("$.attachments.length()").value(2));
+        mvc.perform(get(path).session(session)).andExpect(status().isOk()).andExpect(content().bytes(png)).andExpect(content().contentType("application/octet-stream"));
+        mvc.perform(get(path).param("preview","true").session(session)).andExpect(status().isOk()).andExpect(content().contentType("image/png"));
+        mvc.perform(get("/api/v1/leaves/email-action/attachments/"+fixture.id()+"/"+fake).param("preview","true").session(session)).andExpect(status().isOk()).andExpect(content().contentType("application/octet-stream"));
+        mvc.perform(get("/api/v1/leaves/email-action/attachments/"+UUID.randomUUID()+"/"+image).session(session)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/leaves/email-action/attachments/"+fixture.id()+"/"+UUID.randomUUID()).session(session)).andExpect(status().isNotFound());
+        jdbc.update("UPDATE lab_setting SET mail_enabled=true WHERE singleton=true");outboxWorker.dispatch();
+        var capture=org.mockito.ArgumentCaptor.forClass(MimeMessage.class);verify(mailSender).send(capture.capture());
+        var names=new java.util.ArrayList<String>();collectAttachmentNames(capture.getValue(),names);
+        assertThat(names).containsExactlyInAnyOrder("证明.png","伪装.png");
+        jdbc.update("UPDATE member SET active=false WHERE id=?",admin);
+        mvc.perform(get(path).session(session)).andExpect(status().isNotFound());
+        jdbc.update("UPDATE member SET active=true WHERE id=?",admin);
+        mvc.perform(post("/api/v1/leaves/"+fixture.id()+"/withdraw").with(login("files-mail-student")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"version\":1}")).andExpect(status().isOk());
+        mvc.perform(get(path).session(session)).andExpect(status().isNotFound());
+    }
+    private void collectAttachmentNames(jakarta.mail.Part part,java.util.List<String> names) throws Exception {
+        if(part.getFileName()!=null) names.add(jakarta.mail.internet.MimeUtility.decodeText(part.getFileName()));
+        if(part.getContent() instanceof jakarta.mail.Multipart multi) for(int index=0;index<multi.getCount();index++) collectAttachmentNames(multi.getBodyPart(index),names);
+    }
     private EmailFixture emailApplication(UUID approver,String applicant) throws Exception {
         var response=mvc.perform(post("/api/v1/leaves").with(login(applicant)).with(csrf()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"startsAt\":\"2032-01-01T01:00:00Z\",\"endsAt\":\"2032-01-01T02:00:00Z\",\"approverId\":\""+approver+"\",\"reason\":\"Email approval fixture\"}"))

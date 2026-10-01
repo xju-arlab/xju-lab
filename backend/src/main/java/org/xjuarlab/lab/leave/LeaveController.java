@@ -71,14 +71,9 @@ public class LeaveController {
     }
 
     @GetMapping("/{id}/attachments/{attachmentId}")
-    public org.springframework.http.ResponseEntity<byte[]> download(Authentication auth,@PathVariable UUID id,@PathVariable UUID attachmentId) {
+    public org.springframework.http.ResponseEntity<byte[]> download(Authentication auth,@PathVariable UUID id,@PathVariable UUID attachmentId,@RequestParam(defaultValue="false") boolean preview) {
         get(auth,id);
-        var file=attachments.read(id,attachmentId);
-        return org.springframework.http.ResponseEntity.ok()
-            .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
-            .header("Content-Disposition",org.springframework.http.ContentDisposition.attachment().filename(file.filename(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
-            .header("Cache-Control","private, no-store").header("X-Content-Type-Options","nosniff")
-            .contentLength(file.content().length).body(file.content());
+        return attachments.response(id,attachmentId,preview);
     }
 
     @GetMapping("/mine")
