@@ -174,3 +174,28 @@ test('failed queries show retry and reduced motion removes decorative animation'
   await page.getByRole('button', { name: '重试' }).click()
   await expect(page.locator('.api-stat-grid')).toBeVisible()
 })
+
+test('login rejection explains the reason and never renders arbitrary callback text', async ({ page }) => {
+  const { state } = await fixtures(page)
+  state.authenticated = false
+  state.delay = 0
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const [code, message] of Object.entries({
+      email_unverified: '请先完成邮箱验证，再重新登录实验室。',
+      email_domain: '当前邮箱不在实验室允许的注册范围内，请联系管理员确认。',
+      member_inactive: '你的实验室账号已停用，请联系管理员。',
+      provisioning_failed: '暂时无法完成实验室登录，请稍后重试。如仍失败，请联系管理员。',
+      login_expired: '登录请求已过期或未能完成，请重新登录。',
+    })) {
+      await page.goto(`/app/dashboard?authError=${code}`)
+      await expect(page.getByText(message, { exact: true })).toBeVisible()
+      await expect(page.getByRole('link', { name: /^统一身份登录/ })).toBeVisible()
+      await expect(page.getByRole('link', { name: '立即注册', exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+    }
+  }
+  await page.goto('/app/dashboard?authError=%3Cscript%3Euntrusted%3C/script%3E')
+  await expect(page.getByText('请使用实验室统一身份登录。', { exact: true })).toBeVisible()
+  await expect(page.getByText('untrusted')).toHaveCount(0)
+})

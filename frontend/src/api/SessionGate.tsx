@@ -6,6 +6,13 @@ import { queryCache } from './queryCache'
 import { LoadingState } from '../components/common/QueryFeedback'
 
 export type SessionCheck = { session: Session | null; error: string }
+const loginErrors: Record<string, string> = {
+  email_unverified: '请先完成邮箱验证，再重新登录实验室。',
+  email_domain: '当前邮箱不在实验室允许的注册范围内，请联系管理员确认。',
+  member_inactive: '你的实验室账号已停用，请联系管理员。',
+  provisioning_failed: '暂时无法完成实验室登录，请稍后重试。如仍失败，请联系管理员。',
+  login_expired: '登录请求已过期或未能完成，请重新登录。',
+}
 export async function checkSession(): Promise<SessionCheck> {
   try {
     const session = await getSession()
@@ -44,6 +51,8 @@ export function SessionGate({ takeInitial, children }: { takeInitial: () => Sess
   const active = useRef(true)
   const verifying = useRef(false)
   const location = useLocation()
+  const loginErrorCode = new URLSearchParams(location.search).get('authError') ?? ''
+  const loginError = Object.hasOwn(loginErrors, loginErrorCode) ? loginErrors[loginErrorCode] : ''
   const verify = useCallback(async () => {
     if (verifying.current) return
     verifying.current = true
@@ -69,6 +78,6 @@ export function SessionGate({ takeInitial, children }: { takeInitial: () => Sess
     return () => { active.current = false; unsubscribe(); window.removeEventListener('focus', focus); window.removeEventListener('pageshow', restored) }
   }, [verify])
   useEffect(() => { if (Date.now() - lastChecked.current >= 15_000) void verify() }, [location.pathname, verify])
-  if (!state?.session) return <LoginCard checking={!state} error={state?.error ?? ''} retry={() => { setState(null); void verify() }} />
+  if (!state?.session) return <LoginCard checking={!state} error={loginError || state?.error || ''} retry={() => { setState(null); void verify() }} />
   return <>{state.error && <div className="api-session-warning" role="alert">登录状态暂时无法确认。<button onClick={() => void verify()}>重试</button></div>}{children(state.session)}</>
 }

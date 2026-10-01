@@ -23,33 +23,42 @@ public class OidcMemberProvisioningSuccessHandler implements AuthenticationSucce
     private final String bootstrapIssuer;
     private final String bootstrapSubject;
     private final String frontendOrigin;
+    private final OidcLoginFailureHandler failures;
 
     public OidcMemberProvisioningSuccessHandler(JdbcTemplate jdbc, TransactionTemplate transactions,
             @Value("${lab.registration-domain:icthub.top}") String registrationDomain,
             @Value("${lab.bootstrap-admin.issuer:}") String bootstrapIssuer,
             @Value("${lab.bootstrap-admin.subject:}") String bootstrapSubject,
-            @Value("${lab.frontend-origin:http://localhost:5173}") String frontendOrigin) {
+            @Value("${lab.frontend-origin:http://localhost:5173}") String frontendOrigin,
+            OidcLoginFailureHandler failures) {
         this.jdbc = jdbc; this.transactions = transactions; this.registrationDomain = registrationDomain.toLowerCase(java.util.Locale.ROOT);
         this.bootstrapIssuer = bootstrapIssuer; this.bootstrapSubject = bootstrapSubject; this.frontendOrigin = frontendOrigin;
+        this.failures = failures;
     }
 
     @Override public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-        if (!(authentication.getPrincipal() instanceof OidcUser user)) { response.sendError(403); return; }
+        if (!(authentication.getPrincipal() instanceof OidcUser user)) { failures.reject(request, response, OidcLoginFailureHandler.Reason.LOGIN_EXPIRED); return; }
         String email = user.getClaimAsString("email");
         Boolean emailVerified = user.getClaimAsBoolean("email_verified");
         boolean exactBootstrapIdentity = !bootstrapIssuer.isBlank() && !bootstrapSubject.isBlank()
             && bootstrapIssuer.equals(user.getIdToken().getIssuer().toString())
             && bootstrapSubject.equals(user.getIdToken().getSubject());
-        if (!Boolean.TRUE.equals(emailVerified) || email == null || email.isBlank() || (!isAllowedEmail(email) && !exactBootstrapIdentity)) {
-            response.sendError(403, "A verified @" + registrationDomain + " email address is required"); return;
+        if (!Boolean.TRUE.equals(emailVerified) || email == null || email.isBlank()) {
+            failures.reject(request, response, OidcLoginFailureHandler.Reason.EMAIL_UNVERIFIED); return;
+        }
+        if (!isAllowedEmail(email) && !exactBootstrapIdentity) {
+            failures.reject(request, response, OidcLoginFailureHandler.Reason.EMAIL_DOMAIN); return;
         }
         try {
             UUID memberId = transactions.execute(status -> provision(user, request));
-            if (memberId == null) { response.sendError(403, "Member is inactive"); return; }
+            if (memberId == null) { failures.reject(request, response, OidcLoginFailureHandler.Reason.MEMBER_INACTIVE); return; }
             request.getSession(true).setAttribute("lab.memberId", memberId.toString());
             response.sendRedirect(frontendOrigin);
         } catch (RuntimeException e) {
-            response.sendError(403, "Identity could not be linked safely");
+            // Do not log exception messages: database errors can contain personal claims.
+            org.slf4j.LoggerFactory.getLogger(getClass()).error("OIDC member provisioning failed type={} requestId={}",
+                e.getClass().getSimpleName(), request.getAttribute(org.xjuarlab.lab.api.RequestIdFilter.ATTRIBUTE));
+            failures.reject(request, response, OidcLoginFailureHandler.Reason.PROVISIONING_FAILED);
         }
     }
 

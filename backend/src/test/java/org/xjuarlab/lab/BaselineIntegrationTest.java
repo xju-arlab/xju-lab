@@ -24,6 +24,7 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.xjuarlab.lab.notifications.OutboxWorker;
 import org.xjuarlab.lab.security.OidcMemberProvisioningSuccessHandler;
+import org.xjuarlab.lab.security.OidcLoginFailureHandler;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
@@ -148,14 +149,14 @@ class BaselineIntegrationTest {
         var unverifiedResponse = new MockHttpServletResponse();
         oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(unverifiedRequest, unverifiedResponse,
                 oidcAuthentication("unverified@icthub.top", false, "signup-unverified"));
-        assertThat(unverifiedResponse.getStatus()).isEqualTo(403);
+        assertThat(unverifiedResponse.getRedirectedUrl()).endsWith("/app/dashboard?authError=email_unverified");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM external_identity WHERE subject='signup-unverified'", Integer.class)).isZero();
 
         var foreignRequest = new MockHttpServletRequest();
         var foreignResponse = new MockHttpServletResponse();
         oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(foreignRequest, foreignResponse,
                 oidcAuthentication("member@evil.icthub.top", true, "signup-foreign"));
-        assertThat(foreignResponse.getStatus()).isEqualTo(403);
+        assertThat(foreignResponse.getRedirectedUrl()).endsWith("/app/dashboard?authError=email_domain");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM external_identity WHERE subject='signup-foreign'", Integer.class)).isZero();
 
         var acceptedRequest = new MockHttpServletRequest();
@@ -171,7 +172,7 @@ class BaselineIntegrationTest {
     @Test void bootstrapDomainExceptionRequiresExactIssuerSubjectAndVerifiedEmailAndCannotRegrantRevokedRole() throws Exception {
         var handler = new OidcMemberProvisioningSuccessHandler(jdbc,
                 new org.springframework.transaction.support.TransactionTemplate(transactionManager),
-                "icthub.top", "http://idp.invalid", "operator-bootstrap", "http://lab.invalid");
+                "icthub.top", "http://idp.invalid", "operator-bootstrap", "http://lab.invalid", new OidcLoginFailureHandler("http://lab.invalid"));
         for (var authentication : List.of(
                 oidcAuthentication("operator@external.invalid", false, "operator-bootstrap"),
                 oidcAuthentication("operator@external.invalid", true, "wrong-bootstrap"),
@@ -179,7 +180,7 @@ class BaselineIntegrationTest {
             var request = new MockHttpServletRequest();
             var response = new MockHttpServletResponse();
             handler.onAuthenticationSuccess(request, response, authentication);
-            assertThat(response.getStatus()).isEqualTo(403);
+            assertThat(response.getRedirectedUrl()).startsWith("http://lab.invalid/app/dashboard?authError=email_");
             assertThat(request.getSession(false)).isNull();
         }
         var request = new MockHttpServletRequest();
@@ -195,7 +196,42 @@ class BaselineIntegrationTest {
         jdbc.update("UPDATE member SET active=false WHERE id=?", id);
         var disabled = new MockHttpServletResponse();
         handler.onAuthenticationSuccess(new MockHttpServletRequest(), disabled, verified);
-        assertThat(disabled.getStatus()).isEqualTo(403);
+        assertThat(disabled.getRedirectedUrl()).endsWith("?authError=member_inactive");
+    }
+
+    @Test void rejectedOidcLoginClearsAuthenticatedSessionAndExpiredCallbacksReturnToLogin() throws Exception {
+        var request = new MockHttpServletRequest();
+        var session = (org.springframework.mock.web.MockHttpSession) request.getSession();
+        var authentication = oidcAuthentication("member@icthub.top", false, "rejected-session");
+        var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        session.setAttribute("SPRING_SECURITY_CONTEXT", context);
+        org.springframework.security.core.context.SecurityContextHolder.setContext(context);
+        var response = new MockHttpServletResponse();
+        oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(request, response, authentication);
+        assertThat(session.isInvalid()).isTrue();
+        assertThat(org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(response.getRedirectedUrl()).endsWith("?authError=email_unverified");
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+        mvc.perform(get("/login/oauth2/code/lab").param("code", "expired-test-code").param("state", "unknown-test-state"))
+            .andExpect(status().is3xxRedirection())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("http://localhost:5173/app/dashboard?authError=login_expired"));
+    }
+
+    @Test void failedIdentityLinkRollsBackAndReturnsSafeLoginError() throws Exception {
+        String subject = "inactive-identity-conflict";
+        oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(new MockHttpServletRequest(), new MockHttpServletResponse(),
+            oidcAuthentication("member@icthub.top", true, subject));
+        jdbc.update("UPDATE external_identity SET active=false WHERE subject=?", subject);
+        int before = jdbc.queryForObject("SELECT count(*) FROM member", Integer.class);
+        var request = new MockHttpServletRequest();
+        var session = (org.springframework.mock.web.MockHttpSession) request.getSession();
+        var response = new MockHttpServletResponse();
+        oidcMemberProvisioningSuccessHandler.onAuthenticationSuccess(request, response,
+            oidcAuthentication("member@icthub.top", true, subject));
+        assertThat(response.getRedirectedUrl()).endsWith("?authError=provisioning_failed");
+        assertThat(session.isInvalid()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM member", Integer.class)).isEqualTo(before);
     }
 
     @Test void selfRegistrationDerivesGradeAndDoesNotAllowMembersToEditNameOrStudentNumber() throws Exception {
