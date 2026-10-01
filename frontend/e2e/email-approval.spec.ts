@@ -13,6 +13,7 @@ for (const width of [375, 768, 1440]) {
       if (path.endsWith('/email-action/context')) { contexts++; await route.fulfill({ status: 204 }); return }
       if (path.endsWith('/email-action')) {
         if (route.request().method() === 'POST') { decisions.push(route.request().postDataJSON()); await route.fulfill({ json: { ...preview, status: 'APPROVED' } }); return }
+        if (decisions.length) { await route.fulfill({ status: 404, json: { message: '审批链接已失效' } }); return }
         await route.fulfill({ json: preview }); return
       }
       throw new Error(`Unexpected API request: ${path}`)
@@ -34,6 +35,11 @@ for (const width of [375, 768, 1440]) {
     await expect(dialog).toBeHidden()
     await expect(page.getByRole('link', { name: /说明.pdf/ })).toHaveAttribute('href', /pdf-file$/)
     await expect(page.locator('.email-approval-card')).toHaveCSS('opacity', '1')
+    await expect(page.locator('.email-approval-time')).toHaveText('10月01日 09:00 — 10月01日 17:00')
+    await expect(page.locator('.email-approval-time')).toHaveCSS('white-space', 'nowrap')
+    const buttonBox = await page.getByRole('button', { name: '确认批准' }).boundingBox()
+    const linkBox = await page.getByRole('link', { name: '前往请假页面' }).boundingBox()
+    expect(Math.abs(buttonBox!.y + buttonBox!.height / 2 - linkBox!.y - linkBox!.height / 2)).toBeLessThan(2)
     await page.screenshot({ path: testInfo.outputPath(`mail-approval-${width}.png`) })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.getByRole('radio', { name: '驳回' }).check()
@@ -43,5 +49,7 @@ for (const width of [375, 768, 1440]) {
     await page.getByRole('button', { name: '确认批准' }).press('Enter')
     await expect(page.getByRole('heading', { name: '申请已批准' })).toBeVisible()
     expect(decisions).toEqual([{ applicationId: 'mail-application', version: 1, decision: 'APPROVED', reason: '' }])
+    await page.goto(`/app/leave/email-action#token=${'a'.repeat(43)}`)
+    await expect(page.getByRole('alert')).toHaveText('审批链接已失效')
   })
 }

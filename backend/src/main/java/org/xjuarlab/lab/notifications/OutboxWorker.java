@@ -103,6 +103,6 @@ public class OutboxWorker {
     private static String subject(String kind) { return switch(kind) { case "LEAVE_PENDING" -> "实验室请假申请待处理"; case "LEAVE_APPROVED" -> "实验室请假申请已批准"; case "LEAVE_REJECTED" -> "实验室请假申请已驳回"; case "LEAVE_WITHDRAWN" -> "实验室请假申请已撤回"; case "LEAVE_REVOKED" -> "实验室请假审批已撤销"; default -> "实验室平台通知"; }; }
     private static String body(String kind) { return switch(kind) { case "LEAVE_PENDING" -> "您有一条新的请假申请待审批。"; case "LEAVE_APPROVED" -> "您的请假申请已批准。"; case "LEAVE_REJECTED" -> "您的请假申请已驳回，请登录平台查看处理说明。"; case "LEAVE_WITHDRAWN" -> "一条待审批的请假申请已撤回。"; case "LEAVE_REVOKED" -> "一条已批准的请假申请已由管理员撤销。"; default -> "您有一条新的平台通知。"; }; }
     private record Event(UUID id,JsonNode payload,int attempts) {}
-    private static String date(OffsetDateTime time) { return time.atZoneSameInstant(java.time.ZoneId.of("Asia/Shanghai")).format(java.time.format.DateTimeFormatter.ofPattern("yyyy年MM月dd日 HH:mm")); }
+    private static String date(OffsetDateTime time) { return time.atZoneSameInstant(java.time.ZoneId.of("Asia/Shanghai")).format(java.time.format.DateTimeFormatter.ofPattern("MM月dd日 HH:mm")); }
     private record MessageData(String kind,String email,boolean verified,String displayName,UUID recipientId,boolean active) {}
 }

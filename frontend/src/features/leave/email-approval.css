@@ -4,6 +4,9 @@
 .email-approval-details { margin: 26px 0; display: grid; gap: 18px; }
 .email-approval-details dt { font-size: 12px; color: var(--color-text-muted); margin-bottom: 6px; }
 .email-approval-details dd { margin: 0; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.email-approval-details .email-approval-time { white-space: nowrap; font-size: clamp(11px, 3.5vw, 14px); font-variant-numeric: tabular-nums; }
+.email-approval-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.email-approval-actions > a { font-size: 12px; white-space: nowrap; color: #3e685d; }
 .email-approval-card fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .email-approval-card legend { font-size: 12px; color: var(--color-text-muted); }
 .email-approval-choices { display: flex; gap: 24px; margin: 12px 0 22px; }

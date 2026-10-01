@@ -14,6 +14,10 @@ export function dateText(value?: string | null, fallback = '—') {
   return `${parts.year}年${parts.month}月${parts.day}日 ${parts.hour}:${parts.minute}`
 }
 
+export function leaveTimeText(value: string) {
+  return dateText(value).replace(/^\d+年/, '')
+}
+
 export function calendarDate(year: number, month: number, day: number) {
   const date = new Date(0)
   date.setUTCFullYear(year, month - 1, day)

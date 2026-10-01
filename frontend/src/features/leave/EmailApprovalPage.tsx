@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, LoaderCircle } from 'lucide-react'
 import { apiRequest } from '../../api/client'
-import { dateText } from '../../lib/date'
+import { leaveTimeText } from '../../lib/date'
 import type { components } from '../../api/openapi'
 import { LeaveAttachmentLinks } from './LeaveAttachments'
 import './email-approval.css'
@@ -51,16 +51,16 @@ export function EmailApprovalPage() {
     <h1>请假审批</h1>
     {loading && <p role="status"><LoaderCircle size={16} className="api-loading-spinner" /> 正在读取申请…</p>}
     {result ? <div className="email-approval-result" role="status"><Check size={28} /><h2>{result}</h2><p>处理结果已保存，申请人将收到结果通知。</p></div> : preview && <>
-      <dl className="email-approval-details"><div><dt>申请人</dt><dd>{preview.memberName}</dd></div><div><dt>请假时间</dt><dd>{dateText(preview.startsAt)}<br />至 {dateText(preview.endsAt)}</dd></div><div><dt>请假原因</dt><dd>{preview.reason}</dd></div></dl>
+      <dl className="email-approval-details"><div><dt>申请人</dt><dd>{preview.memberName}</dd></div><div><dt>请假时间</dt><dd className="email-approval-time">{leaveTimeText(preview.startsAt)} — {leaveTimeText(preview.endsAt)}</dd></div><div><dt>请假原因</dt><dd>{preview.reason}</dd></div></dl>
       <LeaveAttachmentLinks leaveId={preview.applicationId} attachments={preview.attachments} basePath={`/api/v1/leaves/email-action/attachments/${encodeURIComponent(preview.applicationId)}`} />
       <form onSubmit={confirm}>
         <fieldset disabled={busy}><legend>处理结果</legend><div className="email-approval-choices"><label><input type="radio" name="decision" checked={decision === 'APPROVED'} onChange={() => setDecision('APPROVED')} />批准</label><label><input type="radio" name="decision" checked={decision === 'REJECTED'} onChange={() => setDecision('REJECTED')} />驳回</label></div>
           {decision === 'REJECTED' && <label className="field"><span>驳回原因 <span aria-hidden="true">*</span></span><textarea required maxLength={1000} rows={3} value={reason} onChange={event => setReason(event.target.value)} /></label>}
-          <button type="submit" className="button button-primary" disabled={busy}>{busy ? <><LoaderCircle size={16} className="api-loading-spinner" />正在提交…</> : decision === 'APPROVED' ? '确认批准' : '确认驳回'}</button>
+          <div className="email-approval-actions"><button type="submit" className="button button-primary" disabled={busy}>{busy ? <><LoaderCircle size={16} className="api-loading-spinner" />正在提交…</> : decision === 'APPROVED' ? '确认批准' : '确认驳回'}</button><Link to="/app/leave">前往请假页面</Link></div>
         </fieldset>
       </form>
     </>}
     {error && <p className="api-error-text" role="alert">{error}</p>}
-    <Link className="api-auth-public" to="/app/leave">前往请假页面</Link>
+    {(result || !preview) && <Link className="api-auth-public" to="/app/leave">前往请假页面</Link>}
   </section></main>
 }

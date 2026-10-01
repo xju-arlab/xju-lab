@@ -570,7 +570,7 @@ test('OIDC API mode keeps project data scoped across users and viewports', async
   expect(emailFile.ok()).toBe(true)
   expect((await emailFile.body()).toString()).toBe('%PDF-1.7\nPrivate attachment fixture')
   await approvalPage.getByRole('button', { name: '查看图片 请假图片.png' }).click()
-  await expect(approvalPage.getByRole('dialog').getByRole('img')).toHaveJSProperty('naturalWidth', 1)
+  await expect(approvalPage.getByRole('dialog').getByRole('img', { name: '请假图片.png' })).toHaveJSProperty('naturalWidth', 1)
   await approvalPage.keyboard.press('Escape')
   await approvalPage.reload()
   await expect(approvalPage.getByRole('button', { name: '确认批准' })).toBeVisible()
