@@ -2,7 +2,7 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
-> 2026-10-01。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `f5afb18` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36818347029)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，仅该确切身份可一次性引导管理员角色；2026-10-01 已澄清普通成员允许任意已验证邮箱，已有 OJ 统一账号直接复用。请假邮件实际收件已获用户确认；真实完整登录、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
+> 2026-10-01。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `9d3b9e1` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36819303517)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，仅该确切身份可一次性引导管理员角色；2026-10-01 已澄清普通成员允许任意已验证邮箱，已有 OJ 统一账号直接复用。请假邮件实际收件已获用户确认；真实完整登录、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。
 
 ## 新对话提示词
 
@@ -14,7 +14,7 @@
 
 ## 当前实现与待复验
 
-- 统一身份认证成功后已改为直接返回 `/app/dashboard`，避免绕回公开主页；新成员仍先完成实名登记。本轮 CI 与部署证据见 progress.md 首条。
+- 统一身份认证成功后已改为直接返回 `/app/dashboard`，避免绕回公开主页；新成员仍先完成实名登记。`9d3b9e1` 已部署到 huawei2，七项 CI 全通过（60 后端 / 23 浏览器检查），公网匿名登录入口通过；证据见 progress.md 首条。
 
 - 2026-10-01 生产邮件漏发已定位为带显示名称的 MAIL_FROM 被重复包装。生产配置已规范化并恢复发送，两条受影响通知已被 SMTP 接受，用户已明确确认收到补发通知。`f5afb18` 已部署，七项 CI 全通过（59 后端 / 22 浏览器检查），未发送队列为 0；验证记录见 progress.md 首条；不要重新回放已处理的旧待审批邮件。
 
