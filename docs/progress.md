@@ -18,6 +18,8 @@
 - 本机隔离副本 TypeScript/Vite 构建通过，8 项加载/缓存/登录浏览器检查通过，包括 375/768/1440 px 的五种失败提示与恶意未知代码。回调失败仅提供有效的重新登录/注册操作，保留查询故障的“重新检查”；错误提示支持屏幕阅读器。
 - `6377fd8` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36811146674)，包括 54 项后端检查（真实 PostgreSQL/Redis）及 19 项浏览器检查，覆盖失败会话清理、过期回调、唯一约束冲突回滚、开放邮箱准入与身份复用。
 - huawei2 已通过 `./deploy.sh` 从 GitHub main 拉取并部署 `6377fd8`；运行容器确认 `PRODUCT_REGISTRATION_DOMAIN=*`，原配置有权限 600 的私有备份，未提交秘密。首页、health、ready 均 200，匿名 session 401；无效 OIDC 回调返回固定 Lab 登录页的 302，无白页。部署日志 `~/.local/state/xju-lab-tools/deploy-login-email.log`。
+- 随后 `309f089` 简化失败页的重试操作并补充辅助阅读提示，已再次通过 `./deploy.sh` 部署；8 项本地浏览器用例和以下公网实际入口复验通过。最新线上资源 `index-DugzVWdk.js` / `index-DYiWc0ZJ.css`，源站健康、readiness、匿名 session 与过期回调状态均符合预期，日志为 `deploy-login-recovery.log`。本机和 huawei2 均保持干净 `main`，未修改 Authentik/OJ 账号、密码或全局权限。
+- [最终应用提交 `309f089` 的七项 CI 也全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36811818152)，包括完整 OIDC 及业务浏览器回归。后续仅同步本次验收文档，应用无需重复构建。
 - 公网真实浏览器已走通：首页进入平台 → 匿名登录卡片 → Authentik 邮箱/用户名和密码表单 → 页内注册；Lab 直接注册链接 → 实验室注册表单且固定返回 Lab；无效回调 → 中文过期提示。原生共用注册流程本就允许任意有效邮箱，无需修改其他产品账号或密码。
 - 公网失败页 375/768/1440 px 无横向溢出，截图与只读检查脚本位于本机隔离验证目录 `frontend/lab-login-failure-public-*.png` / `verify-public-login-fix.cjs`；源站登录表单截图为 `lab-auth-login-origin.png`。未代替真实用户输入账号密码、提交注册或发送邮件；真实用户重新登录与新注册验证邮件完整闭环仍需本人确认。Python 公网 health 探针收到 HTTP 错误，但同轮实际公网浏览器入口与跳转成功，未将该探针误记为通过。
 
