@@ -16,6 +16,9 @@
 - 本机 Java 21 / Node 24.16.0 / pnpm 10.17.1：`bash ./mvnw -q clean verify` 72 项全部通过（真实 PostgreSQL/Redis、回环 HTTP 上游）；`pnpm install --frozen-lockfile`、`pnpm build`、考核/工位/缓存回归以及 Compose `config --quiet` 通过。浏览器 `E2E_BASE_URL=http://127.0.0.1:5174 pnpm exec playwright test e2e/hongqingting.spec.ts` 5 项通过，覆盖三视口、键盘导航、导航顺序、刷新、停止、普通用户不可见、未配置和查询失败；红蜻蜓上游在浏览器中为明确替身。
 - 本机证据：`/tmp/xju-lab-hongqingting-{backend,frontend,browser,assessment,seats,cache}.log`、`backend/target/surefire-reports/`、`frontend/test-results/hongqingting-{375,768,1440}.png`。真实上游未执行跑步上传。
 - 用户报告 dashboard 502/超时：本机直连一个 Cloudflare 地址曾超时，源站页面/ready 均在数毫秒内响应；随后另一公网节点及代理路径均返回 200。公网 Chromium 已验证 `/app/dashboard` 登录卡片和 Authentik 用户名表单；未输入真实密码。未发现应用故障，不把间歇链路恢复记为代码修复。
+- 功能提交 `f542f31` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/37732092577)，含 72 项后端和 28 项浏览器检查。huawei2 已部署同一提交，V12 迁移成功、运行 JAR SHA-256 与本机已测产物一致；五项上游配置已安全迁入 600 权限的忽略 `.env`，数据库中新增批次为 0，未执行真实跑步上传。
+- 生产发布遇到 Git 旧代理/TLS 与镜像仓库 TLS 超时：通过临时回环 SSH 转发拉取 main，然后传输校验过的 JAR/前端产物，在既有 Java/Nginx 运行镜像上重建，仅更新 app/web，保留原运行基础与回退镜像。启动曾因公网 OIDC discovery 超时重启一次，随后 ready 恢复 200；没有关闭 TLS 校验或改动身份提供方。当前公网 `/app/hongqingting`、`/app/dashboard`、ready 均为 200，匿名红蜻蜓 API 为 401；持续的跨运营商网络稳定性不在本次验证结论内。
+- 部署证据为本机 `/tmp/xju-lab-hongqingting-release-deploy.log`、`/tmp/xju-lab-hongqingting-ci-browser.log`；生产备份 `/home/winbeau/.local/state/xju-lab/backups/before-hongqingting-20261008T052350Z.dump`，配置备份 `.env.before-hongqingting-*` 权限为 600。回退镜像 `xju-lab-app:before-hongqingting`、`xju-lab-web:before-hongqingting` 已保留；V12 为增量表，不重写历史迁移。真实账号的里程查询和上游接收结果仍待实际使用确认。
 
 ## 2026-10-01：统一身份登录后直达实验室平台
 

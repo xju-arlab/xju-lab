@@ -1,6 +1,6 @@
 # 红蜻蜓集成
 
-入口：管理员「管理与设置 → 红蜻蜓」，可直接打开 `/app/hongqingting`。
+入口：管理员侧栏「红蜻蜓」，可直接打开 `/app/hongqingting`；导航顺序为「红蜻蜓 → 公开主页 → 成员管理」。
 
 基于用户指定的相邻仓库 `hongqingting_runner`，来源提交为 `b89ce5241f4ae8a4cf024523a4bf7642e5661a71`（[原仓库](https://github.com/XJU-OpenHub/hongqingting_runner)）。本仓保留其 gzip 请求、固定 User-Agent、1.6 公里轨迹及时间重写协议，适配为 Java 后端与现有 React 组件；原始轨迹保存在 `backend/src/main/resources/hongqingting/location_1_6km`。原仓库未提供许可证文件，本记录不为来源代码另行声明 MIT 或其他许可证。未复制原项目硬编码的 UID、个人学号示例、完整脚本或独立登录界面。
 

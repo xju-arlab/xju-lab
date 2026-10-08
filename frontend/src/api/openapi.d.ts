@@ -223,7 +223,7 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    "If-Match-Version": components["parameters"]["IfMatchVersion"];
+                    "If-Match-Version": number;
                 };
                 path: {
                     id: string;

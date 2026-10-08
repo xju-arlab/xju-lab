@@ -92,7 +92,8 @@ paths:
     post:
       tags: [integrations]
       summary: Cancel unsent records; an in-flight record still awaits its outcome
-      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      parameters:
+        - { in: header, name: If-Match-Version, required: true, schema: { type: integer, minimum: 0 } }
       responses:
         '200': { description: Updated batch, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingBatch' } } } }
         '400': { $ref: '#/components/responses/ApiError' }
