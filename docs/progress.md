@@ -10,6 +10,7 @@
 
 ## 2026-10-08：统一登录内部连接加速与回调 504（北京时间）
 
+- 最终代码与测试提交 `17891f5` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/37739461514)，覆盖后端、前端、统一验证、完整浏览器回归、SSH、状态 Agent 和备份恢复；生产运行实现仍为 `e6355fa`，后续测试及文档提交无需重建应用。
 - 后续用户反馈登录持续回到 `authError=login_expired`：安全诊断显示 `invalid_token_response / JsonParseException`。生产同一客户端实测令牌 POST 返回 `text/plain` 400「Invalid HTTP request received.」；强制 HTTP/1.1 后恢复 JSON 协议响应。根因是本次内部连接使用的 Java HTTP 客户端默认 h2c 升级与身份服务令牌 POST 不兼容，不能把之前的负向回跳检查当作登录成功。
 - `e6355fa` 固定内部连接使用 HTTP/1.1，并加入仅记录规范错误类别/异常类型的诊断，日志不写令牌、授权码、异常正文或个人 claim。新增严格拒绝 h2c 的身份服务替身：修复前复现同一 JSON 解析错误，修复后完整签名/PKCE/nonce/UserInfo 登录通过。`bash ./mvnw -B clean verify` 80 项全部通过；成功回调继续固定进入 `/app/dashboard`，已有实名资料直接显示控制台，首次成员保留实名登记门禁。
 - `e6355fa` 已部署到 huawei2，运行 JAR SHA-256 为 `1d9b8297904e8cfabd182393f36681edb287ddef33a9c6a422804158f758f913`。新建隔离会话的无效合成授权码通过真实应用回调在 48 毫秒内被正确识别为 `invalid_grant`，不再发生解析异常；ready 正常，容器无重启。**用户已明确确认重新点击统一登录后直接进入控制台**，本次真实登录回环已解决。证据 `/tmp/xju-lab-oidc-upgrade-red.log`、`/tmp/xju-lab-oidc-loop-{verify,deploy}.log` 及本次用户回复。

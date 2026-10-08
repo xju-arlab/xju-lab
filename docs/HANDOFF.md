@@ -55,7 +55,7 @@
 - `printer-agent/` 保留独立 Python 状态 Agent、只读 CUPS 状态采集和 systemd 服务文件；不含 SQLite 打印 journal 或打印任务执行代码。
 - `deploy/`、GitHub Actions、Compose、Nginx、开发 Keycloak realm、Prometheus 模板、备份/恢复脚本和运维说明已加入。
 - GitHub Actions [上线代码全栈 CI](https://github.com/xju-arlab/xju-lab/actions/runs/36704814912) 七个作业全部通过，覆盖前端、PostgreSQL 后端、统一验证、SSH、OIDC 浏览器业务闭环、Printer Agent 与隔离备份恢复。具体路由、视口和性能口径见 [`progress.md`](progress.md)。
-- 下一步由 `winbeau` 完成首次真实登录及实名登记，再验证任意已验证邮箱的普通用户隔离、真实邮件中的审批操作和硬件/OJ 接入。请假邮件实际收件已确认。部署与 `.env` 已完成，不要重新生成生产数据库/审批密钥。构建代理用 `LAB_BUILD_NETWORK=host`，应用运行仍使用独立网络；详见 [`operations.md`](operations.md) 和 [`integration-status.md`](integration-status.md)。
+- 2026-10-08 用户已确认真实登录直接进入控制台；最终 `17891f5` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/37739461514)。后续分项验证普通用户的生产隔离、真实邮件中的审批操作和硬件/OJ 接入。请假邮件实际收件已确认。部署与 `.env` 已完成，不要重新生成生产数据库/审批密钥。构建代理用 `LAB_BUILD_NETWORK=host`，应用运行仍使用独立网络；详见 [`operations.md`](operations.md) 和 [`integration-status.md`](integration-status.md)。
 
 ## 必须保留
 
