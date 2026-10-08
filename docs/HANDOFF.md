@@ -2,6 +2,8 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
+> 2026-10-08 学期排查：Web 已部署 `b3cbe05`，红蜻蜓汇总标明学期未返回，查询时间不再误写为上次跑步时间；构建和三视口 5 项浏览器检查通过。旧查询接口未提供学期元数据，试传的学期参数没有验证生效；既有批次日期处于本学期，但官方是否调整归档、同步或 `803`/`807` 考核项目仍未确认。有效学期选择需要先取得官方协议，不能只做本地标签或重发旧记录来声称修复。详见 `integrations/hongqingting/README.md` 与 `progress.md`。
+
 > 2026-10-08 登录修复（北京时间）：huawei2 已部署 `e6355fa`，本机 80 项后端检查通过，**用户已确认真实登录后直接进入控制台**。先将后台 Authentik 请求改为内部连接，消除公网超时；随后修复 Java 默认 h2c 升级导致的令牌 POST 文本 400 与 `login_expired` 回环，内部传输固定 HTTP/1.1，保留公开 HTTPS issuer、PKCE 与完整校验。生产 `.env` 的 `LAB_OIDC_LOCAL_BACKCHANNEL=true` 必须保留，手工 Compose 更新须带 `deploy/compose.oidc-local.yaml`。内部 discovery/JWKS 约 0.24 秒；成功回调直达 `/app/dashboard`，首次成员仍需实名登记。公网身份表单冷启动首开仍约 5.7 秒，不宣称已解决身份站全部加载延迟。CI 注册测试的导航等待竞态已单独修正；配置、回退及验证证据见 `operations.md` / `progress.md`，不能复用旧回调授权码。
 
 > 2026-10-08 增量（北京时间）：已在 huawei2 部署红蜻蜓功能 `f542f31`，独立入口 `/app/hongqingting`；管理员侧栏顺序为「红蜻蜓 → 公开主页 → 成员管理」，普通用户不可见且后端拒绝访问。使用既有 OIDC 会话，移除 sk-key；V12 保存批次/outbox，未知结果不自动重发。七项 CI 全通过（72 后端 / 28 浏览器）。上游配置已迁入服务器受限 `.env`，不要重置；未执行真实跑步上传。公网 dashboard 曾间歇超时，源站正常；本次启动也遇到 OIDC discovery 超时，重启一次后恢复，当前页面/ready 正常。部署、回退镜像和备份证据见 `progress.md` 最新条目，协议见 `integrations/hongqingting/README.md`。
