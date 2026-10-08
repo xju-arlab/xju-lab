@@ -4,6 +4,256 @@
  */
 
 export interface paths {
+    "/admin/hongqingting/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Hongqingting availability using the current Lab administrator session */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Configuration presence only; never contains upstream credentials */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HongqingtingConfiguration"];
+                    };
+                };
+                401: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/hongqingting/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Query running mileage (administrator and CSRF required) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        studentNo: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Sanitized mileage response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HongqingtingSummary"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                401: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+                503: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/hongqingting/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List only the current administrator's persisted batches */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Owned batches */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HongqingtingBatchPage"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                401: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+            };
+        };
+        put?: never;
+        /**
+         * Persist batch and transactional outbox; sending runs outside the request transaction
+         * @description A key is scoped to the administrator. Same key and payload returns the existing batch; changed payload returns 409. At most three active batches per administrator and one per student. No automatic retry after sending begins.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "Idempotency-Key": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["HongqingtingBatchRequest"];
+                };
+            };
+            responses: {
+                /** @description Persisted or previously created batch */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HongqingtingBatch"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                401: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+                503: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/hongqingting/batches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Owned batch with ordered run outcomes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HongqingtingBatch"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                401: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+                404: components["responses"]["ApiError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/hongqingting/batches/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel unsent records; an in-flight record still awaits its outcome */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "If-Match-Version": components["parameters"]["IfMatchVersion"];
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Updated batch */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HongqingtingBatch"];
+                    };
+                };
+                400: components["responses"]["ApiError"];
+                401: components["responses"]["ApiError"];
+                403: components["responses"]["ApiError"];
+                404: components["responses"]["ApiError"];
+                409: components["responses"]["ApiError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -3672,6 +3922,59 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        HongqingtingConfiguration: {
+            configured: boolean;
+            schoolNo: string | null;
+            maxDays: number;
+            tracks: {
+                id: string;
+                label: string;
+                available: boolean;
+            }[];
+        };
+        HongqingtingSummary: {
+            distanceKm: number | null;
+            /** Format: date-time */
+            lastRunAt: string | null;
+            message: string;
+        };
+        HongqingtingBatchRequest: {
+            studentNo: string;
+            /** @enum {string} */
+            track: "location_1_6km";
+            days: number;
+            dailyOffset: number;
+        };
+        HongqingtingBatch: {
+            /** Format: uuid */
+            id: string;
+            studentNo: string;
+            track: string;
+            days: number;
+            dailyOffset: number;
+            /** @enum {string} */
+            status: "QUEUED" | "RUNNING" | "COMPLETED" | "CANCELLED" | "FAILED" | "UNKNOWN";
+            /** Format: int64 */
+            version: number;
+            cancelRequested: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            runs: {
+                /** Format: uuid */
+                id: string;
+                ordinal: number;
+                /** @enum {string} */
+                status: "PENDING" | "SENDING" | "RECEIVED" | "FAILED" | "UNKNOWN" | "CANCELLED";
+                message: string | null;
+            }[];
+        };
+        HongqingtingBatchPage: {
+            items: components["schemas"]["HongqingtingBatch"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
         ServerHardware: {
             /** @enum {string} */
             kind: "CPU" | "GPU" | "UNKNOWN";

@@ -94,7 +94,18 @@ class BaselineIntegrationTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     org.xjuarlab.lab.printer.HpPrinterStatusClient hpPrinterStatusClient;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    org.xjuarlab.lab.hongqingting.infrastructure.RunnerClient runnerClient;
+    @Autowired org.xjuarlab.lab.hongqingting.application.RunnerBatches runnerBatches;
+    @Autowired org.xjuarlab.lab.hongqingting.application.RunnerWorker runnerWorker;
+
     @BeforeEach void isolateMutableFixtures(){
+        jdbc.update("DELETE FROM hongqingting_run");
+        jdbc.update("DELETE FROM hongqingting_batch");
+        reset(runnerClient);
+        org.mockito.Mockito.when(runnerClient.configured()).thenReturn(true);
+        org.mockito.Mockito.when(runnerClient.configuration()).thenReturn(new org.xjuarlab.lab.hongqingting.domain.RunnerContracts.Configuration(true,"10755",List.of(),90));
+
         jdbc.update("DELETE FROM approval_token");
         jdbc.update("DELETE FROM leave_decision");
         jdbc.update("DELETE FROM leave_application");
@@ -1208,6 +1219,122 @@ class BaselineIntegrationTest {
         reset(sshWorker);
         org.mockito.Mockito.when(sshWorker.run(any())).thenReturn(mapper.readTree("{\"status\":\"PASSWORD_REQUIRED\",\"host\":\"lab@fixture:22\"}"));
         mvc.perform(post(path+"/connect").with(login("ssh-transient-admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PASSWORD_REQUIRED"));
+    }
+
+    private static final String RUNNER = "/api/v1/admin/hongqingting";
+    private static final String RUNNER_BODY = "{\"studentNo\":\"20269999999\",\"track\":\"location_1_6km\",\"days\":3,\"dailyOffset\":0.3}";
+    private org.xjuarlab.lab.hongqingting.domain.RunnerContracts.Batch runnerCreate(UUID owner) {
+        return runnerBatches.create(owner,UUID.randomUUID(),new org.xjuarlab.lab.hongqingting.domain.RunnerContracts.BatchRequest("20269999999","location_1_6km",3,new java.math.BigDecimal("0.3")));
+    }
+    @Test void runnerRequiresCurrentAdminRegistrationAndCsrfWithoutSkKeys() throws Exception {
+        UUID admin=member("runner-auth-admin","LAB_ADMIN");
+        member("runner-auth-member","MEMBER");
+        UUID incomplete=incompleteMember("runner-incomplete");
+        jdbc.update("INSERT INTO role_assignment(member_id,role,source) VALUES (?,'LAB_ADMIN','test-fixture')",incomplete);
+        mvc.perform(get(RUNNER+"/configuration")).andExpect(status().isUnauthorized());
+        mvc.perform(get(RUNNER+"/configuration").with(login("runner-auth-member"))).andExpect(status().isForbidden());
+        mvc.perform(get(RUNNER+"/configuration").with(login("runner-incomplete"))).andExpect(status().isForbidden());
+        mvc.perform(get(RUNNER+"/configuration").with(login("runner-auth-admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.configured").value(true)).andExpect(jsonPath("$.queryUid").doesNotExist());
+        mvc.perform(post(RUNNER+"/batches").with(login("runner-auth-admin")).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY)).andExpect(status().isForbidden());
+        jdbc.update("UPDATE role_assignment SET revoked_at=now() WHERE member_id=?",admin);
+        mvc.perform(get(RUNNER+"/configuration").with(login("runner-auth-admin"))).andExpect(status().isForbidden());
+        org.mockito.Mockito.verify(runnerClient,org.mockito.Mockito.never()).upload(any());
+    }
+    @Test void runnerCreationIsIdempotentAndKeepsOtherAdministratorsHistoryPrivate() throws Exception {
+        UUID owner=member("runner-owner","LAB_ADMIN");
+        member("runner-other","SUPER_ADMIN");
+        UUID key=UUID.randomUUID();
+        var first=mvc.perform(post(RUNNER+"/batches").with(login("runner-owner")).with(csrf()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY)).andExpect(status().isOk()).andExpect(jsonPath("$.runs.length()").value(3)).andReturn();
+        String id=new com.fasterxml.jackson.databind.ObjectMapper().readTree(first.getResponse().getContentAsString()).path("id").asText();
+        mvc.perform(post(RUNNER+"/batches").with(login("runner-owner")).with(csrf()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY)).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
+        mvc.perform(post(RUNNER+"/batches").with(login("runner-owner")).with(csrf()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY.replace("\"days\":3","\"days\":4"))).andExpect(status().isConflict());
+        mvc.perform(get(RUNNER+"/batches/"+id).with(login("runner-other"))).andExpect(status().isNotFound());
+        mvc.perform(get(RUNNER+"/batches").with(login("runner-other"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+        mvc.perform(post(RUNNER+"/batches/"+id+"/cancel").with(login("runner-other")).with(csrf()).header("If-Match-Version",0)).andExpect(status().isNotFound());
+        var reloaded=new org.xjuarlab.lab.hongqingting.application.RunnerBatches(jdbc,transactionManager,runnerClient).read(owner,UUID.fromString(id));
+        assertThat(reloaded.runs()).hasSize(3);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM hongqingting_batch",Integer.class)).isEqualTo(1);
+    }
+    @Test void runnerUsesDatabaseConstraintsForConcurrentJobsAndClaimsOnlyOnce() throws Exception {
+        UUID owner=member("runner-race","LAB_ADMIN");
+        UUID other=member("runner-race-other","LAB_ADMIN");
+        var results=runConcurrently(()-> { try { runnerCreate(owner); return 200; } catch(org.springframework.dao.DataIntegrityViolationException e) { return 409; } },
+            ()-> { try { runnerCreate(other); return 200; } catch(org.springframework.dao.DataIntegrityViolationException e) { return 409; } });
+        assertThat(results).containsExactlyInAnyOrder(200,409);
+        var attempts=runConcurrently(()->java.util.Optional.ofNullable(runnerBatches.claim()),()->java.util.Optional.ofNullable(runnerBatches.claim()));
+        assertThat(attempts.stream().filter(java.util.Optional::isPresent).count()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM hongqingting_run WHERE status='SENDING'",Integer.class)).isEqualTo(1);
+    }
+    @Test void runnerCancellationWaitsForInflightResultAndRejectsStaleVersions() throws Exception {
+        UUID owner=member("runner-cancel","LAB_ADMIN");
+        var batch=runnerCreate(owner);
+        var attempt=runnerBatches.claim();
+        mvc.perform(post(RUNNER+"/batches/"+batch.id()+"/cancel").with(login("runner-cancel")).with(csrf()).header("If-Match-Version",0)).andExpect(status().isConflict());
+        var current=runnerBatches.read(owner,batch.id());
+        var stopping=runnerBatches.cancel(owner,batch.id(),current.version());
+        assertThat(stopping.status()).isEqualTo("RUNNING");
+        assertThat(stopping.cancelRequested()).isTrue();
+        assertThat(stopping.runs().stream().filter(r->r.status().equals("CANCELLED"))).hasSize(2);
+        runnerBatches.finish(attempt,new org.xjuarlab.lab.hongqingting.domain.RunnerContracts.Outcome("RECEIVED","已响应"));
+        assertThat(runnerBatches.read(owner,batch.id()).status()).isEqualTo("CANCELLED");
+        assertThat(runnerBatches.claim()).isNull();
+    }
+    @Test void runnerRestartMarksInterruptedUploadUnknownAndNeverReplaysIt() {
+        UUID owner=member("runner-recovery","LAB_ADMIN");
+        var batch=runnerCreate(owner);
+        var attempt=runnerBatches.claim();
+        jdbc.update("UPDATE hongqingting_run SET started_at=now()-interval '3 minutes' WHERE id=?",attempt.id());
+        var restarted=new org.xjuarlab.lab.hongqingting.application.RunnerBatches(jdbc,transactionManager,runnerClient);
+        assertThat(restarted.claim()).isNull();
+        var recovered=restarted.read(owner,batch.id());
+        assertThat(recovered.status()).isEqualTo("UNKNOWN");
+        assertThat(recovered.runs().getFirst().status()).isEqualTo("UNKNOWN");
+        restarted.finish(attempt,new org.xjuarlab.lab.hongqingting.domain.RunnerContracts.Outcome("RECEIVED","迟到响应"));
+        assertThat(restarted.read(owner,batch.id()).status()).isEqualTo("UNKNOWN");
+        runnerWorker.poll();
+        org.mockito.Mockito.verify(runnerClient,org.mockito.Mockito.never()).upload(any());
+    }
+    @Test void runnerStopsOnUnknownResultAndRevokedOwnerBeforeTheNextSend() {
+        UUID owner=member("runner-worker","LAB_ADMIN");
+        var batch=runnerCreate(owner);
+        org.mockito.Mockito.when(runnerClient.upload(any())).thenAnswer(call -> {
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new org.xjuarlab.lab.hongqingting.domain.RunnerContracts.Outcome("UNKNOWN","网络中断");
+        });
+        runnerWorker.poll(); runnerWorker.poll();
+        assertThat(runnerBatches.read(owner,batch.id()).status()).isEqualTo("UNKNOWN");
+        org.mockito.Mockito.verify(runnerClient,org.mockito.Mockito.times(1)).upload(any());
+        jdbc.update("UPDATE hongqingting_run SET finished_at=now()-interval '3 seconds' WHERE finished_at IS NOT NULL");
+        var second=runnerCreate(owner);
+        jdbc.update("UPDATE role_assignment SET revoked_at=now() WHERE member_id=?",owner);
+        runnerWorker.poll();
+        assertThat(runnerBatches.read(owner,second.id()).status()).isEqualTo("CANCELLED");
+        org.mockito.Mockito.verify(runnerClient,org.mockito.Mockito.times(1)).upload(any());
+    }
+    @Test void runnerResumesOnlyUnsentRecordsAndCompletesAfterAllResponses() {
+        UUID owner=member("runner-complete","LAB_ADMIN");
+        var batch=runnerCreate(owner);
+        for(int i=0;i<3;i++) {
+            var service=new org.xjuarlab.lab.hongqingting.application.RunnerBatches(jdbc,transactionManager,runnerClient);
+            var attempt=service.claim();
+            assertThat(attempt).isNotNull();
+            assertThat(attempt.dayOffset()).isCloseTo(i-0.3,org.assertj.core.data.Offset.offset(0.000001));
+            service.finish(attempt,new org.xjuarlab.lab.hongqingting.domain.RunnerContracts.Outcome("RECEIVED","收到响应"));
+            jdbc.update("UPDATE hongqingting_run SET finished_at=now()-interval '3 seconds' WHERE finished_at IS NOT NULL");
+        }
+        assertThat(runnerBatches.read(owner,batch.id()).status()).isEqualTo("COMPLETED");
+        assertThat(runnerBatches.read(owner,batch.id()).runs()).allMatch(run->run.status().equals("RECEIVED"));
+        assertThat(runnerBatches.claim()).isNull();
+    }
+    @Test void runnerRejectsInvalidInputsAndReportsMissingConfiguration() throws Exception {
+        member("runner-validation","LAB_ADMIN");
+        for(String body:List.of(RUNNER_BODY.replace("20269999999","123'evil"),RUNNER_BODY.replace("location_1_6km","../../secret"),RUNNER_BODY.replace("\"days\":3","\"days\":91"),RUNNER_BODY.replace("0.3","1.1"),RUNNER_BODY.replace("}",",\"token\":\"obsolete\"}")))
+            mvc.perform(post(RUNNER+"/batches").with(login("runner-validation")).with(csrf()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+        mvc.perform(post(RUNNER+"/batches").with(login("runner-validation")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY)).andExpect(status().isBadRequest());
+        mvc.perform(post(RUNNER+"/batches").with(login("runner-validation")).with(csrf()).header("Idempotency-Key","bad").contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY)).andExpect(status().isBadRequest());
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"尚未接入")).when(runnerClient).requireConfigured();
+        mvc.perform(post(RUNNER+"/batches").with(login("runner-validation")).with(csrf()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(RUNNER_BODY)).andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM hongqingting_batch",Integer.class)).isZero();
     }
 
     private UUID member(String subject,String role){

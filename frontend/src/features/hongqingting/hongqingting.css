@@ -1,0 +1,12 @@
+.hongqingting-panel { display: grid; gap: 20px; min-width: 0; }
+.hongqingting-panel h2 { margin-bottom: 16px; }
+.runner-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.runner-summary { display: grid; gap: 8px; margin-top: 24px; overflow-wrap: anywhere; }
+.runner-summary strong { font-family: var(--font-serif); font-size: 28px; }
+.runner-batch { border-top: 1px solid var(--color-border); padding: 20px 0; }
+.runner-batch .section-heading { gap: 12px; flex-wrap: wrap; }
+.runner-batch progress { width: 100%; height: 8px; accent-color: var(--color-primary, #3c7566); }
+.runner-batch details summary { cursor: pointer; font-size: 13px; }
+.runner-results { display: grid; gap: 12px; padding-left: 24px; max-height: 300px; overflow: auto; }
+.runner-results li small { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .runner-fields { grid-template-columns: 1fr; } }

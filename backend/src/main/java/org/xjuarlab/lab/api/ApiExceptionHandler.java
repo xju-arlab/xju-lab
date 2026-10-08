@@ -25,7 +25,10 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiError> uploadSize(HttpServletRequest request) {
         return error(HttpStatus.PAYLOAD_TOO_LARGE,"UPLOAD_TOO_LARGE","单个附件最多 10 MB，合计最多 25 MB",Map.of(),request);
     }
-    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,org.springframework.web.multipart.support.MissingServletRequestPartException.class,org.springframework.web.multipart.MultipartException.class})
+    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,org.springframework.web.multipart.support.MissingServletRequestPartException.class,org.springframework.web.multipart.MultipartException.class,
+        org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+        org.springframework.web.bind.MissingRequestHeaderException.class,
+        org.springframework.web.bind.MissingServletRequestParameterException.class})
     ResponseEntity<ApiError> malformedInput(HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST,"INVALID_PAYLOAD","请求内容无效，请检查表单或重新选择附件",Map.of(),request);
     }

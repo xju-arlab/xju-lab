@@ -8,6 +8,15 @@
 
 本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `9d3b9e1` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36819303517)，惠普只读状态接口已验证持续同步，服务器实时查询仍为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；请假邮件已恢复且真实收件获用户确认；真实用户完整登录、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
+## 2026-10-08：红蜻蜓管理员页面接入（北京时间）
+
+- 按用户最终指示新增独立 `/app/hongqingting`，侧栏顺序为「红蜻蜓 → 公开主页 → 成员管理」；红蜻蜓只对管理员显示，普通用户直接访问页面/API 也被拒绝。保留已有视觉、统一 ComboBox 和 OIDC 邮箱/实名准入，移除 sk-key 输入与 vault/隧道依赖。
+- 基于相邻 `hongqingting_runner` 的 `b89ce5241f4ae8a4cf024523a4bf7642e5661a71` 接入里程查询及 1.6 公里批量上传。来源、配置和未验证轨迹说明见 `integrations/hongqingting/README.md`。上游地址/UID 只进入服务端受限配置，不进入仓库或浏览器。
+- V12 在 PostgreSQL 保存批次及逐条发送 outbox；实现管理员归属、创建幂等、同学号并发约束、停止版本检查、后台撤权复核和重启恢复。未知结果停止剩余记录且不自动重发；HTTP 回复只显示「已收到响应」，不虚报上游计入里程。
+- 本机 Java 21 / Node 24.16.0 / pnpm 10.17.1：`bash ./mvnw -q clean verify` 72 项全部通过（真实 PostgreSQL/Redis、回环 HTTP 上游）；`pnpm install --frozen-lockfile`、`pnpm build`、考核/工位/缓存回归以及 Compose `config --quiet` 通过。浏览器 `E2E_BASE_URL=http://127.0.0.1:5174 pnpm exec playwright test e2e/hongqingting.spec.ts` 5 项通过，覆盖三视口、键盘导航、导航顺序、刷新、停止、普通用户不可见、未配置和查询失败；红蜻蜓上游在浏览器中为明确替身。
+- 本机证据：`/tmp/xju-lab-hongqingting-{backend,frontend,browser,assessment,seats,cache}.log`、`backend/target/surefire-reports/`、`frontend/test-results/hongqingting-{375,768,1440}.png`。真实上游未执行跑步上传。
+- 用户报告 dashboard 502/超时：本机直连一个 Cloudflare 地址曾超时，源站页面/ready 均在数毫秒内响应；随后另一公网节点及代理路径均返回 200。公网 Chromium 已验证 `/app/dashboard` 登录卡片和 Authentik 用户名表单；未输入真实密码。未发现应用故障，不把间歇链路恢复记为代码修复。
+
 ## 2026-10-01：统一身份登录后直达实验室平台
 
 - 用户反馈从公开主页进入平台、完成统一认证后又返回主页，必须再次点击。定位为 OIDC 成功处理器只重定向到前端 origin；原浏览器登录辅助流程也显式点击第二次入口，未将这一行为视为错误。

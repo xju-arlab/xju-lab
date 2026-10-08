@@ -1,0 +1,31 @@
+# 红蜻蜓集成
+
+入口：管理员「管理与设置 → 红蜻蜓」，可直接打开 `/app/hongqingting`。
+
+基于用户指定的相邻仓库 `hongqingting_runner`，来源提交为 `b89ce5241f4ae8a4cf024523a4bf7642e5661a71`（[原仓库](https://github.com/XJU-OpenHub/hongqingting_runner)）。本仓保留其 gzip 请求、固定 User-Agent、1.6 公里轨迹及时间重写协议，适配为 Java 后端与现有 React 组件；原始轨迹保存在 `backend/src/main/resources/hongqingting/location_1_6km`。原仓库未提供许可证文件，本记录不为来源代码另行声明 MIT 或其他许可证。未复制原项目硬编码的 UID、个人学号示例、完整脚本或独立登录界面。
+
+## 身份和配置
+
+- 使用 Lab 验证邮箱的 OIDC 会话和已登记身份，只有 `LAB_ADMIN` / `SUPER_ADMIN` 可用。每个 API 重新查询当前权限，所有 POST 都保留 CSRF。删除 sk-key 输入、浏览器存储、vault 解密与公共隧道依赖。
+- 浏览器不接收 UID、上游 URL 或原始上游响应。服务端仅接受学号和固定轨迹等业务参数，不接受通用 URL 代理；上游重定向关闭，请求 30 秒超时，响应最多 64 KiB。
+- 在生产 `.env` 中成组配置 `HONGQINGTING_SUMMARY_URL`、`HONGQINGTING_UPLOAD_URL`、`HONGQINGTING_SCHOOL_NO`、`HONGQINGTING_QUERY_UID`、`HONGQINGTING_UPLOAD_UID`。上传 UID 对应原页面固定的第 0 个 UID。UID 含 `$` 时用 dotenv 单引号包裹，防止 Compose 插值。
+- 五项全部留空时页面明确显示「尚未接入」，禁止提交；部分配置或非法格式会阻止启动。环境示例不含真实值。配置只证明已配置，不代表上游当前可用。
+
+## 批量行为
+
+`V12` 增加批次与逐条发送 outbox；创建意图和 outbox 在同一 PostgreSQL 事务提交，后台在事务外发送。浏览器刷新、关页不丢任务，记录只对创建管理员可见。每次发送前检查创建人启用状态、身份和管理员角色。数据库限制同一学号一个活动批次，每位管理员最多三个活动批次、每批 1–90 天；固定轨迹当前仅开放原项目注明已调通的 1.6 公里。其他三条不提供上传入口。
+
+创建使用按管理员隔离的 UUID `Idempotency-Key`；相同键和参数返回同一批次，参数变化返回 409。停止带 `If-Match-Version`，只取消未发送项，在途请求结束后记录真实结果。批次开始时间固定为创建时刻，保留原 `i - dailyOffset` 公式：正偏移后移时间，第 0 次可能落在未来。
+
+每次完成至少间隔两秒，跨实例统一领取。已开始发送的记录绝不自动重试；超时或异常转 `UNKNOWN` 并停止剩余项。重启后超过两分钟仍为 `SENDING` 的记录转 `UNKNOWN`，不能被迟到响应覆盖。仅 `PENDING` 项可继续发送。取消和未知结果不会撤销上游已有记录。
+
+`RECEIVED` /「已收到响应」只证明 HTTP 2xx 已回复，`COMPLETED` /「发送完成」不承诺已经计入里程。上游没有可靠的统一成功字段，页面不把 HTTP 成功伪装成业务成功；明确 `success=false` 为失败，非 2xx 和网络中断结果待核实。实际里程通过查询确认。对失败或未知记录，没有自动重发按钮。
+
+## 验证
+
+```bash
+cd backend
+bash ./mvnw clean verify
+```
+
+真实 PostgreSQL / Redis 测试覆盖管理员隔离、CSRF、并发、幂等、版本、停止、重启与撤权；回环 HTTP 测试验证 gzip、轨迹时间、上游错误、脱敏和禁止重定向。前端 `e2e/hongqingting.spec.ts` 使用明确的接口替身验证三视口、键盘、刷新、停止、未配置与错误展示，不代表真实上游验收。生产部署不自动创建或发送跑步记录；实际执行证据见 `docs/progress.md`。

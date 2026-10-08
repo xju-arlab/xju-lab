@@ -113,6 +113,11 @@ services:
       OJ_BASE_URL: ${OJ_BASE_URL:-}
       OJ_SERVICE_TOKEN: ${OJ_SERVICE_TOKEN:-}
       SESSION_COOKIE_SECURE: "true"
+      HONGQINGTING_SUMMARY_URL: ${HONGQINGTING_SUMMARY_URL:-}
+      HONGQINGTING_UPLOAD_URL: ${HONGQINGTING_UPLOAD_URL:-}
+      HONGQINGTING_SCHOOL_NO: ${HONGQINGTING_SCHOOL_NO:-}
+      HONGQINGTING_QUERY_UID: ${HONGQINGTING_QUERY_UID:-}
+      HONGQINGTING_UPLOAD_UID: ${HONGQINGTING_UPLOAD_UID:-}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

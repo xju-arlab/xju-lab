@@ -21,6 +21,85 @@ tags:
   - name: publication
   - name: integrations
 paths:
+  /admin/hongqingting/configuration:
+    get:
+      tags: [integrations]
+      summary: Read Hongqingting availability using the current Lab administrator session
+      responses:
+        '200': { description: Configuration presence only; never contains upstream credentials, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingConfiguration' } } } }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+  /admin/hongqingting/summary:
+    post:
+      tags: [integrations]
+      summary: Query running mileage (administrator and CSRF required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [studentNo]
+              properties:
+                studentNo: { type: string, pattern: '^[0-9]{5,32}$' }
+      responses:
+        '200': { description: Sanitized mileage response, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingSummary' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '503': { $ref: '#/components/responses/ApiError' }
+  /admin/hongqingting/batches:
+    get:
+      tags: [integrations]
+      summary: List only the current administrator's persisted batches
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 1000000, default: 1 } }
+        - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
+      responses:
+        '200': { description: Owned batches, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingBatchPage' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+    post:
+      tags: [integrations]
+      summary: Persist batch and transactional outbox; sending runs outside the request transaction
+      description: A key is scoped to the administrator. Same key and payload returns the existing batch; changed payload returns 409. At most three active batches per administrator and one per student. No automatic retry after sending begins.
+      parameters:
+        - { in: header, name: Idempotency-Key, required: true, schema: { type: string, format: uuid } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingBatchRequest' } } } }
+      responses:
+        '200': { description: Persisted or previously created batch, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingBatch' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '409': { $ref: '#/components/responses/ApiError' }
+        '503': { $ref: '#/components/responses/ApiError' }
+  /admin/hongqingting/batches/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [integrations]
+      responses:
+        '200': { description: Owned batch with ordered run outcomes, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingBatch' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '404': { $ref: '#/components/responses/ApiError' }
+  /admin/hongqingting/batches/{id}/cancel:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [integrations]
+      summary: Cancel unsent records; an in-flight record still awaits its outcome
+      parameters: [{ $ref: '#/components/parameters/IfMatchVersion' }]
+      responses:
+        '200': { description: Updated batch, content: { application/json: { schema: { $ref: '#/components/schemas/HongqingtingBatch' } } } }
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '404': { $ref: '#/components/responses/ApiError' }
+        '409': { $ref: '#/components/responses/ApiError' }
   /health:
     get:
       tags: [session]
@@ -636,6 +715,69 @@ components:
       required: true
       schema: { type: integer, minimum: 1 }
   schemas:
+    HongqingtingConfiguration:
+      type: object
+      required: [configured, schoolNo, tracks, maxDays]
+      properties:
+        configured: { type: boolean }
+        schoolNo: { type: [string, 'null'] }
+        maxDays: { type: integer }
+        tracks:
+          type: array
+          items:
+            type: object
+            required: [id, label, available]
+            properties:
+              id: { type: string }
+              label: { type: string }
+              available: { type: boolean }
+    HongqingtingSummary:
+      type: object
+      required: [distanceKm, lastRunAt, message]
+      properties:
+        distanceKm: { type: [number, 'null'] }
+        lastRunAt: { type: [string, 'null'], format: date-time }
+        message: { type: string, maxLength: 400 }
+    HongqingtingBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [studentNo, track, days, dailyOffset]
+      properties:
+        studentNo: { type: string, pattern: '^[0-9]{5,32}$' }
+        track: { type: string, enum: [location_1_6km] }
+        days: { type: integer, minimum: 1, maximum: 90 }
+        dailyOffset: { type: number, minimum: -0.9, maximum: 0.9 }
+    HongqingtingBatch:
+      type: object
+      required: [id, studentNo, track, days, dailyOffset, status, version, cancelRequested, createdAt, runs]
+      properties:
+        id: { type: string, format: uuid }
+        studentNo: { type: string }
+        track: { type: string }
+        days: { type: integer }
+        dailyOffset: { type: number }
+        status: { type: string, enum: [QUEUED, RUNNING, COMPLETED, CANCELLED, FAILED, UNKNOWN] }
+        version: { type: integer, format: int64 }
+        cancelRequested: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        runs:
+          type: array
+          items:
+            type: object
+            required: [id, ordinal, status, message]
+            properties:
+              id: { type: string, format: uuid }
+              ordinal: { type: integer, minimum: 0 }
+              status: { type: string, enum: [PENDING, SENDING, RECEIVED, FAILED, UNKNOWN, CANCELLED] }
+              message: { type: [string, 'null'], maxLength: 400 }
+    HongqingtingBatchPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/HongqingtingBatch' } }
+        total: { type: integer, format: int64 }
+        page: { type: integer }
+        pageSize: { type: integer }
     ServerHardware:
       type: object
       required: [kind, cpuModel, cpuCores, memoryBytes, diskBytes, os, gpus, gpuDetection]

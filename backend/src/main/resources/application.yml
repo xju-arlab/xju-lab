@@ -59,6 +59,12 @@ management:
     mail:
       enabled: false
 lab:
+  hongqingting:
+    summary-url: ${HONGQINGTING_SUMMARY_URL:}
+    upload-url: ${HONGQINGTING_UPLOAD_URL:}
+    school-no: ${HONGQINGTING_SCHOOL_NO:}
+    query-uid: ${HONGQINGTING_QUERY_UID:}
+    upload-uid: ${HONGQINGTING_UPLOAD_UID:}
   timezone: ${LAB_TIMEZONE:Asia/Shanghai}
   printer:
     hp-status-enabled: ${HP_PRINTER_STATUS_ENABLED:false}

@@ -20,6 +20,8 @@ docker compose --env-file .env.example -f deploy/compose.yaml config --quiet
 
 ## huawei2 部署
 
+红蜻蜓接入使用管理员侧栏的「红蜻蜓」入口。五项 `HONGQINGTING_*` 配置仅保存在受限生产 `.env`，无需 sk-key 或额外公网服务；完整参数、发送状态与恢复规则见 [集成说明](../integrations/hongqingting/README.md)。修改配置后随 API 一起重建。备份数据库会包含批次与 outbox；生产恢复之前应隔离发送 worker，核实备份后是否已有发送，不能把旧 `PENDING` 记录直接重新发到上游。
+
 首次部署在 huawei2 上执行：
 
 ```bash
