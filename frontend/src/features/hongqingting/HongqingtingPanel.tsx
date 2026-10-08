@@ -84,12 +84,13 @@ export function HongqingtingPanel() {
     <div className="api-two-col">
       <section className="panel api-panel api-form-panel" aria-labelledby="runner-summary-title">
         <h2 id="runner-summary-title">查询跑步里程</h2>
+        <p className="api-note">当前接口只返回汇总，未提供所属学期，暂不能按学期筛选。请在<a href="https://zhty.xju.edu.cn/main.php?module=stu&title=stu_sun_score" target="_blank" rel="noopener noreferrer">官方成绩页</a>核对学年和学期。</p>
         <form className="form-stack" onSubmit={query}>
           <label className="field"><span>查询学号</span><input name="studentNo" inputMode="numeric" pattern="[0-9]{5,32}" minLength={5} maxLength={32} placeholder="请输入学号" required disabled={querying} /></label>
           <Button type="submit" disabled={!enabled || querying}>{querying ? '查询中…' : '查询里程'}</Button>
         </form>
         {queryError && <p className="api-error" role="alert">{queryError}</p>}
-        {summary && <div className="runner-summary" role="status"><span>{summaryStudent}</span><strong>{summary.distanceKm == null ? '未返回里程' : `${summary.distanceKm} 公里`}</strong>{summary.lastRunAt && <small>上次跑步：{dateText(summary.lastRunAt)}</small>}<p>{summary.message || '上游未返回说明。'}</p></div>}
+        {summary && <div className="runner-summary" role="status"><span>{summaryStudent} · 学期未返回</span><strong>{summary.distanceKm == null ? '未返回里程' : `${summary.distanceKm} 公里`}</strong>{summary.lastRunAt && <small>查询时间：{dateText(summary.lastRunAt)}</small>}<p>{summary.message || '上游未返回说明。'}</p></div>}
       </section>
       <section className="panel api-panel api-form-panel" aria-labelledby="runner-upload-title">
         <h2 id="runner-upload-title">批量上传跑步数据</h2>
