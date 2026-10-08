@@ -8,6 +8,20 @@
 
 本仓后端、前端真实 API 模式、状态 Agent、实名与 SSH 管理均已实现，并保留确认的视觉与业务规则。huawei2 已运行 PostgreSQL、Redis、API 和 Web；公网 `https://lab.icthub.top` 实测可访问，反向代理上游为 `http://127.0.0.1:18080`。代码 `9d3b9e1` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36819303517)，惠普只读状态接口已验证持续同步，服务器实时查询仍为默认关闭的按需开关。部署脚本只允许快进更新 `main`，生产配置已完成；请假邮件已恢复且真实收件获用户确认；真实用户完整登录、外部 OJ/设备和完整灾备仍待验收。下文保留历史记录，不能将早期“尚未上线”视为当前状态。性能 smoke 不是生产 SLO。
 
+## 2026-10-08：统一登录内部连接加速与回调 504（北京时间）
+
+- 后续用户反馈登录持续回到 `authError=login_expired`：安全诊断显示 `invalid_token_response / JsonParseException`。生产同一客户端实测令牌 POST 返回 `text/plain` 400「Invalid HTTP request received.」；强制 HTTP/1.1 后恢复 JSON 协议响应。根因是本次内部连接使用的 Java HTTP 客户端默认 h2c 升级与身份服务令牌 POST 不兼容，不能把之前的负向回跳检查当作登录成功。
+- `e6355fa` 固定内部连接使用 HTTP/1.1，并加入仅记录规范错误类别/异常类型的诊断，日志不写令牌、授权码、异常正文或个人 claim。新增严格拒绝 h2c 的身份服务替身：修复前复现同一 JSON 解析错误，修复后完整签名/PKCE/nonce/UserInfo 登录通过。`bash ./mvnw -B clean verify` 80 项全部通过；成功回调继续固定进入 `/app/dashboard`，已有实名资料直接显示控制台，首次成员保留实名登记门禁。
+- `e6355fa` 已部署到 huawei2，运行 JAR SHA-256 为 `1d9b8297904e8cfabd182393f36681edb287ddef33a9c6a422804158f758f913`。新建隔离会话的无效合成授权码通过真实应用回调在 48 毫秒内被正确识别为 `invalid_grant`，不再发生解析异常；ready 正常，容器无重启。**用户已明确确认重新点击统一登录后直接进入控制台**，本次真实登录回环已解决。证据 `/tmp/xju-lab-oidc-upgrade-red.log`、`/tmp/xju-lab-oidc-loop-{verify,deploy}.log` 及本次用户回复。
+- 首轮 [`e6355fa` CI](https://github.com/xju-arlab/xju-lab/actions/runs/37738289670) 六项通过，浏览器 27/28，通过项包含密码登录、已有 SSO 直接进入控制台和业务隔离；1440px 注册按钮测试的 Locator 导航预检查与人为暂停的响应门闩互相等待，120 秒超时。随后仅修正测试等待方式：原页面一次读取加载文字、可见性和禁用属性，finally 释放响应门闩，不放宽断言；三视口各重复三次，9 项全部通过，证据 `/tmp/xju-lab-oidc-registration-race.log`。该测试修正不改变生产页面或登录逻辑。
+- 用户报告点击统一登录等待较久，随后回调 504。生产 Nginx 日志确认两次 callback 上游超时；Lab 源站登录跳转约 3.4 毫秒，而服务器经公网读取同机 Authentik discovery/JWKS 分别曾耗时 5.195/11.125 秒，启动日志还有 TLS 读取超时。未重放用户提供的授权码或保存其回调参数。
+- 新增仅 prod 显式启用的 OIDC 内部连接：浏览器继续使用公开身份域名；后台 discovery、令牌交换、JWKS 和 UserInfo 经既有 Docker 身份网络。返回的 issuer、端点来源必须与公开可信配置一致；保留 Spring OIDC 签名、issuer、audience、时效、nonce、PKCE 和 UserInfo subject 校验。连接/响应限制为 2/8 秒，不跟随重定向或自动重试授权码。登录卡片增加身份站预连接提示。
+- 本机 `bash ./mvnw -B clean verify` 79 项通过，使用真实 PostgreSQL/Redis；新增 7 项内部连接测试，包括合成完整 OIDC 登录、生产自动装配、错误签名/声明/nonce/subject、元数据漂移、重定向、超时与地址约束。`pnpm build`、Compose 主文件加身份覆盖文件检查与 `bash -n deploy.sh` 通过。生产构建上的 `loading-cache.spec.ts` 8 项全部通过；开发 StrictMode 曾触发既有首页会话计数断言（2 次而非 1 次），生产构建复验及 CI 均通过，未为测试放宽会话断言。
+- `b1c5e28` 的 [七项 CI 全通过](https://github.com/xju-arlab/xju-lab/actions/runs/37736015629)。huawei2 已部署同一代码；沿用前次已验证的 Java/Nginx 运行镜像，传输经过 SHA-256 校验的本机产物，仅重建 Lab app/web。运行 JAR SHA-256 为 `4350254590e8d9b20451b46efcd197d69cebe98ee7f0647538097ea7c08f2bee`；没有修改身份服务、其他项目或数据库结构。
+- 生产开启 `LAB_OIDC_LOCAL_BACKCHANNEL=true`，app 同时连接 `xju-lab_private` 和现有 `icthub-auth_default`，公开 issuer 不变。容器内三次 discovery 为 265/245/242 毫秒，JWKS 为 234/236/236 毫秒；新建隔离会话的无效合成授权码 callback 在 50 毫秒内安全返回错误提示（该负向探针不代表真实账号登录成功）。ready、dashboard、红蜻蜓页面为 200，匿名红蜻蜓 API 为 401，app 重启数为 0。
+- 公网 Chromium 经本机代理实际打开登录卡片和 Authentik 用户名表单；卡片 1.96 秒、点击至表单 5.73 秒。修复前同路径单次为 4.64 秒，公网波动下尚无证据声称登录页首开显著加速；已解决的主要链路是后台绕公网及无界等待。未输入真实密码；真实用户须从 `/app/dashboard` 重新发起登录确认，不复用已失败的回调 URL。身份站静态资源与公网链路的进一步优化仍属外部待验证项。
+- 本机证据：`/tmp/xju-lab-oidc-{verify,targeted,frontend,browser-production,deploy,public-browser,ci-browser}.log`、`backend/target/surefire-reports/`。生产配置备份为 `/home/winbeau/.local/state/xju-lab/backups/env-before-oidc-20261008T061049Z`（600）；回退镜像 `xju-lab-app:before-oidc-speed`、`xju-lab-web:before-oidc-speed` 已保留。后续部署须保留内部连接覆盖文件，详见 `operations.md`。
+
 ## 2026-10-08：红蜻蜓管理员页面接入（北京时间）
 
 - 按用户最终指示新增独立 `/app/hongqingting`，侧栏顺序为「红蜻蜓 → 公开主页 → 成员管理」；红蜻蜓只对管理员显示，普通用户直接访问页面/API 也被拒绝。保留已有视觉、统一 ComboBox 和 OIDC 邮箱/实名准入，移除 sk-key 输入与 vault/隧道依赖。

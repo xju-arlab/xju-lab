@@ -2,6 +2,8 @@
 
 [根 README](../README.md) · [代理指南](../AGENTS.md) · [完整开发计划](plan/06-backend-completion.md) · [实际进度](progress.md)
 
+> 2026-10-08 登录修复（北京时间）：huawei2 已部署 `e6355fa`，本机 80 项后端检查通过，**用户已确认真实登录后直接进入控制台**。先将后台 Authentik 请求改为内部连接，消除公网超时；随后修复 Java 默认 h2c 升级导致的令牌 POST 文本 400 与 `login_expired` 回环，内部传输固定 HTTP/1.1，保留公开 HTTPS issuer、PKCE 与完整校验。生产 `.env` 的 `LAB_OIDC_LOCAL_BACKCHANNEL=true` 必须保留，手工 Compose 更新须带 `deploy/compose.oidc-local.yaml`。内部 discovery/JWKS 约 0.24 秒；成功回调直达 `/app/dashboard`，首次成员仍需实名登记。公网身份表单冷启动首开仍约 5.7 秒，不宣称已解决身份站全部加载延迟。CI 注册测试的导航等待竞态已单独修正；配置、回退及验证证据见 `operations.md` / `progress.md`，不能复用旧回调授权码。
+
 > 2026-10-08 增量（北京时间）：已在 huawei2 部署红蜻蜓功能 `f542f31`，独立入口 `/app/hongqingting`；管理员侧栏顺序为「红蜻蜓 → 公开主页 → 成员管理」，普通用户不可见且后端拒绝访问。使用既有 OIDC 会话，移除 sk-key；V12 保存批次/outbox，未知结果不自动重发。七项 CI 全通过（72 后端 / 28 浏览器）。上游配置已迁入服务器受限 `.env`，不要重置；未执行真实跑步上传。公网 dashboard 曾间歇超时，源站正常；本次启动也遇到 OIDC discovery 超时，重启一次后恢复，当前页面/ready 正常。部署、回退镜像和备份证据见 `progress.md` 最新条目，协议见 `integrations/hongqingting/README.md`。
 
 > 2026-10-01。已部署 huawei2，公网 [lab.icthub.top](https://lab.icthub.top) 与 [成员入口](https://lab.icthub.top/app/dashboard) 实测可访问。代码 `9d3b9e1` 的 [七项 CI 全部通过](https://github.com/xju-arlab/xju-lab/actions/runs/36819303517)；服务器实时查询默认关闭，开启才查询，后台不再定时连接 SSH。生产 `.env` 已安全配置（600、Git 忽略）；独立 Authentik 客户端、数据库 V11/31 工位、Redis、SMTP SSL 认证与 HTTPS/PKCE 登录跳转已验证。仅保留打印机状态，已绑定惠普只读接口并验证持续同步。用户指定现有 `winbeau` 的确切 issuer/subject 作为首位超级管理员，仅该确切身份可一次性引导管理员角色；2026-10-01 已澄清普通成员允许任意已验证邮箱，已有 OJ 统一账号直接复用。请假邮件实际收件已获用户确认；真实完整登录、OJ、设备与完整灾备仍待联调。huawei2 更新命令：`cd /home/winbeau/projects/xju-lab && ./deploy.sh`，代理上游 `http://127.0.0.1:18080`。

@@ -154,9 +154,18 @@ for (const width of [375, 768, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
     await register.focus()
     await page.keyboard.press('Enter')
-    await expect(page.getByText('正在前往注册…')).toBeVisible()
-    await expect(page.getByRole('link', { name: /^统一身份登录/ })).toHaveAttribute('aria-disabled', 'true')
-    finishNavigation()
+    try {
+      // Locator action prechecks can wait for this deliberately paused navigation.
+      // Read the still-active document together, then release the response gate.
+      await expect.poll(() => page.evaluate(() => {
+        const status = document.querySelector('.api-auth-registration [role="status"]')
+        return {
+          redirecting: status?.textContent,
+          redirectingVisible: status?.checkVisibility(),
+          loginDisabled: document.querySelector('.api-login-button')?.getAttribute('aria-disabled'),
+        }
+      })).toEqual({ redirecting: '正在前往注册…', redirectingVisible: true, loginDisabled: 'true' })
+    } finally { finishNavigation() }
     await expect(page.getByRole('heading', { name: '注册算法与科研实验室' })).toBeVisible()
     expect(destination?.searchParams.get('next')).toBe('/application/launch/xju-lab/')
     expect(oidcRequests).toBe(0)
