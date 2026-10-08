@@ -98,7 +98,11 @@ if [[ "$(env_value SMTP_AUTH | tr '[:upper:]' '[:lower:]')" =~ ^(true|1|yes)$ ]]
   done
 fi
 
-compose=(docker compose --env-file .env -f deploy/compose.yaml --profile app)
+compose=(docker compose --env-file .env -f deploy/compose.yaml)
+if [[ "$(env_value LAB_OIDC_LOCAL_BACKCHANNEL)" == "true" ]]; then
+  compose+=(-f deploy/compose.oidc-local.yaml)
+fi
+compose+=(--profile app)
 "${compose[@]}" config --quiet
 echo "Building and starting XJU Lab..."
 "${compose[@]}" up -d --build app web

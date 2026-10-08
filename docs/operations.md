@@ -56,6 +56,21 @@ cd /home/winbeau/projects/xju-lab && ./deploy.sh
 
 脚本只允许 `main` 分支，快进拉取 `origin/main`；若脚本自身更新则重新执行新版。拒绝开发占位值，校验 Compose 后构建并启动 API/Web，最后直接探测本机 Web、health 和 ready（回环请求不经过代理）。公开资料未发布时 lab-profile 返回 404，不作为部署故障。发布路由的本地上游填 `http://127.0.0.1:18080`，外部站点是 `https://lab.icthub.top`。路由应转发原始 Host 与 `X-Forwarded-Proto: https`，并确保该域名规则优先于更宽泛的规则。
 
+### 同机 OIDC 内部连接
+
+Lab 与现有 Authentik 同在 huawei2 时，在受限 `.env` 中设置 `LAB_OIDC_LOCAL_BACKCHANNEL=true`，保留 `OIDC_DOCKER_NETWORK=icthub-auth_default`。`deploy.sh` 自动追加 `deploy/compose.oidc-local.yaml`，仅将 Lab app 加入现有身份网络，以 `http://icthub-auth-server-1:9000` 完成 discovery、令牌交换、JWKS 和 UserInfo 请求。该模式不适用于身份服务位于另一台机器的部署，默认关闭。
+
+公开 issuer 仍为 `https://auth.icthub.top/application/o/xju-lab/`，浏览器仍在原域名登录；不能把 `OIDC_ISSUER_URI` 改成内部地址。内部请求携带公开 `X-Forwarded-Host` 与 `X-Forwarded-Proto`，返回的 issuer 和端点必须匹配可信公开来源。PKCE、nonce、签名、issuer、audience、时间与 UserInfo subject 校验继续执行。连接超时 2 秒、单次响应超时 8 秒，不跟随重定向或重试授权码。
+
+手动执行 Compose 检查或更新时也必须包含覆盖文件：
+
+```bash
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.oidc-local.yaml --profile app config --quiet
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.oidc-local.yaml --profile app up -d --build app web
+```
+
+排障先核对 app 是否连接身份网络、内部 discovery/JWKS 是否及时响应，以及返回的 issuer 是否仍为公开 HTTPS 地址；只记录路径、状态和耗时，不能保存登录回调中的 code/state、Cookie 或令牌。关闭该模式时将开关设为 false，再使用仅含主 Compose 文件的部署命令重建 app/web；角色、数据库和公开身份配置不变。恢复公网连接也会恢复其对公网稳定性的依赖。
+
 ## 惠普状态接口绑定
 
 生产 `.env` 设置 `HP_PRINTER_STATUS_ENABLED=true`，再运行 `./deploy.sh`。服务只读访问固定地址 `https://hp.icthub.top/v1/status`；默认关闭，CI/本地不会请求真实打印机。无需安装或签发这台设备的 Agent 凭据，也不接受用户输入任意 URL。

@@ -1,0 +1,12 @@
+# Opt in only when Lab and Authentik share this Docker host.
+# Public issuer/browser URLs stay HTTPS; only server-to-server OIDC uses this network.
+services:
+  app:
+    environment:
+      OIDC_BACKCHANNEL_ENABLED: "true"
+      OIDC_BACKCHANNEL_BASE_URL: http://icthub-auth-server-1:9000
+    networks: [private, identity]
+networks:
+  identity:
+    external: true
+    name: ${OIDC_DOCKER_NETWORK:-icthub-auth_default}

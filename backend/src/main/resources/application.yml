@@ -59,6 +59,9 @@ management:
     mail:
       enabled: false
 lab:
+  oidc:
+    backchannel-enabled: ${OIDC_BACKCHANNEL_ENABLED:false}
+    backchannel-base-url: ${OIDC_BACKCHANNEL_BASE_URL:}
   hongqingting:
     summary-url: ${HONGQINGTING_SUMMARY_URL:}
     upload-url: ${HONGQINGTING_UPLOAD_URL:}

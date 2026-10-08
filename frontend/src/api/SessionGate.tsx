@@ -31,6 +31,12 @@ export function plainClick(event: MouseEvent<HTMLAnchorElement>) {
 function LoginCard({ checking, error, retry }: { checking: boolean; error: string; retry?: () => void }) {
   const [redirecting, setRedirecting] = useState<'login' | 'registration' | null>(null)
   useEffect(() => {
+    const hint = document.createElement('link')
+    hint.rel = 'preconnect'; hint.href = 'https://auth.icthub.top'
+    document.head.append(hint)
+    return () => hint.remove()
+  }, [])
+  useEffect(() => {
     const reset = () => setRedirecting(null)
     window.addEventListener('pageshow', reset)
     return () => window.removeEventListener('pageshow', reset)
