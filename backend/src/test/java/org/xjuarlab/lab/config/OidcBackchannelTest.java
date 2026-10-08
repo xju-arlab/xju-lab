@@ -38,7 +38,7 @@ class OidcBackchannelTest {
     final List<String> calls = new CopyOnWriteArrayList<>();
     final List<String> forwardedHosts = new CopyOnWriteArrayList<>();
     volatile String tokenIssuer = ISSUER, audience = "client", nonce, userInfoSubject = "subject";
-    volatile boolean redirectToken, wrongSignature;
+    volatile boolean redirectToken, wrongSignature, rejectTokenUpgrade;
     volatile long discoveryDelay;
     volatile String tokenBody, authorizationHeader;
     volatile Instant expires = Instant.now().plusSeconds(300);
@@ -66,6 +66,13 @@ class OidcBackchannelTest {
             } else if (path.endsWith("/token/")) {
                 tokenBody = new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8);
                 authorizationHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                if (rejectTokenUpgrade && exchange.getRequestHeaders().getFirst("Upgrade") != null) {
+                    // Same-host Authentik rejects the h2c upgrade on the token POST with plain text.
+                    byte[] failure = "Invalid HTTP request received.".getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().set("Content-Type","text/plain;charset=utf-8");
+                    exchange.sendResponseHeaders(400,failure.length);
+                    exchange.getResponseBody().write(failure); return;
+                }
                 if (redirectToken) {
                     exchange.getResponseHeaders().add("Location",internal+"/must-not-receive-credentials");
                     exchange.sendResponseHeaders(302,-1); exchange.close(); return;
@@ -132,6 +139,12 @@ class OidcBackchannelTest {
                     .getProviderDetails().getIssuerUri()).isEqualTo(ISSUER);
                 assertThat(calls).containsExactly("/application/o/lab/.well-known/openid-configuration");
             });
+    }
+    @Test void completesLoginWhenIdentityServiceRejectsCleartextHttp2Upgrade() {
+        rejectTokenUpgrade = true;
+        var login = login();
+        assertThat(login.provider().authenticate(login.request()).isAuthenticated()).isTrue();
+        assertThat(calls).contains("/application/o/token/","/application/o/lab/jwks/","/application/o/userinfo/");
     }
     @Test void rejectsWrongIssuerAudienceExpirySignatureNonceAndUserInfoSubject() {
         for (String failure : List.of("issuer","audience","expiry","signature","nonce","subject")) {

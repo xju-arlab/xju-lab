@@ -54,6 +54,8 @@ public class OidcBackchannelConfiguration {
                 || !(this.internalOrigin.getPath().isEmpty() || this.internalOrigin.getPath().equals("/")))
             throw new IllegalArgumentException("OIDC backchannel must be a trusted service origin");
         var http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2))
+            // Authentik's HTTP backchannel rejects h2c upgrades on token POSTs.
+            .version(HttpClient.Version.HTTP_1_1)
             .followRedirects(HttpClient.Redirect.NEVER).build();
         var factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(timeout);

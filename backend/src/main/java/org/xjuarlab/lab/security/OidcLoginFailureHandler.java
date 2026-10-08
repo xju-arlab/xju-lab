@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
 import org.xjuarlab.lab.api.RequestIdFilter;
@@ -24,6 +25,13 @@ public class OidcLoginFailureHandler implements AuthenticationFailureHandler {
 
     @Override public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException exception) throws IOException {
+        // Log protocol categories only, never messages, authorization codes, tokens or personal claims.
+        String error = exception instanceof OAuth2AuthenticationException oauth ? oauth.getError().getErrorCode() : "authentication_failed";
+        if (error == null || !error.matches("[a-z_]{1,64}")) error = "authentication_failed";
+        Throwable cause = exception;
+        for (int depth = 0; depth < 8 && cause.getCause() != null; depth++) cause = cause.getCause();
+        log.warn("OIDC protocol failure error={} cause={} requestId={}", error,
+            cause.getClass().getSimpleName(), request.getAttribute(RequestIdFilter.ATTRIBUTE));
         reject(request, response, Reason.LOGIN_EXPIRED);
     }
 
